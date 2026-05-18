@@ -1,0 +1,158 @@
+# Recreating Hubbub on Replit
+
+Two ways to use this: paste **Part 1** into the Replit AI Agent to scaffold,
+then follow **Part 2** to wire it up. Parts 3–5 are the spec the agent (or you)
+should build to.
+
+---
+
+## Part 1 — Prompt for the Replit AI Agent
+
+> Build a self-hosted team command-center web app called **Hubbub** with a
+> retro green-phosphor terminal aesthetic (CRT scanlines, monospace,
+> command-palette navigation).
+>
+> **Stack:** Next.js (App Router, TypeScript), Prisma ORM on PostgreSQL,
+> Tailwind CSS v4, custom cookie-session auth (argon2 password hashing via
+> `@node-rs/argon2`), `react-markdown` + `remark-gfm` for docs. No NextAuth, no
+> external auth provider.
+>
+> **Core features:** first-run admin setup; admin-managed user accounts
+> (roles admin/member); projects with members; scopes (statement-of-work +
+> budget) and milestones; items (todo/bug/request/decision) with status,
+> priority, assignee, estimate, due date, comments; per-project realtime chat
+> (Server-Sent Events + Postgres LISTEN/NOTIFY) with slash commands and
+> @mentions; GitHub commit polling that links commits to items by `#number`;
+> time logging + per-member rates + non-labor costs + scope burn-down;
+> presence ("working on"); auto-generated standups; decision log; Kanban
+> board (drag to change status); per-project activity feed; per-project
+> markdown docs/wiki; Postgres full-text search across items and docs.
+>
+> Use server actions for mutations. Keep all money as integer cents. Define
+> the whole Prisma schema up front. Build the data model in Part 3 below and
+> the screens in Part 4.
+
+(Then paste Parts 3 and 4 into the Agent as the detailed spec.)
+
+---
+
+## Part 2 — Replit project setup
+
+1. **Create a Repl:** "Next.js" TypeScript template (or Node.js + add Next).
+2. **Database:** open the Replit **Database** tool → create a Postgres DB. It
+   exposes a `DATABASE_URL` automatically. (Or point at the existing external
+   Postgres instead.)
+3. **Secrets** (Replit "Secrets" tab — do *not* commit a `.env`):
+   - `DATABASE_URL` — from the Replit DB (or external).
+   - `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_USER`, `POSTGRES_PASSWORD`,
+     `POSTGRES_DB` — discrete parts (needed by the chat LISTEN/NOTIFY client;
+     see Part 5).
+   - `ENCRYPTION_KEY` — 32-byte hex
+     (`node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`).
+   - `GITHUB_TOKEN` — a GitHub PAT with repo read (for commit polling).
+   - `COOKIE_SECURE=true` (Replit serves HTTPS, so keep secure cookies on).
+   - `NODE_ENV=production` for the deployed run.
+4. **Run command:** `npm run db:push && npm run build && npm run start`
+   - Dev: `next dev -H 0.0.0.0 -p 3000` (Replit needs `0.0.0.0`).
+5. **Port:** expose **3000** (Replit maps the webview to it). Bind the server
+   to `0.0.0.0`.
+6. **Worker (optional):** the GitHub poller is a second process
+   (`npm run worker:start`). On Replit run it from the Shell during a test, or
+   skip it — chat/app work without it.
+7. First load → `/setup` creates the initial admin. Admins create teammate
+   accounts in **/admin/users** (there is no open signup).
+
+---
+
+## Part 3 — Data model (Prisma)
+
+Postgres + Prisma. Models (all ids `cuid()`, timestamps on each):
+
+- **User**: email, username (both unique), displayName, passwordHash, role
+  (ADMIN|MEMBER), avatarUrl?, hourlyRateCents?, active.
+- **Session**: userId, hashedToken (SHA-256 of cookie token) unique,
+  expiresAt, ip?, userAgent?.
+- **AppSetting**: key/value (first-run gate).
+- **GitHubToken**: per-user encrypted PAT (optional; app also supports one
+  shared `GITHUB_TOKEN`).
+- **Project**: name, slug unique, description?, githubRepo? ("owner/name"),
+  archived, createdById.
+- **ProjectMember**: projectId+userId unique, role (OWNER|MEMBER).
+- **Scope**: projectId, name, slug, sow?, budgetCents?, status
+  (PLANNED|ACTIVE|ON_HOLD|COMPLETE), startDate?, targetDate?, order.
+- **Milestone**: scopeId, name, description?, targetDate?, status, order.
+- **Item**: projectId, scopeId?, milestoneId?, per-project sequential
+  `number`, type (TODO|BUG|REQUEST|DECISION), title, description?, status
+  (OPEN|IN_PROGRESS|BLOCKED|DONE|CANCELLED), priority (LOW..URGENT),
+  assigneeId?, createdById, estimateMinutes?, dueDate?, decisionRationale?,
+  decisionSuperseded, closedAt?. Unique [projectId, number].
+- **Comment**: itemId, authorId, body.
+- **Commit**: projectId, sha, authorGithub?, authorName?, message, url,
+  committedAt. Unique [projectId, sha]. **ItemCommit**: itemId+commitId.
+- **Message**: projectId, authorId, body (chat).
+- **TimeEntry**: projectId, itemId?, userId, minutes, billable, note?,
+  spentOn (date).
+- **CostEntry**: projectId, scopeId?, category
+  (LABOR|HOSTING|SAAS|CONTRACTOR|AI|OTHER), vendor?, description?,
+  amountCents, currency, recurring, incurredOn, createdById.
+- **Presence**: userId @id, itemId?, note?, updatedAt.
+- **StandupCache**: userId+forDate unique, content, generatedAt.
+- **ActivityEvent**: projectId, actorId?, type (enum: ITEM_CREATED,
+  ITEM_STATUS_CHANGED, ITEM_ASSIGNED, COMMENT_ADDED, COMMIT_LINKED,
+  MESSAGE_POSTED, COST_ADDED, DECISION_LOGGED), payload Json.
+- **Doc**: projectId, title, slug, body (markdown), pinned, createdById,
+  updatedById?. Unique [projectId, slug].
+
+Roll-ups: time × member rate + cost entries → milestone/scope/project
+burn-down vs scope `budgetCents`.
+
+---
+
+## Part 4 — Screens / behavior
+
+- **/setup** (first run) → **/login** → terminal **Shell**: boot sequence,
+  command palette (`:` / Ctrl+K), chords `g d` / `g p` / `/`, top nav, theme
+  toggle (green/amber), CRT styling.
+- **Dashboard:** counts, "team working on" presence, due/overdue, recent
+  cross-project activity, your projects.
+- **Projects:** list/create; detail = members, scopes (+SOW/budget) &
+  milestones, items list (filter by type/status, due dates), commit feed,
+  decision log, budget burn-down, cost entries; project settings
+  (edit/archive/delete, owner/admin).
+- **Item detail:** edit all fields + delete; status/priority/assignee inline;
+  comments (edit/delete by author/admin); time logging (parse `1h30m`/`90`/
+  `1:30`); estimate vs actual; "working on this"; linked commits.
+- **/projects/[slug]/board** Kanban (drag to change status).
+- **/projects/[slug]/activity** event feed.
+- **/projects/[slug]/chat** + a collapsible chat rail on project pages:
+  SSE stream, teletype render of incoming messages, slash commands
+  (`/todo`,`/bug`,`/close #N`,`/assign #N @user`), @mentions, #N links.
+- **/projects/[slug]/docs** + `/docs/[doc]`: markdown wiki, pin, edit/delete.
+- **/standup**: generate yesterday/today/blockers, cached, copy button.
+- **/admin/users** (admin): create/enable/disable users, set hourly rate.
+- **/search**: Postgres full-text over items + docs.
+
+---
+
+## Part 5 — Replit-specific gotchas (don't rediscover these)
+
+- **Bind `0.0.0.0`** and use Replit's port (3000); `localhost` won't be
+  reachable in the webview.
+- **Raw `pg` (chat LISTEN/NOTIFY)**: build the client from the discrete
+  `POSTGRES_*` secrets with `ssl` set appropriately for the DB. Do **not**
+  pass a `sslmode=prefer` `DATABASE_URL` to `new pg.Client()` — `pg` treats it
+  as require-SSL. (Replit's own Postgres needs SSL; an external no-SSL box
+  needs `ssl:false`.)
+- **`pg_notify` via Prisma**: use `db.$executeRaw`, not `db.$queryRaw`
+  (`pg_notify` returns `void`; `$queryRaw` fails to deserialize it).
+- **Cookies:** Replit is HTTPS, so `COOKIE_SECURE=true`. (Only set false for a
+  plain-HTTP host.)
+- **Server Actions origin:** access the app only via the Replit URL so the
+  Origin/Host match.
+- **Migrations:** `prisma db push` is fine for this app (one schema, no
+  migration history needed).
+- **Worker + SSE** need a long-running process — fine on a running Repl;
+  if you use Replit's serverless Deployments, run the poller elsewhere or
+  trigger it on a schedule.
+- **No open signup** — first visit must hit `/setup`; everyone else is
+  created by an admin in `/admin/users`.
