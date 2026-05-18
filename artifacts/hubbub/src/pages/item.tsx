@@ -3,6 +3,7 @@ import { useParams, Link } from "wouter";
 import {
   useGetItem, useUpdateItem, useCreateComment, useCreateTimeEntry,
 } from "@workspace/api-client-react";
+import type { ItemUpdateStatus } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { getGetItemQueryKey } from "@workspace/api-client-react";
 import { Layout } from "../components/layout";
@@ -16,7 +17,8 @@ import { ArrowLeft, Clock, Bug, CheckSquare, Lightbulb, MessageSquare as ReqIcon
 import ReactMarkdown from "react-markdown";
 
 const STATUS_LABELS: Record<string, string> = {
-  open: "OPEN", in_progress: "IN PROGRESS", blocked: "BLOCKED", done: "DONE", cancelled: "CANCELLED",
+  open: "OPEN", in_progress: "IN PROGRESS", blocked: "BLOCKED",
+  done: "DONE", cancelled: "CANCELLED",
 };
 const STATUS_COLORS: Record<string, string> = {
   open: "text-foreground border-border",
@@ -26,8 +28,46 @@ const STATUS_COLORS: Record<string, string> = {
   cancelled: "text-muted-foreground border-muted",
 };
 const PRIORITY_COLORS: Record<string, string> = {
-  low: "text-muted-foreground", medium: "text-foreground", high: "text-accent", urgent: "text-destructive",
+  low: "text-muted-foreground", medium: "text-foreground",
+  high: "text-accent", urgent: "text-destructive",
 };
+
+/**
+ * Parse a time string into minutes. Supports:
+ *   - "90"          → 90 min
+ *   - "1h30m"       → 90 min
+ *   - "1h"          → 60 min
+ *   - "30m"         → 30 min
+ *   - "1:30"        → 90 min
+ *   - "1.5"         → 90 min (treated as hours)
+ * Returns 0 if the input is unparseable.
+ */
+function parseTimeToMinutes(raw: string): number {
+  const s = raw.trim().toLowerCase();
+  if (!s) return 0;
+
+  // "1h30m" or "1h" or "30m"
+  const hm = s.match(/^(?:(\d+(?:\.\d+)?)h)?(?:(\d+(?:\.\d+)?)m)?$/);
+  if (hm && (hm[1] || hm[2])) {
+    const h = parseFloat(hm[1] ?? "0");
+    const m = parseFloat(hm[2] ?? "0");
+    return Math.round(h * 60 + m);
+  }
+
+  // "1:30"
+  const colon = s.match(/^(\d+):(\d{1,2})$/);
+  if (colon) {
+    return parseInt(colon[1], 10) * 60 + parseInt(colon[2], 10);
+  }
+
+  // plain number — treat as minutes if integer, hours if decimal
+  const n = parseFloat(s);
+  if (!isNaN(n)) {
+    return Number.isInteger(n) ? n : Math.round(n * 60);
+  }
+
+  return 0;
+}
 
 export default function ItemPage() {
   const { slug, number } = useParams<{ slug: string; number: string }>();
@@ -41,7 +81,7 @@ export default function ItemPage() {
   const [comment, setComment] = useState("");
   const [editDesc, setEditDesc] = useState(false);
   const [desc, setDesc] = useState("");
-  const [logMinutes, setLogMinutes] = useState("");
+  const [logTime, setLogTime] = useState("");
   const [logNote, setLogNote] = useState("");
 
   if (isLoading) {
@@ -60,10 +100,16 @@ export default function ItemPage() {
     );
   }
 
-  const TypeIcon = { bug: Bug, todo: CheckSquare, decision: Lightbulb, request: ReqIcon }[item.type] ?? CheckSquare;
+  const TypeIcon =
+    { bug: Bug, todo: CheckSquare, decision: Lightbulb, request: ReqIcon }[item.type] ??
+    CheckSquare;
 
   const handleStatusChange = async (status: string) => {
-    await updateItem.mutateAsync({ slug, itemNumber: item.number, data: { status } as any });
+    await updateItem.mutateAsync({
+      slug,
+      itemNumber: item.number,
+      data: { status: status as ItemUpdateStatus },
+    });
     qc.invalidateQueries({ queryKey: getGetItemQueryKey({ slug, itemNumber: item.number }) });
   };
 
@@ -73,25 +119,43 @@ export default function ItemPage() {
       await createComment.mutateAsync({ slug, itemNumber: item.number, data: { body: comment } });
       qc.invalidateQueries({ queryKey: getGetItemQueryKey({ slug, itemNumber: item.number }) });
       setComment("");
-    } catch { toast({ title: "Failed to post comment", variant: "destructive" }); }
+    } catch {
+      toast({ title: "Failed to post comment", variant: "destructive" });
+    }
   };
 
   const handleLogTime = async () => {
-    if (!logMinutes || Number(logMinutes) <= 0) return;
+    const minutes = parseTimeToMinutes(logTime);
+    if (!minutes || minutes <= 0) {
+      toast({ title: "Enter a valid time (e.g. 1h30m, 1:30, or 90)", variant: "destructive" });
+      return;
+    }
     try {
       await createTimeEntry.mutateAsync({
         slug,
         itemNumber: item.number,
-        data: { minutes: Number(logMinutes), spentOn: new Date().toISOString().split("T")[0], note: logNote || null, billable: true },
+        data: {
+          minutes,
+          spentOn: new Date().toISOString().split("T")[0],
+          note: logNote || null,
+          billable: true,
+        },
       });
       qc.invalidateQueries({ queryKey: getGetItemQueryKey({ slug, itemNumber: item.number }) });
-      setLogMinutes(""); setLogNote("");
-      toast({ title: "Time logged" });
-    } catch { toast({ title: "Failed to log time", variant: "destructive" }); }
+      setLogTime("");
+      setLogNote("");
+      toast({ title: `Logged ${minutes}m` });
+    } catch {
+      toast({ title: "Failed to log time", variant: "destructive" });
+    }
   };
 
   const handleSaveDesc = async () => {
-    await updateItem.mutateAsync({ slug, itemNumber: item.number, data: { description: desc } as any });
+    await updateItem.mutateAsync({
+      slug,
+      itemNumber: item.number,
+      data: { description: desc },
+    });
     qc.invalidateQueries({ queryKey: getGetItemQueryKey({ slug, itemNumber: item.number }) });
     setEditDesc(false);
   };
@@ -117,172 +181,176 @@ export default function ItemPage() {
               <div className="flex flex-wrap items-center gap-3 mt-1 text-xs font-mono text-muted-foreground">
                 <span className="text-primary">{item.type}</span>
                 <span>priority: <span className={PRIORITY_COLORS[item.priority]}>{item.priority}</span></span>
-                {item.assignee && <span>assigned: <span className="text-accent">{item.assignee.displayName}</span></span>}
-                {item.totalMinutesLogged != null && item.totalMinutesLogged > 0 && (
-                  <span className="flex items-center gap-1">
-                    <Clock className="h-3 w-3" />
-                    {Math.floor(item.totalMinutesLogged / 60)}h {item.totalMinutesLogged % 60}m logged
-                  </span>
+                {item.assignee && (
+                  <span>assigned: <span className="text-accent">{(item.assignee as { displayName?: string }).displayName}</span></span>
                 )}
+                {item.dueDate && <span>due: {item.dueDate}</span>}
               </div>
             </div>
           </div>
 
           {/* Status picker */}
-          <div className="flex flex-wrap gap-2">
-            {["open", "in_progress", "blocked", "done", "cancelled"].map((s) => (
-              <button
-                key={s}
-                onClick={() => handleStatusChange(s)}
-                className={cn(
-                  "text-xs font-mono border px-2 py-0.5 transition-colors",
-                  item.status === s
-                    ? STATUS_COLORS[s] + " font-bold"
-                    : "border-border text-muted-foreground hover:border-primary/50 hover:text-foreground",
-                )}
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-mono text-muted-foreground">STATUS:</span>
+            <Select value={item.status} onValueChange={(v) => void handleStatusChange(v)}>
+              <SelectTrigger
+                className={cn("h-7 w-36 border font-mono text-xs rounded-none", STATUS_COLORS[item.status])}
               >
-                {item.status === s ? "● " : "○ "}{STATUS_LABELS[s]}
-              </button>
-            ))}
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="bg-card border-border font-mono text-xs">
+                {Object.entries(STATUS_LABELS).map(([v, label]) => (
+                  <SelectItem key={v} value={v} className="font-mono text-xs">{label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {item.totalMinutesLogged != null && item.totalMinutesLogged > 0 && (
+              <span className="text-xs font-mono text-muted-foreground ml-auto">
+                <Clock className="h-3 w-3 inline mr-1" />
+                {Math.floor(item.totalMinutesLogged / 60)}h {item.totalMinutesLogged % 60}m logged
+              </span>
+            )}
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {/* Left: description + comments */}
-          <div className="md:col-span-2 space-y-4">
-            {/* Description */}
-            <div className="border border-border bg-card p-4 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-mono tracking-widest text-muted-foreground">// DESCRIPTION</span>
-                <button
-                  onClick={() => { setEditDesc(!editDesc); setDesc(item.description ?? ""); }}
-                  className="text-xs font-mono text-muted-foreground hover:text-primary"
-                >
-                  {editDesc ? "cancel" : "edit"}
-                </button>
-              </div>
-              {editDesc ? (
-                <div className="space-y-2">
-                  <Textarea
-                    value={desc}
-                    onChange={(e) => setDesc(e.target.value)}
-                    className="bg-background border-border font-mono text-sm resize-none min-h-24"
-                    placeholder="describe this item in markdown..."
-                  />
-                  <Button size="sm" onClick={handleSaveDesc} className="bg-primary text-primary-foreground font-mono text-xs">
-                    SAVE
-                  </Button>
-                </div>
-              ) : item.description ? (
-                <div className="prose prose-sm prose-invert font-mono max-w-none text-foreground [&_code]:bg-muted [&_code]:px-1 [&_a]:text-primary">
-                  <ReactMarkdown>{item.description}</ReactMarkdown>
-                </div>
-              ) : (
-                <p className="text-muted-foreground font-mono text-sm">no description</p>
-              )}
-            </div>
-
-            {/* Decision rationale */}
-            {item.type === "decision" && item.decisionRationale && (
-              <div className="border border-accent/50 bg-card p-4 space-y-2">
-                <span className="text-xs font-mono tracking-widest text-accent">// RATIONALE</span>
-                <p className="text-sm font-mono text-foreground">{item.decisionRationale}</p>
-              </div>
+        {/* Description */}
+        <div className="border border-border bg-card p-4 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-mono text-muted-foreground tracking-widest">// DESCRIPTION</span>
+            {!editDesc && (
+              <button
+                onClick={() => { setDesc(item.description ?? ""); setEditDesc(true); }}
+                className="text-xs font-mono text-muted-foreground hover:text-primary transition-colors"
+              >
+                [edit]
+              </button>
             )}
-
-            {/* Comments */}
-            <div className="border border-border bg-card">
-              <div className="border-b border-border px-4 py-2">
-                <span className="text-xs font-mono tracking-widest text-muted-foreground">
-                  // COMMENTS ({(item.comments ?? []).length})
-                </span>
-              </div>
-              <div className="divide-y divide-border">
-                {(item.comments ?? []).map((c: any) => (
-                  <div key={c.id} className="px-4 py-3 space-y-1">
-                    <div className="flex items-center gap-2 text-xs font-mono">
-                      <span className="text-accent">{c.author?.displayName ?? "USER"}</span>
-                      <span className="text-muted-foreground">{new Date(c.createdAt).toLocaleDateString()}</span>
-                    </div>
-                    <p className="text-sm font-mono text-foreground">{c.body}</p>
-                  </div>
-                ))}
-              </div>
-              <div className="border-t border-border p-3 flex gap-2">
-                <span className="text-primary font-mono text-sm shrink-0">$</span>
-                <input
-                  value={comment}
-                  onChange={(e) => setComment(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handlePostComment()}
-                  className="flex-1 bg-transparent font-mono text-sm text-foreground outline-none placeholder:text-muted-foreground"
-                  placeholder="add a comment..."
-                />
-                <button onClick={handlePostComment} disabled={!comment.trim()} className="text-primary hover:text-primary/80 disabled:text-muted-foreground">
-                  <Send className="h-4 w-4" />
-                </button>
+          </div>
+          {editDesc ? (
+            <div className="space-y-2">
+              <Textarea
+                value={desc}
+                onChange={(e) => setDesc(e.target.value)}
+                className="bg-background border-border font-mono text-sm resize-none"
+                rows={5}
+                placeholder="Markdown supported..."
+              />
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  onClick={() => void handleSaveDesc()}
+                  disabled={updateItem.isPending}
+                  className="bg-primary text-primary-foreground font-mono text-xs"
+                >
+                  SAVE
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setEditDesc(false)}
+                  className="border border-border font-mono text-xs"
+                >
+                  CANCEL
+                </Button>
               </div>
             </div>
-          </div>
+          ) : item.description ? (
+            <div className="prose prose-sm prose-invert font-mono max-w-none text-foreground [&_code]:bg-muted [&_code]:px-1 [&_pre]:bg-muted [&_a]:text-primary">
+              <ReactMarkdown>{item.description}</ReactMarkdown>
+            </div>
+          ) : (
+            <p className="text-muted-foreground font-mono text-xs">no description</p>
+          )}
+        </div>
 
-          {/* Right: meta + time */}
-          <div className="space-y-4">
-            {/* Meta */}
-            <div className="border border-border bg-card p-4 space-y-3">
-              <span className="text-xs font-mono tracking-widest text-muted-foreground">// META</span>
-              {[
-                { label: "Created", value: new Date(item.createdAt).toLocaleDateString() },
-                { label: "Due", value: item.dueDate ?? "—" },
-                { label: "Estimate", value: item.estimateMinutes ? `${Math.floor(item.estimateMinutes / 60)}h ${item.estimateMinutes % 60}m` : "—" },
-              ].map((r) => (
-                <div key={r.label} className="flex items-center justify-between text-xs font-mono">
-                  <span className="text-muted-foreground">{r.label}</span>
-                  <span className="text-foreground">{r.value}</span>
+        {/* Log time */}
+        <div className="border border-border bg-card p-4 space-y-2">
+          <span className="text-xs font-mono text-muted-foreground tracking-widest">// LOG TIME</span>
+          <div className="flex gap-2 flex-wrap">
+            <Input
+              value={logTime}
+              onChange={(e) => setLogTime(e.target.value)}
+              className="bg-background border-border font-mono text-sm h-8 w-28"
+              placeholder="1h30m, 1:30..."
+            />
+            <Input
+              value={logNote}
+              onChange={(e) => setLogNote(e.target.value)}
+              className="bg-background border-border font-mono text-sm h-8 flex-1"
+              placeholder="optional note"
+            />
+            <Button
+              size="sm"
+              onClick={() => void handleLogTime()}
+              disabled={!logTime.trim() || createTimeEntry.isPending}
+              className="bg-primary text-primary-foreground font-mono text-xs h-8"
+            >
+              LOG
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground font-mono">
+            formats: 1h30m · 1:30 · 90 (min) · 1.5 (hrs)
+          </p>
+        </div>
+
+        {/* Comments */}
+        <div className="border border-border bg-card p-4 space-y-3">
+          <span className="text-xs font-mono text-muted-foreground tracking-widest">// COMMENTS</span>
+          {(item.comments ?? []).length === 0 ? (
+            <p className="text-muted-foreground font-mono text-xs">no comments</p>
+          ) : (
+            <div className="space-y-3">
+              {(item.comments as Array<{ id: number; body: string; authorId: string; createdAt: string }>).map((c) => (
+                <div key={c.id} className="border-l border-primary/30 pl-3 space-y-0.5">
+                  <div className="flex items-center gap-2 text-xs font-mono text-muted-foreground">
+                    <span className="text-accent">{c.authorId.slice(0, 8)}</span>
+                    <span>{new Date(c.createdAt).toLocaleString()}</span>
+                  </div>
+                  <p className="text-sm font-mono text-foreground">{c.body}</p>
                 </div>
               ))}
             </div>
-
-            {/* Log time */}
-            <div className="border border-border bg-card p-4 space-y-3">
-              <span className="text-xs font-mono tracking-widest text-muted-foreground">// LOG TIME</span>
-              <Input
-                type="number"
-                value={logMinutes}
-                onChange={(e) => setLogMinutes(e.target.value)}
-                className="bg-background border-border font-mono text-sm h-8"
-                placeholder="minutes"
-              />
-              <Input
-                value={logNote}
-                onChange={(e) => setLogNote(e.target.value)}
-                className="bg-background border-border font-mono text-sm h-8"
-                placeholder="note (optional)"
-              />
-              <Button
-                onClick={handleLogTime}
-                disabled={!logMinutes}
-                size="sm"
-                className="w-full bg-primary text-primary-foreground font-mono text-xs tracking-wider"
-              >
-                LOG TIME
-              </Button>
-            </div>
-
-            {/* Time entries */}
-            {(item.timeEntries ?? []).length > 0 && (
-              <div className="border border-border bg-card p-4 space-y-2">
-                <span className="text-xs font-mono tracking-widest text-muted-foreground">// TIME LOG</span>
-                {(item.timeEntries ?? []).map((t: any) => (
-                  <div key={t.id} className="flex items-center gap-2 text-xs font-mono text-muted-foreground">
-                    <Clock className="h-3 w-3 text-primary shrink-0" />
-                    <span>{t.minutes}min</span>
-                    <span>{t.spentOn}</span>
-                    {t.note && <span className="text-foreground truncate">{t.note}</span>}
-                  </div>
-                ))}
-              </div>
-            )}
+          )}
+          <div className="flex gap-2 pt-2">
+            <span className="text-primary font-mono text-sm self-center">$</span>
+            <Textarea
+              value={comment}
+              onChange={(e) => setComment(e.target.value)}
+              className="flex-1 bg-background border-border font-mono text-sm resize-none"
+              rows={2}
+              placeholder="add a comment..."
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && e.ctrlKey) void handlePostComment();
+              }}
+            />
+            <button
+              onClick={() => void handlePostComment()}
+              disabled={!comment.trim() || createComment.isPending}
+              className="self-end text-primary hover:text-primary/80 disabled:text-muted-foreground"
+            >
+              <Send className="h-4 w-4" />
+            </button>
           </div>
         </div>
+
+        {/* Time entries */}
+        {(item.timeEntries ?? []).length > 0 && (
+          <div className="border border-border bg-card p-4 space-y-2">
+            <span className="text-xs font-mono text-muted-foreground tracking-widest">// TIME ENTRIES</span>
+            <div className="divide-y divide-border">
+              {(item.timeEntries as Array<{ id: number; minutes: number; spentOn: string; note: string | null; userId: string }>).map((t) => (
+                <div key={t.id} className="flex items-center gap-3 py-1.5 text-xs font-mono">
+                  <Clock className="h-3 w-3 text-primary shrink-0" />
+                  <span className="text-foreground">
+                    {Math.floor(t.minutes / 60)}h {t.minutes % 60}m
+                  </span>
+                  <span className="text-muted-foreground">{t.spentOn}</span>
+                  {t.note && <span className="text-muted-foreground truncate">{t.note}</span>}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </Layout>
   );

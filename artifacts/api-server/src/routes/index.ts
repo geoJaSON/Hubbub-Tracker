@@ -1,4 +1,4 @@
-import { Router, type IRouter } from "express";
+import { Router, type IRouter, RequestHandler } from "express";
 import healthRouter from "./health";
 import usersRouter from "./users";
 import projectsRouter from "./projects";
@@ -15,24 +15,34 @@ import activityRouter from "./activity";
 import searchRouter from "./search";
 import dashboardRouter from "./dashboard";
 import docsRouter from "./docs";
+import commitsRouter from "./commits";
+import { requireAuth, requireProjectMember } from "../lib/auth";
 
 const router: IRouter = Router();
 
 router.use(healthRouter);
 router.use("/users", usersRouter);
 router.use("/projects", projectsRouter);
-router.use("/projects/:slug/scopes", scopesRouter);
-router.use("/projects/:slug/milestones", milestonesRouter);
-router.use("/projects/:slug/items", itemsRouter);
-router.use("/projects/:slug/items/:itemNumber/comments", commentsRouter);
-router.use("/projects/:slug", timeRouter);
-router.use("/projects/:slug/costs", costsRouter);
-router.use("/projects/:slug/messages", messagesRouter);
+
+// All project-slug-scoped routes enforce membership after requireAuth
+const memberGuard: RequestHandler[] = [
+  requireAuth as RequestHandler,
+  requireProjectMember as RequestHandler,
+];
+
+router.use("/projects/:slug/scopes", ...memberGuard, scopesRouter);
+router.use("/projects/:slug/milestones", ...memberGuard, milestonesRouter);
+router.use("/projects/:slug/items", ...memberGuard, itemsRouter);
+router.use("/projects/:slug/items/:itemNumber/comments", ...memberGuard, commentsRouter);
+router.use("/projects/:slug", ...memberGuard, timeRouter);
+router.use("/projects/:slug/costs", ...memberGuard, costsRouter);
+router.use("/projects/:slug/messages", ...memberGuard, messagesRouter);
+router.use("/projects/:slug/docs", ...memberGuard, docsRouter);
+router.use("/projects/:slug/commits", ...memberGuard, commitsRouter);
 router.use("/presence", presenceRouter);
 router.use("/standup", standupRouter);
 router.use("/", activityRouter);
 router.use("/search", searchRouter);
 router.use("/dashboard", dashboardRouter);
-router.use("/projects/:slug/docs", docsRouter);
 
 export default router;

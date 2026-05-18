@@ -340,6 +340,28 @@ export const docs = pgTable(
   }),
 );
 
+// ── Standup Cache ──────────────────────────────────────────────────────────
+export const standupCache = pgTable(
+  "standup_cache",
+  {
+    id: serial("id").primaryKey(),
+    userId: varchar("user_id", { length: 128 }).notNull(),
+    forDate: date("for_date").notNull(),
+    content: text("content").notNull(),
+    generatedAt: timestamp("generated_at").notNull().defaultNow(),
+  },
+  (t) => ({
+    userDateIdx: uniqueIndex("standup_cache_user_date_idx").on(t.userId, t.forDate),
+  }),
+);
+
+// ── App Settings ───────────────────────────────────────────────────────────
+export const appSettings = pgTable("app_settings", {
+  key: varchar("key", { length: 128 }).primaryKey(),
+  value: text("value").notNull(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
 // ── Activity ───────────────────────────────────────────────────────────────
 export const activityEvents = pgTable(
   "activity_events",

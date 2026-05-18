@@ -1,8 +1,8 @@
 import { Request, Response, NextFunction } from "express";
 import { getAuth } from "@clerk/express";
 import { db } from "./db";
-import { users } from "./schema";
-import { eq } from "drizzle-orm";
+import { users, projects, projectMembers } from "./schema";
+import { eq, and } from "drizzle-orm";
 
 export interface AuthRequest extends Request {
   userId?: string;
@@ -54,6 +54,48 @@ export const requireAdmin = async (
   }
   req.userId = clerkId;
   req.localUserId = user.id;
+  next();
+};
+
+/** Verify the signed-in user is a member of the project identified by
+ *  `req.params.slug`. Must be used AFTER `requireAuth`.
+ *  Attaches `req.project` and `req.projectRole` for downstream handlers.
+ */
+export const requireProjectMember = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+) => {
+  if (!req.userId) return res.status(401).json({ error: "Unauthorized" });
+
+  const slug = (req.params as Record<string, string>).slug;
+  if (!slug) return next();
+
+  const [project] = await db
+    .select()
+    .from(projects)
+    .where(eq(projects.slug, slug))
+    .limit(1);
+  if (!project) return res.status(404).json({ error: "Project not found" });
+
+  const [member] = await db
+    .select()
+    .from(projectMembers)
+    .where(
+      and(
+        eq(projectMembers.projectId, project.id),
+        eq(projectMembers.userId, req.userId),
+      ),
+    )
+    .limit(1);
+
+  if (!member) {
+    return res.status(403).json({ error: "Forbidden: not a project member" });
+  }
+
+  (req as AuthRequest & { project?: typeof project; projectRole?: string }).project = project;
+  (req as AuthRequest & { project?: typeof project; projectRole?: string }).projectRole =
+    member.role;
   next();
 };
 
