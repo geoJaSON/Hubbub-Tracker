@@ -9,12 +9,13 @@ import {
   useGetBurnDown, useListCostEntries, useCreateCostEntry,
   useCreateScope, useCreateMilestone,
   useListCommits, useListProjectTimeEntries,
+  useListPresence,
 } from "@workspace/api-client-react";
 import type {
   Item, Doc, ItemInput, ItemInputType, ItemInputPriority,
   ItemUpdateStatus, Message, DocInput, CostEntry, CostEntryInput,
   CostEntryInputCategory, Scope, Milestone, ScopeInput, MilestoneInput,
-  Commit, TimeEntry,
+  Commit, TimeEntry, Presence,
 } from "@workspace/api-client-react";
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
@@ -23,7 +24,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   getListItemsQueryKey, getListMessagesQueryKey, getListActivityQueryKey,
   getListDocsQueryKey, getGetProjectQueryKey, getListCostEntriesQueryKey,
-  getListCommitsQueryKey,
+  getListCommitsQueryKey, getListPresenceQueryKey,
 } from "@workspace/api-client-react";
 import { Layout } from "../components/layout";
 import { Button } from "@/components/ui/button";
@@ -152,6 +153,21 @@ export default function ProjectPage() {
     },
   });
   const { data: timeEntries = [] } = useListProjectTimeEntries(slug!);
+  const { data: presenceData = [] } = useListPresence({
+    query: {
+      queryKey: getListPresenceQueryKey(),
+      refetchInterval: 30_000,
+      enabled: activeTab === "chat",
+    },
+  });
+
+  // Filter to users seen within the last 60 seconds
+  const onlineUsers = useMemo<Presence[]>(() => {
+    const cutoff = Date.now() - 60_000;
+    return presenceData.filter(
+      (p) => new Date(p.updatedAt).getTime() >= cutoff,
+    );
+  }, [presenceData]);
 
   const [chatMsg, setChatMsg] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
@@ -603,7 +619,24 @@ export default function ProjectPage() {
           </TabsContent>
 
           {/* CHAT TAB — SSE live */}
-          <TabsContent value="chat" className="mt-3">
+          <TabsContent value="chat" className="mt-3 space-y-2">
+            {/* Online now panel */}
+            <div className="border border-border bg-card px-3 py-2 flex items-center gap-2 flex-wrap">
+              <span className="font-mono text-[10px] tracking-widest text-muted-foreground shrink-0">ONLINE</span>
+              {onlineUsers.length === 0 ? (
+                <span className="font-mono text-[10px] text-muted-foreground">no one online right now</span>
+              ) : (
+                onlineUsers.map((p) => {
+                  const name = p.user?.displayName ?? p.userId.slice(0, 8);
+                  return (
+                    <span key={p.userId} className="flex items-center gap-1 font-mono text-xs text-foreground">
+                      <span className="h-1.5 w-1.5 rounded-full bg-primary shrink-0" />
+                      {name}
+                    </span>
+                  );
+                })
+              )}
+            </div>
             <div className="border border-border bg-card flex flex-col h-[500px]">
               <div className="flex-1 overflow-y-auto p-3 space-y-2 font-mono text-sm">
                 {allMessages.length === 0 ? (
