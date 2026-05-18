@@ -1,7 +1,8 @@
 import { defineConfig } from "drizzle-kit";
+import path from "path";
 
 export default defineConfig({
-  schema: "./src/lib/schema.ts",
+  schema: path.resolve(__dirname, "../../lib/db/src/schema/index.ts"),
   out: "./drizzle",
   dialect: "postgresql",
   dbCredentials: {

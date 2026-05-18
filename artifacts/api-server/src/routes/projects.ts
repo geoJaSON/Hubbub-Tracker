@@ -14,7 +14,33 @@ import { logActivity } from "../lib/activity";
 
 const router = Router();
 
-// GET /projects
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+async function getProjectBySlug(slug: string) {
+  const [p] = await db
+    .select()
+    .from(projects)
+    .where(eq(projects.slug, slug))
+    .limit(1);
+  return p ?? null;
+}
+
+/** Returns the caller's membership row, or null if not a member. */
+async function getMembership(projectId: number, userId: string) {
+  const [m] = await db
+    .select()
+    .from(projectMembers)
+    .where(
+      and(
+        eq(projectMembers.projectId, projectId),
+        eq(projectMembers.userId, userId),
+      ),
+    )
+    .limit(1);
+  return m ?? null;
+}
+
+// ── GET /projects ─────────────────────────────────────────────────────────────
 router.get("/", requireAuth, async (req: AuthRequest, res) => {
   const memberRows = await db
     .select({ projectId: projectMembers.projectId })
@@ -61,7 +87,7 @@ router.get("/", requireAuth, async (req: AuthRequest, res) => {
   return res.json(withCounts);
 });
 
-// POST /projects
+// ── POST /projects ─────────────────────────────────────────────────────────────
 router.post("/", requireAuth, async (req: AuthRequest, res) => {
   const { name, slug, description, githubRepo } = req.body;
   const [project] = await db
@@ -86,25 +112,18 @@ router.post("/", requireAuth, async (req: AuthRequest, res) => {
   });
 });
 
-// GET /projects/:slug
+// ── GET /projects/:slug ────────────────────────────────────────────────────────
 router.get("/:slug", requireAuth, async (req: AuthRequest, res) => {
-  const [project] = await db
-    .select()
-    .from(projects)
-    .where(eq(projects.slug, req.params.slug))
-    .limit(1);
+  const project = await getProjectBySlug(req.params.slug);
   if (!project) return res.status(404).json({ error: "Not found" });
 
+  // Membership check — any member can read
+  const membership = await getMembership(project.id, req.userId!);
+  if (!membership) return res.status(403).json({ error: "Forbidden" });
+
   const [memberRows, scopeRows] = await Promise.all([
-    db
-      .select()
-      .from(projectMembers)
-      .where(eq(projectMembers.projectId, project.id)),
-    db
-      .select()
-      .from(scopes)
-      .where(eq(scopes.projectId, project.id))
-      .orderBy(scopes.order),
+    db.select().from(projectMembers).where(eq(projectMembers.projectId, project.id)),
+    db.select().from(scopes).where(eq(scopes.projectId, project.id)).orderBy(scopes.order),
   ]);
 
   const scopeIds = scopeRows.map((s) => s.id);
@@ -136,24 +155,36 @@ router.get("/:slug", requireAuth, async (req: AuthRequest, res) => {
           )
       : [];
 
-  const membersWithUsers = memberRows.map((m) => ({
-    ...m,
-    user: userRows.find((u) => u.clerkId === m.userId) ?? null,
-  }));
-
   return res.json({
     ...project,
-    members: membersWithUsers,
+    members: memberRows.map((m) => ({
+      ...m,
+      user: userRows.find((u) => u.clerkId === m.userId) ?? null,
+    })),
     scopes: scopeRows.map((s) => ({
       ...s,
-      milestones: milestoneRows.filter((m) => m.scopeId === s.id),
+      milestones: milestoneRows.filter((ml) => ml.scopeId === s.id),
     })),
     milestones: milestoneRows,
   });
 });
 
-// PATCH /projects/:slug
+// ── PATCH /projects/:slug ──────────────────────────────────────────────────────
+// Restricted to owners or global admins
 router.patch("/:slug", requireAuth, async (req: AuthRequest, res) => {
+  const project = await getProjectBySlug(req.params.slug);
+  if (!project) return res.status(404).json({ error: "Not found" });
+
+  const [caller] = await db
+    .select()
+    .from(users)
+    .where(eq(users.clerkId, req.userId!))
+    .limit(1);
+
+  const membership = await getMembership(project.id, req.userId!);
+  const isOwnerOrAdmin = membership?.role === "owner" || caller?.role === "admin";
+  if (!isOwnerOrAdmin) return res.status(403).json({ error: "Forbidden: owners only" });
+
   const { name, description, githubRepo, archived } = req.body;
   const [updated] = await db
     .update(projects)
@@ -165,24 +196,37 @@ router.patch("/:slug", requireAuth, async (req: AuthRequest, res) => {
     })
     .where(eq(projects.slug, req.params.slug))
     .returning();
-  if (!updated) return res.status(404).json({ error: "Not found" });
+
   return res.json(updated);
 });
 
-// DELETE /projects/:slug
+// ── DELETE /projects/:slug ─────────────────────────────────────────────────────
+// Restricted to owners or global admins
 router.delete("/:slug", requireAuth, async (req: AuthRequest, res) => {
-  await db.delete(projects).where(eq(projects.slug, req.params.slug));
+  const project = await getProjectBySlug(req.params.slug);
+  if (!project) return res.status(404).json({ error: "Not found" });
+
+  const [caller] = await db
+    .select()
+    .from(users)
+    .where(eq(users.clerkId, req.userId!))
+    .limit(1);
+
+  const membership = await getMembership(project.id, req.userId!);
+  const isOwnerOrAdmin = membership?.role === "owner" || caller?.role === "admin";
+  if (!isOwnerOrAdmin) return res.status(403).json({ error: "Forbidden: owners only" });
+
+  await db.delete(projects).where(eq(projects.id, project.id));
   return res.status(204).send();
 });
 
-// GET /projects/:slug/members
-router.get("/:slug/members", requireAuth, async (req, res) => {
-  const [project] = await db
-    .select()
-    .from(projects)
-    .where(eq(projects.slug, req.params.slug))
-    .limit(1);
+// ── GET /projects/:slug/members ────────────────────────────────────────────────
+router.get("/:slug/members", requireAuth, async (req: AuthRequest, res) => {
+  const project = await getProjectBySlug(req.params.slug);
   if (!project) return res.status(404).json({ error: "Not found" });
+
+  const membership = await getMembership(project.id, req.userId!);
+  if (!membership) return res.status(403).json({ error: "Forbidden" });
 
   const memberRows = await db
     .select()
@@ -211,14 +255,15 @@ router.get("/:slug/members", requireAuth, async (req, res) => {
   );
 });
 
-// POST /projects/:slug/members
+// ── POST /projects/:slug/members ───────────────────────────────────────────────
+// Restricted to owners
 router.post("/:slug/members", requireAuth, async (req: AuthRequest, res) => {
-  const [project] = await db
-    .select()
-    .from(projects)
-    .where(eq(projects.slug, req.params.slug))
-    .limit(1);
+  const project = await getProjectBySlug(req.params.slug);
   if (!project) return res.status(404).json({ error: "Not found" });
+
+  const membership = await getMembership(project.id, req.userId!);
+  if (membership?.role !== "owner")
+    return res.status(403).json({ error: "Forbidden: owners only" });
 
   const { userId, role } = req.body;
   const [member] = await db
@@ -232,20 +277,22 @@ router.post("/:slug/members", requireAuth, async (req: AuthRequest, res) => {
     .from(users)
     .where(eq(users.clerkId, userId))
     .limit(1);
+
   return res.status(201).json({ ...member, user: user ?? null });
 });
 
-// DELETE /projects/:slug/members/:userId
+// ── DELETE /projects/:slug/members/:userId ─────────────────────────────────────
+// Restricted to owners (cannot remove yourself if last owner)
 router.delete(
   "/:slug/members/:userId",
   requireAuth,
   async (req: AuthRequest, res) => {
-    const [project] = await db
-      .select()
-      .from(projects)
-      .where(eq(projects.slug, req.params.slug))
-      .limit(1);
+    const project = await getProjectBySlug(req.params.slug);
     if (!project) return res.status(404).json({ error: "Not found" });
+
+    const membership = await getMembership(project.id, req.userId!);
+    if (membership?.role !== "owner")
+      return res.status(403).json({ error: "Forbidden: owners only" });
 
     await db
       .delete(projectMembers)
@@ -255,6 +302,7 @@ router.delete(
           eq(projectMembers.userId, req.params.userId),
         ),
       );
+
     return res.status(204).send();
   },
 );

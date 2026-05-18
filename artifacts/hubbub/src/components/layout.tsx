@@ -1,4 +1,4 @@
-import { ReactNode, useState, useCallback } from "react";
+import { ReactNode, useState, useCallback, useEffect, useRef } from "react";
 import { Link, useLocation } from "wouter";
 import { useClerk, useUser } from "@clerk/react";
 import {
@@ -11,12 +11,98 @@ import {
   X,
   Terminal,
   ChevronRight,
+  Sun,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { CommandPalette } from "./command-palette";
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
+
+// ── Theme ─────────────────────────────────────────────────────────────────────
+type Theme = "green" | "amber";
+
+function useTheme() {
+  const [theme, setTheme] = useState<Theme>(() => {
+    return (localStorage.getItem("hubbub-theme") as Theme) ?? "green";
+  });
+
+  useEffect(() => {
+    const root = document.documentElement;
+    if (theme === "amber") {
+      root.style.setProperty("--primary", "43 96% 58%");     // amber
+      root.style.setProperty("--primary-foreground", "0 0% 5%");
+      root.style.setProperty("--accent", "38 92% 70%");
+    } else {
+      root.style.setProperty("--primary", "124 100% 50%");   // phosphor green
+      root.style.setProperty("--primary-foreground", "124 100% 5%");
+      root.style.setProperty("--accent", "124 80% 65%");
+    }
+    localStorage.setItem("hubbub-theme", theme);
+  }, [theme]);
+
+  const toggle = useCallback(() => {
+    setTheme((t) => (t === "green" ? "amber" : "green"));
+  }, []);
+
+  return { theme, toggle };
+}
+
+// ── Keyboard chords ───────────────────────────────────────────────────────────
+// g d → /dashboard   g p → /projects   g s → /search
+// : → command palette (same as ⌘K)
+function useKeyboardChords(
+  navigate: (to: string) => void,
+  openPalette: () => void,
+) {
+  const pending = useRef<string | null>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      // Skip if focus is inside an input/textarea/contenteditable
+      const tag = (e.target as HTMLElement).tagName;
+      if (
+        tag === "INPUT" ||
+        tag === "TEXTAREA" ||
+        (e.target as HTMLElement).isContentEditable
+      )
+        return;
+
+      // `:` → command palette
+      if (e.key === ":" && !e.metaKey && !e.ctrlKey) {
+        e.preventDefault();
+        openPalette();
+        return;
+      }
+
+      // g-chord navigation
+      if (pending.current === "g") {
+        if (timer.current) clearTimeout(timer.current);
+        pending.current = null;
+        const map: Record<string, string> = {
+          d: "/dashboard",
+          p: "/projects",
+          s: "/search",
+          a: "/admin",
+        };
+        if (map[e.key]) {
+          e.preventDefault();
+          navigate(map[e.key]);
+        }
+        return;
+      }
+
+      if (e.key === "g" && !e.metaKey && !e.ctrlKey) {
+        pending.current = "g";
+        timer.current = setTimeout(() => { pending.current = null; }, 1000);
+      }
+    };
+
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [navigate, openPalette]);
+}
 
 interface NavItem {
   label: string;
@@ -37,15 +123,19 @@ interface LayoutProps {
 }
 
 export function Layout({ children, title }: LayoutProps) {
-  const [location] = useLocation();
+  const [location, navigate] = useLocation();
   const { signOut } = useClerk();
   const { user } = useUser();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const { theme, toggle: toggleTheme } = useTheme();
 
   const handleSignOut = useCallback(() => {
     signOut({ redirectUrl: basePath || "/" });
   }, [signOut]);
+
+  const openPalette = useCallback(() => setPaletteOpen(true), []);
+  useKeyboardChords(navigate, openPalette);
 
   return (
     <div className="flex h-screen overflow-hidden bg-background text-foreground">
@@ -70,7 +160,10 @@ export function Layout({ children, title }: LayoutProps) {
         {/* Logo */}
         <div className="flex h-14 items-center gap-2 border-b border-border px-4">
           <Terminal className="h-5 w-5 text-primary" />
-          <span className="text-xl tracking-[0.15em] text-primary terminal-glow" style={{ fontFamily: "'VT323', monospace" }}>
+          <span
+            className="text-xl tracking-[0.15em] text-primary terminal-glow"
+            style={{ fontFamily: "'VT323', monospace" }}
+          >
             HUBBUB
           </span>
           <button
@@ -111,14 +204,27 @@ export function Layout({ children, title }: LayoutProps) {
 
         {/* Footer */}
         <div className="border-t border-border p-3 space-y-2">
+          {/* Command palette trigger */}
           <button
             onClick={() => setPaletteOpen(true)}
             className="w-full text-left text-xs text-muted-foreground hover:text-foreground border border-border px-2 py-1.5 font-mono flex items-center gap-2"
           >
             <span className="text-primary">$</span>
             <span>CMD PALETTE</span>
-            <kbd className="ml-auto text-[10px] bg-muted px-1 rounded-sm">⌘K</kbd>
+            <kbd className="ml-auto text-[10px] bg-muted px-1 rounded-sm">⌘K / :</kbd>
           </button>
+
+          {/* Theme toggle */}
+          <button
+            onClick={toggleTheme}
+            title={`Switch to ${theme === "green" ? "amber" : "green"} theme`}
+            className="w-full text-left text-xs text-muted-foreground hover:text-foreground border border-border px-2 py-1.5 font-mono flex items-center gap-2"
+          >
+            <Sun className="h-3 w-3 text-primary shrink-0" />
+            <span>THEME: {theme.toUpperCase()}</span>
+          </button>
+
+          {/* User + sign out */}
           <div className="flex items-center gap-2 px-1">
             <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
             <span className="text-xs text-muted-foreground truncate flex-1">
@@ -132,6 +238,11 @@ export function Layout({ children, title }: LayoutProps) {
               <LogOut className="h-3.5 w-3.5" />
             </button>
           </div>
+
+          {/* Chord hint */}
+          <p className="text-[10px] font-mono text-muted-foreground/60 px-1">
+            g+d dashboard · g+p projects · g+s search
+          </p>
         </div>
       </aside>
 
@@ -146,7 +257,10 @@ export function Layout({ children, title }: LayoutProps) {
             <Menu className="h-5 w-5" />
           </button>
           {title && (
-            <h1 className="text-lg tracking-widest text-foreground" style={{ fontFamily: "'VT323', monospace" }}>
+            <h1
+              className="text-lg tracking-widest text-foreground"
+              style={{ fontFamily: "'VT323', monospace" }}
+            >
               // {title}
             </h1>
           )}
@@ -158,9 +272,7 @@ export function Layout({ children, title }: LayoutProps) {
         </header>
 
         {/* Content */}
-        <main className="flex-1 overflow-auto p-4">
-          {children}
-        </main>
+        <main className="flex-1 overflow-auto p-4">{children}</main>
       </div>
     </div>
   );

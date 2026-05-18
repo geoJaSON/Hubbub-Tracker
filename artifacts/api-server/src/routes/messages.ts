@@ -1,32 +1,12 @@
 import { Router } from "express";
 import { eq, desc, and, sql } from "drizzle-orm";
-import { db } from "../lib/db";
+import { db, pool } from "../lib/db";
 import { projects, messages, users, items } from "../lib/schema";
 import { requireAuth, AuthRequest } from "../lib/auth";
 import { logActivity } from "../lib/activity";
+import { subscribeToProject, notifyProject } from "../lib/pgnotify";
 
 const router = Router({ mergeParams: true });
-
-// ── SSE fanout registry ─────────────────────────────────────────────────────
-type SSESender = (data: unknown) => void;
-const sseClients = new Map<number, Set<SSESender>>();
-
-export function broadcastToProject(projectId: number, data: unknown) {
-  const clients = sseClients.get(projectId);
-  if (!clients) return;
-  for (const send of clients) {
-    try { send(data); } catch { /* ignore disconnected */ }
-  }
-}
-
-function addClient(projectId: number, fn: SSESender) {
-  if (!sseClients.has(projectId)) sseClients.set(projectId, new Set());
-  sseClients.get(projectId)!.add(fn);
-}
-
-function removeClient(projectId: number, fn: SSESender) {
-  sseClients.get(projectId)?.delete(fn);
-}
 
 // ── Slash-command processor ─────────────────────────────────────────────────
 async function processSlashCommand(
@@ -62,51 +42,76 @@ async function processSlashCommand(
         })
         .returning();
       await logActivity("item_created", actorId, projectId, {
-        itemId: created.id, number: created.number, title: arg, type: cmd,
+        itemId: created.id,
+        number: created.number,
+        title: arg,
+        type: cmd,
       });
       return { handled: true, reply: `✓ Created #${created.number}: ${arg}` };
     }
+
     case "close": {
-      const num = Number(arg);
-      if (!num) return { handled: true, reply: "Usage: /close <number>" };
+      // Accept both "#123" and "123"
+      const rawNum = arg.replace(/^#/, "");
+      const num = Number(rawNum);
+      if (!num) return { handled: true, reply: "Usage: /close #<number>" };
       const [item] = await db
         .select()
         .from(items)
         .where(and(eq(items.projectId, projectId), eq(items.number, num)))
         .limit(1);
       if (!item) return { handled: true, reply: `Item #${num} not found` };
-      await db.update(items).set({ status: "done", closedAt: new Date() }).where(eq(items.id, item.id));
+      await db
+        .update(items)
+        .set({ status: "done", closedAt: new Date() })
+        .where(eq(items.id, item.id));
       await logActivity("item_status_changed", actorId, projectId, {
-        itemId: item.id, number: item.number, from: item.status, to: "done",
+        itemId: item.id,
+        number: item.number,
+        from: item.status,
+        to: "done",
       });
       return { handled: true, reply: `✓ Closed #${num}` };
     }
+
     case "assign": {
+      // Accept "/assign #123 @user" or "/assign 123 user"
       const parts = arg.split(/\s+/);
-      const num = Number(parts[0]);
-      const username = parts[1]?.replace(/^@/, "");
-      if (!num || !username) return { handled: true, reply: "Usage: /assign <number> @username" };
+      const rawNum = (parts[0] ?? "").replace(/^#/, "");
+      const num = Number(rawNum);
+      const username = (parts[1] ?? "").replace(/^@/, "");
+      if (!num || !username)
+        return { handled: true, reply: "Usage: /assign #<number> @<username>" };
       const [targetUser] = await db
         .select()
         .from(users)
         .where(eq(users.username, username))
         .limit(1);
-      if (!targetUser) return { handled: true, reply: `User @${username} not found` };
+      if (!targetUser)
+        return { handled: true, reply: `User @${username} not found` };
       await db
         .update(items)
         .set({ assigneeId: targetUser.clerkId })
         .where(and(eq(items.projectId, projectId), eq(items.number, num)));
       await logActivity("item_assigned", actorId, projectId, {
-        itemNumber: num, assigneeId: targetUser.clerkId,
+        itemNumber: num,
+        assigneeId: targetUser.clerkId,
       });
-      return { handled: true, reply: `✓ Assigned #${num} to @${username}` };
+      return {
+        handled: true,
+        reply: `✓ Assigned #${num} to @${username}`,
+      };
     }
+
     default:
-      return { handled: true, reply: `Unknown command: /${cmd}. Try /todo, /bug, /request, /decision, /close, /assign` };
+      return {
+        handled: true,
+        reply: `Unknown command: /${cmd}. Try /todo, /bug, /request, /decision, /close #N, /assign #N @user`,
+      };
   }
 }
 
-// ── GET /projects/:slug/messages ────────────────────────────────────────────
+// ── GET /projects/:slug/messages ─────────────────────────────────────────────
 router.get("/", requireAuth, async (req, res) => {
   const [project] = await db
     .select()
@@ -146,7 +151,7 @@ router.get("/", requireAuth, async (req, res) => {
   );
 });
 
-// ── GET /projects/:slug/messages/stream  (SSE) ──────────────────────────────
+// ── GET /projects/:slug/messages/stream  (SSE via pg LISTEN/NOTIFY) ──────────
 router.get("/stream", requireAuth, async (req: AuthRequest, res) => {
   const [project] = await db
     .select()
@@ -162,12 +167,23 @@ router.get("/stream", requireAuth, async (req: AuthRequest, res) => {
     "X-Accel-Buffering": "no",
   });
 
-  const send: SSESender = (data) => {
+  const send = (data: unknown) => {
     res.write(`data: ${JSON.stringify(data)}\n\n`);
   };
 
   send({ type: "connected" });
-  addClient(project.id, send);
+
+  let cleanup: (() => void) | null = null;
+
+  subscribeToProject(project.id, (payload) => {
+    send({ type: "message", message: payload });
+  })
+    .then((fn) => {
+      cleanup = fn;
+    })
+    .catch((err) => {
+      console.error("[SSE] subscribe error:", err);
+    });
 
   const keepAlive = setInterval(() => {
     res.write(": ping\n\n");
@@ -175,7 +191,7 @@ router.get("/stream", requireAuth, async (req: AuthRequest, res) => {
 
   req.on("close", () => {
     clearInterval(keepAlive);
-    removeClient(project.id, send);
+    cleanup?.();
   });
 });
 
@@ -189,35 +205,34 @@ router.post("/", requireAuth, async (req: AuthRequest, res) => {
   if (!project) return res.status(404).json({ error: "Not found" });
 
   const rawBody: string = req.body.body ?? "";
-
-  // Handle slash commands: post as system reply, not a regular message
   const cmdResult = await processSlashCommand(rawBody, project.id, req.userId!);
 
-  let payload: (typeof messages.$inferSelect & { author: (typeof users.$inferSelect) | null })[];
+  const [author] = await db
+    .select()
+    .from(users)
+    .where(eq(users.clerkId, req.userId!))
+    .limit(1);
 
   if (cmdResult.handled && cmdResult.reply) {
-    // Store the original command + system reply
     const [cmdMsg] = await db
       .insert(messages)
       .values({ projectId: project.id, authorId: req.userId!, body: rawBody })
       .returning();
     const [sysMsg] = await db
       .insert(messages)
-      .values({
-        projectId: project.id,
-        authorId: "system",
-        body: cmdResult.reply,
-      })
+      .values({ projectId: project.id, authorId: "system", body: cmdResult.reply })
       .returning();
 
-    const [author] = await db.select().from(users).where(eq(users.clerkId, req.userId!)).limit(1);
-    const msgs = [
-      { ...cmdMsg, author: author ?? null },
-      { ...sysMsg, author: null },
-    ];
-    for (const m of msgs) broadcastToProject(project.id, { type: "message", message: m });
-    await logActivity("message_posted", req.userId!, project.id, { messageId: cmdMsg.id });
-    return res.status(201).json(msgs[0]);
+    const cmdFull = { ...cmdMsg, author: author ?? null };
+    const sysFull = { ...sysMsg, author: null };
+
+    await notifyProject(pool, project.id, cmdFull);
+    await notifyProject(pool, project.id, sysFull);
+
+    await logActivity("message_posted", req.userId!, project.id, {
+      messageId: cmdMsg.id,
+    });
+    return res.status(201).json(cmdFull);
   }
 
   const [created] = await db
@@ -225,11 +240,12 @@ router.post("/", requireAuth, async (req: AuthRequest, res) => {
     .values({ projectId: project.id, authorId: req.userId!, body: rawBody })
     .returning();
 
-  await logActivity("message_posted", req.userId!, project.id, { messageId: created.id });
+  await logActivity("message_posted", req.userId!, project.id, {
+    messageId: created.id,
+  });
 
-  const [author] = await db.select().from(users).where(eq(users.clerkId, req.userId!)).limit(1);
   const msg = { ...created, author: author ?? null };
-  broadcastToProject(project.id, { type: "message", message: msg });
+  await notifyProject(pool, project.id, msg);
 
   return res.status(201).json(msg);
 });

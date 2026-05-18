@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { db } from "../lib/db";
 import { projects, costEntries } from "../lib/schema";
 import { requireAuth, AuthRequest } from "../lib/auth";
@@ -34,16 +34,8 @@ router.post("/", requireAuth, async (req: AuthRequest, res) => {
     .limit(1);
   if (!project) return res.status(404).json({ error: "Not found" });
 
-  const {
-    scopeId,
-    category,
-    vendor,
-    description,
-    amountCents,
-    currency,
-    recurring,
-    incurredOn,
-  } = req.body;
+  const { scopeId, category, vendor, description, amountCents, currency, recurring, incurredOn } =
+    req.body;
 
   const [created] = await db
     .insert(costEntries)
@@ -70,10 +62,24 @@ router.post("/", requireAuth, async (req: AuthRequest, res) => {
 });
 
 // DELETE /projects/:slug/costs/:costId
+// Constrain by projectId to prevent cross-project IDOR
 router.delete("/:costId", requireAuth, async (req, res) => {
+  const [project] = await db
+    .select()
+    .from(projects)
+    .where(eq(projects.slug, req.params.slug))
+    .limit(1);
+  if (!project) return res.status(404).json({ error: "Not found" });
+
   await db
     .delete(costEntries)
-    .where(eq(costEntries.id, Number(req.params.costId)));
+    .where(
+      and(
+        eq(costEntries.id, Number(req.params.costId)),
+        eq(costEntries.projectId, project.id),
+      ),
+    );
+
   return res.status(204).send();
 });
 
