@@ -249,6 +249,8 @@ export default function ProjectPage() {
   const [sseMessages, setSseMessages] = useState<Message[]>([]);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const [newMessageIds, setNewMessageIds] = useState<Set<number>>(new Set());
+  // Track IDs already received via SSE to avoid double-adding without nested setState
+  const sseSeenIds = useRef<Set<number>>(new Set());
 
   const markRevealed = useCallback((id: number) => {
     setNewMessageIds((ids) => {
@@ -261,6 +263,7 @@ export default function ProjectPage() {
   useEffect(() => {
     setSseMessages([]); // reset on slug change
     setNewMessageIds(new Set());
+    sseSeenIds.current = new Set();
   }, [slug]);
 
   useEffect(() => {
@@ -279,11 +282,11 @@ export default function ProjectPage() {
           const payload = JSON.parse(evt.data) as { type: string; message?: Message; presence?: Presence };
           if (payload.type === "message" && payload.message) {
             const incoming = payload.message;
-            setSseMessages((prev) => {
-              if (prev.some((m) => m.id === incoming.id)) return prev;
+            if (!sseSeenIds.current.has(incoming.id)) {
+              sseSeenIds.current.add(incoming.id);
+              setSseMessages((prev) => [...prev, incoming]);
               setNewMessageIds((ids) => new Set([...ids, incoming.id]));
-              return [...prev, incoming];
-            });
+            }
           } else if (payload.type === "presence" && payload.presence) {
             const incoming = payload.presence;
             qc.setQueryData<Presence[]>(getListPresenceQueryKey(), (old = []) => {
@@ -371,11 +374,12 @@ export default function ProjectPage() {
     setChatMsg(""); // clear input immediately for snappy UX
     try {
       const created = await postMessage.mutateAsync({ slug, data: { body: text } });
-      // Immediately show the sender's own message (SSE may also deliver it; dedup handles both)
-      setSseMessages((prev) => {
-        if (prev.some((m) => m.id === created.id)) return prev;
-        return [...prev, created];
-      });
+      // Immediately show the sender's own message with teletype effect
+      if (!sseSeenIds.current.has(created.id)) {
+        sseSeenIds.current.add(created.id);
+        setSseMessages((prev) => [...prev, created]);
+        setNewMessageIds((ids) => new Set([...ids, created.id]));
+      }
       // Also invalidate so non-SSE state stays consistent
       qc.invalidateQueries({ queryKey: getListMessagesQueryKey(slug!) });
     } catch {
@@ -630,7 +634,7 @@ export default function ProjectPage() {
 
   return (
     <Layout title={project.name.toUpperCase()} fluid>
-      <div className="flex h-full min-h-0 gap-0">
+      <div className="flex flex-1 h-full min-h-0">
         <div className="flex-1 overflow-auto p-4 min-w-0 space-y-4">
         {/* Project header */}
         <div className="flex items-center gap-3 flex-wrap">
