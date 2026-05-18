@@ -9,6 +9,17 @@ export interface HealthStatus {
   status: string;
 }
 
+export interface SetupStatus {
+  /** True if at least one user exists */
+  initialized: boolean;
+}
+
+export interface UserSync {
+  email: string;
+  displayName: string;
+  avatarUrl?: string | null;
+}
+
 export type UserRole = typeof UserRole[keyof typeof UserRole];
 
 

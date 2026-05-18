@@ -115,6 +115,37 @@ export const UpdateUserResponse = zod.object({
 
 
 /**
+ * @summary Returns whether the app has been initialized (first user exists)
+ */
+export const GetAuthSetupResponse = zod.object({
+  "initialized": zod.boolean().describe('True if at least one user exists')
+})
+
+
+/**
+ * @summary JIT-provision the current Clerk user (creates or returns existing)
+ */
+export const SyncUserBody = zod.object({
+  "email": zod.string(),
+  "displayName": zod.string(),
+  "avatarUrl": zod.string().nullish()
+})
+
+export const SyncUserResponse = zod.object({
+  "id": zod.number(),
+  "clerkId": zod.string(),
+  "email": zod.string().nullish(),
+  "displayName": zod.string(),
+  "username": zod.string().nullish(),
+  "avatarUrl": zod.string().nullish(),
+  "role": zod.enum(['admin', 'member']),
+  "hourlyRateCents": zod.number().nullish(),
+  "active": zod.boolean(),
+  "createdAt": zod.coerce.date().optional()
+})
+
+
+/**
  * @summary List projects the current user is a member of
  */
 export const ListProjectsResponseItem = zod.object({
@@ -939,6 +970,14 @@ export const PostMessageParams = zod.object({
 
 export const PostMessageBody = zod.object({
   "body": zod.string()
+})
+
+
+/**
+ * @summary SSE stream of live project messages (text/event-stream)
+ */
+export const StreamMessagesParams = zod.object({
+  "slug": zod.coerce.string()
 })
 
 

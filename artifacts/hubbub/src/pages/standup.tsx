@@ -1,15 +1,43 @@
+import { useState } from "react";
 import { useGetStandup } from "@workspace/api-client-react";
 import { Layout } from "../components/layout";
+import { Button } from "@/components/ui/button";
+import { Copy, Check } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 
 export default function StandupPage() {
   const { data: standup, isLoading } = useGetStandup();
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = () => {
+    if (!standup?.content) return;
+    void navigator.clipboard.writeText(standup.content).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
 
   return (
     <Layout title="STANDUP">
       <div className="max-w-3xl space-y-4">
-        <div className="text-xs text-muted-foreground font-mono tracking-widest">
-          // DAILY STANDUP — {new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
+        <div className="flex items-center justify-between">
+          <div className="text-xs text-muted-foreground font-mono tracking-widest">
+            // DAILY STANDUP — {new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
+          </div>
+          {standup && (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={handleCopy}
+              className="font-mono text-xs border border-border text-muted-foreground hover:text-primary hover:border-primary/50 gap-1"
+            >
+              {copied ? (
+                <><Check className="h-3 w-3 text-primary" /> COPIED</>
+              ) : (
+                <><Copy className="h-3 w-3" /> COPY</>
+              )}
+            </Button>
+          )}
         </div>
 
         {isLoading ? (

@@ -73,6 +73,12 @@ router.patch("/:userId", requireAdmin, async (req, res) => {
   return res.json(updated);
 });
 
+// GET /auth/setup — returns whether at least one user has been provisioned
+router.get("/setup", async (_req, res) => {
+  const [row] = await db.select({ id: users.id }).from(users).limit(1);
+  return res.json({ initialized: !!row });
+});
+
 // POST /users/sync — JIT provision a Clerk user
 router.post("/sync", async (req, res) => {
   const auth = getAuth(req);

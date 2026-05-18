@@ -6,15 +6,17 @@ import {
   useListActivity, useListDocs, useCreateItem, useUpdateItem,
   useGetStandup, useCreateDoc, useUpdateDoc, useDeleteDoc,
   useUpdateProject, useDeleteProject,
+  useGetBurnDown, useListCostEntries, useCreateCostEntry,
 } from "@workspace/api-client-react";
 import type {
   Item, Doc, ItemInput, ItemInputType, ItemInputPriority,
-  ItemUpdateStatus, Message, DocInput,
+  ItemUpdateStatus, Message, DocInput, CostEntry, CostEntryInput,
+  CostEntryInputCategory,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   getListItemsQueryKey, getListMessagesQueryKey, getListActivityQueryKey,
-  getListDocsQueryKey, getGetProjectQueryKey,
+  getListDocsQueryKey, getGetProjectQueryKey, getListCostEntriesQueryKey,
 } from "@workspace/api-client-react";
 import { Layout } from "../components/layout";
 import { Button } from "@/components/ui/button";
@@ -131,6 +133,9 @@ export default function ProjectPage() {
   const deleteDoc = useDeleteDoc();
   const updateProject = useUpdateProject();
   const deleteProjectMut = useDeleteProject();
+  const createCostEntry = useCreateCostEntry();
+  const { data: burnDown } = useGetBurnDown(slug!);
+  const { data: costEntries = [] } = useListCostEntries(slug!);
 
   const [chatMsg, setChatMsg] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
@@ -140,6 +145,13 @@ export default function ProjectPage() {
   const [docOpen, setDocOpen] = useState(false);
   const [editDoc, setEditDoc] = useState<Doc | null>(null);
   const [docForm, setDocForm] = useState({ title: "", body: "" });
+  const [costOpen, setCostOpen] = useState(false);
+  const [newCost, setNewCost] = useState<{
+    category: CostEntryInputCategory;
+    vendor: string;
+    description: string;
+    amountCents: string;
+  }>({ category: "other", vendor: "", description: "", amountCents: "" });
   const [newItem, setNewItem] = useState<{
     type: ItemInputType;
     title: string;
@@ -285,6 +297,27 @@ export default function ProjectPage() {
     }
   };
 
+  const handleAddCost = async () => {
+    const amount = parseFloat(newCost.amountCents);
+    if (!amount || isNaN(amount)) return;
+    try {
+      const input: CostEntryInput = {
+        category: newCost.category,
+        vendor: newCost.vendor || undefined,
+        description: newCost.description || undefined,
+        amountCents: Math.round(amount * 100),
+        incurredOn: new Date().toISOString().split("T")[0]!,
+      };
+      await createCostEntry.mutateAsync({ slug: slug!, data: input });
+      qc.invalidateQueries({ queryKey: getListCostEntriesQueryKey(slug!) });
+      setCostOpen(false);
+      setNewCost({ category: "other", vendor: "", description: "", amountCents: "" });
+      toast({ title: "Cost entry added" });
+    } catch {
+      toast({ title: "Failed to add cost entry", variant: "destructive" });
+    }
+  };
+
   const handleStatusChange = async (itemId: number, status: ItemUpdateStatus) => {
     const item = items.find((i) => i.id === itemId);
     if (!item) return;
@@ -343,6 +376,7 @@ export default function ProjectPage() {
               { value: "activity", label: "ACTIVITY" },
               { value: "standup", label: "STANDUP" },
               { value: "members", label: "MEMBERS" },
+              { value: "budget", label: "BUDGET" },
               { value: "settings", label: "SETTINGS" },
             ].map((t) => (
               <TabsTrigger
@@ -490,7 +524,13 @@ export default function ProjectPage() {
                             {(m.author as { displayName?: string } | null)?.displayName ?? "USER"}
                           </span>
                         )}
-                        <span className="text-foreground">{m.body}</span>
+                        <span className="text-foreground">
+                          {m.body.split(/(@\w+)/g).map((part, pi) =>
+                            part.startsWith("@")
+                              ? <span key={pi} className="text-accent font-bold">{part}</span>
+                              : part
+                          )}
+                        </span>
                         <span className="text-muted-foreground text-xs ml-2">
                           {new Date(m.createdAt).toLocaleTimeString()}
                         </span>
@@ -625,6 +665,98 @@ export default function ProjectPage() {
                 </div>
               ) : (
                 <p className="text-muted-foreground font-mono text-sm animate-pulse">GENERATING STANDUP...</p>
+              )}
+            </div>
+          </TabsContent>
+
+          {/* BUDGET TAB — burn-down + cost entries */}
+          <TabsContent value="budget" className="mt-3 space-y-4">
+            {/* Summary bar */}
+            {burnDown ? (
+              <div className="border border-border bg-card p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="font-mono text-xs tracking-widest text-primary">// BUDGET OVERVIEW</span>
+                  <span className="font-mono text-xs text-muted-foreground">
+                    ${((burnDown as { totalSpentCents: number }).totalSpentCents / 100).toFixed(2)} /
+                    ${((burnDown as { totalBudgetCents: number }).totalBudgetCents / 100).toFixed(2)}
+                  </span>
+                </div>
+                <div className="w-full bg-muted h-2 rounded-none">
+                  <div
+                    className="bg-primary h-2 transition-all"
+                    style={{
+                      width: `${Math.min(
+                        100,
+                        (burnDown as { totalBudgetCents: number; totalSpentCents: number }).totalBudgetCents > 0
+                          ? ((burnDown as { totalSpentCents: number }).totalSpentCents /
+                              (burnDown as { totalBudgetCents: number }).totalBudgetCents) * 100
+                          : 0,
+                      )}%`,
+                    }}
+                  />
+                </div>
+                {/* Per-scope bars */}
+                {(burnDown as { scopes: Array<{ scopeId: number; scopeName: string; budgetCents: number; spentCents: number }> }).scopes.length > 0 && (
+                  <div className="space-y-2 pt-2 border-t border-border">
+                    <span className="font-mono text-[10px] tracking-widest text-muted-foreground">SCOPES</span>
+                    {(burnDown as { scopes: Array<{ scopeId: number; scopeName: string; budgetCents: number; spentCents: number }> }).scopes.map((s) => (
+                      <div key={s.scopeId} className="space-y-1">
+                        <div className="flex justify-between font-mono text-xs">
+                          <span className="text-foreground truncate">{s.scopeName}</span>
+                          <span className="text-muted-foreground shrink-0 ml-2">
+                            ${(s.spentCents / 100).toFixed(2)} / ${(s.budgetCents / 100).toFixed(2)}
+                          </span>
+                        </div>
+                        <div className="w-full bg-muted h-1">
+                          <div
+                            className="bg-accent h-1"
+                            style={{
+                              width: `${Math.min(100, s.budgetCents > 0 ? (s.spentCents / s.budgetCents) * 100 : 0)}%`,
+                            }}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="border border-border bg-card p-4 text-center text-muted-foreground font-mono text-sm">
+                no budget data — add scopes and assign budgets
+              </div>
+            )}
+
+            {/* Cost entries */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="font-mono text-xs tracking-widest text-muted-foreground">// COST ENTRIES</span>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="font-mono text-xs border border-primary/50 text-primary hover:bg-primary/10 gap-1"
+                  onClick={() => setCostOpen(true)}
+                >
+                  <Plus className="h-3 w-3" /> ADD COST
+                </Button>
+              </div>
+              {(costEntries as CostEntry[]).length === 0 ? (
+                <div className="border border-border bg-card p-6 text-center text-muted-foreground font-mono text-sm">
+                  no cost entries yet
+                </div>
+              ) : (
+                <div className="border border-border bg-card divide-y divide-border">
+                  {(costEntries as CostEntry[]).map((c) => (
+                    <div key={c.id} className="flex items-center gap-3 px-4 py-2.5 font-mono text-xs">
+                      <span className="text-accent border border-accent/40 px-1 uppercase shrink-0">{c.category}</span>
+                      <span className="flex-1 text-foreground truncate">{c.description ?? c.vendor ?? "—"}</span>
+                      {c.vendor && c.description && (
+                        <span className="text-muted-foreground hidden md:block truncate max-w-[120px]">{c.vendor}</span>
+                      )}
+                      <span className="text-foreground shrink-0 font-bold">${(c.amountCents / 100).toFixed(2)}</span>
+                      <span className="text-muted-foreground shrink-0">{new Date(c.incurredOn).toLocaleDateString()}</span>
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
           </TabsContent>
@@ -783,6 +915,83 @@ export default function ProjectPage() {
                 className="border border-border font-mono text-xs"
               >
                 CANCEL
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Cost Entry Dialog */}
+      <Dialog open={costOpen} onOpenChange={setCostOpen}>
+        <DialogContent className="bg-card border-border max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="font-['VT323'] tracking-widest text-xl text-primary">
+              // ADD COST ENTRY
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <Label className="font-mono text-xs tracking-widest text-muted-foreground">CATEGORY</Label>
+              <Select
+                value={newCost.category}
+                onValueChange={(v) => setNewCost((p) => ({ ...p, category: v as CostEntryInputCategory }))}
+              >
+                <SelectTrigger className="bg-background border-border font-mono text-xs h-8 rounded-none">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-card border-border">
+                  {(["labor", "hosting", "saas", "contractor", "ai", "other"] as CostEntryInputCategory[]).map((c) => (
+                    <SelectItem key={c} value={c} className="font-mono text-xs">{c.toUpperCase()}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="font-mono text-xs tracking-widest text-muted-foreground">VENDOR</Label>
+              <Input
+                value={newCost.vendor}
+                onChange={(e) => setNewCost((p) => ({ ...p, vendor: e.target.value }))}
+                className="bg-background border-border font-mono text-sm rounded-none"
+                placeholder="optional"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="font-mono text-xs tracking-widest text-muted-foreground">DESCRIPTION</Label>
+              <Input
+                value={newCost.description}
+                onChange={(e) => setNewCost((p) => ({ ...p, description: e.target.value }))}
+                className="bg-background border-border font-mono text-sm rounded-none"
+                placeholder="optional"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="font-mono text-xs tracking-widest text-muted-foreground">AMOUNT ($)</Label>
+              <Input
+                value={newCost.amountCents}
+                onChange={(e) => setNewCost((p) => ({ ...p, amountCents: e.target.value }))}
+                className="bg-background border-border font-mono text-sm rounded-none"
+                placeholder="0.00"
+                type="number"
+                min="0"
+                step="0.01"
+              />
+            </div>
+            <div className="flex gap-2 justify-end">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setCostOpen(false)}
+                className="font-mono text-xs text-muted-foreground"
+              >
+                CANCEL
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => void handleAddCost()}
+                disabled={!newCost.amountCents || createCostEntry.isPending}
+                className="font-mono text-xs bg-primary text-primary-foreground hover:bg-primary/90"
+              >
+                {createCostEntry.isPending ? "SAVING..." : "ADD"}
               </Button>
             </div>
           </div>

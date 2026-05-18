@@ -3,6 +3,7 @@ import { Link } from "wouter";
 import { Layout } from "../components/layout";
 import { Input } from "@/components/ui/input";
 import { Search, FileText, Bug, CheckSquare, Lightbulb, MessageSquare } from "lucide-react";
+import type { SearchResults, SearchResultItem } from "@workspace/api-client-react";
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -13,8 +14,8 @@ const itemTypeIcon: Record<string, typeof Bug> = {
   request: MessageSquare,
 };
 
-function useSearch(q: string) {
-  const [results, setResults] = useState<any>(null);
+function useSearch(_q: string) {
+  const [results, setResults] = useState<SearchResults | null>(null);
   const [loading, setLoading] = useState(false);
 
   const doSearch = async (query: string) => {
@@ -65,7 +66,7 @@ export default function SearchPage() {
               </div>
             ) : (
               <div className="divide-y divide-border border border-border bg-card">
-                {results.results.map((r: any) => {
+                {results.results.map((r: SearchResultItem) => {
                   const Icon = r.type === "doc" ? FileText : (itemTypeIcon[r.itemType ?? ""] ?? CheckSquare);
                   const href = r.type === "doc"
                     ? `/projects/${r.projectSlug}/docs`

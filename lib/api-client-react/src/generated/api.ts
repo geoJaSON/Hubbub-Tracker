@@ -55,12 +55,14 @@ import type {
   ScopeUpdate,
   SearchParams,
   SearchResults,
+  SetupStatus,
   Standup,
   TimeEntry,
   TimeEntryInput,
   User,
   UserAdminUpdate,
   UserInput,
+  UserSync,
   UserUpdate
 } from './api.schemas';
 
@@ -519,6 +521,154 @@ export const useUpdateUser = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getUpdateUserMutationOptions(options));
+    }
+
+export const getGetAuthSetupUrl = () => {
+
+
+
+
+  return `/api/users/setup`
+}
+
+/**
+ * @summary Returns whether the app has been initialized (first user exists)
+ */
+export const getAuthSetup = async ( options?: RequestInit): Promise<SetupStatus> => {
+
+  return customFetch<SetupStatus>(getGetAuthSetupUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetAuthSetupQueryKey = () => {
+    return [
+    `/api/users/setup`
+    ] as const;
+    }
+
+
+export const getGetAuthSetupQueryOptions = <TData = Awaited<ReturnType<typeof getAuthSetup>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAuthSetup>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetAuthSetupQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAuthSetup>>> = ({ signal }) => getAuthSetup({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAuthSetup>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetAuthSetupQueryResult = NonNullable<Awaited<ReturnType<typeof getAuthSetup>>>
+export type GetAuthSetupQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Returns whether the app has been initialized (first user exists)
+ */
+
+export function useGetAuthSetup<TData = Awaited<ReturnType<typeof getAuthSetup>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAuthSetup>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetAuthSetupQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getSyncUserUrl = () => {
+
+
+
+
+  return `/api/users/sync`
+}
+
+/**
+ * @summary JIT-provision the current Clerk user (creates or returns existing)
+ */
+export const syncUser = async (userSync: UserSync, options?: RequestInit): Promise<User> => {
+
+  return customFetch<User>(getSyncUserUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      userSync,)
+  }
+);}
+
+
+
+
+export const getSyncUserMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof syncUser>>, TError,{data: BodyType<UserSync>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof syncUser>>, TError,{data: BodyType<UserSync>}, TContext> => {
+
+const mutationKey = ['syncUser'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof syncUser>>, {data: BodyType<UserSync>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  syncUser(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SyncUserMutationResult = NonNullable<Awaited<ReturnType<typeof syncUser>>>
+    export type SyncUserMutationBody = BodyType<UserSync>
+    export type SyncUserMutationError = ErrorType<void>
+
+    /**
+ * @summary JIT-provision the current Clerk user (creates or returns existing)
+ */
+export const useSyncUser = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof syncUser>>, TError,{data: BodyType<UserSync>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof syncUser>>,
+        TError,
+        {data: BodyType<UserSync>},
+        TContext
+      > => {
+      return useMutation(getSyncUserMutationOptions(options));
     }
 
 export const getListProjectsUrl = () => {
@@ -3061,6 +3211,83 @@ export const usePostMessage = <TError = ErrorType<unknown>,
       > => {
       return useMutation(getPostMessageMutationOptions(options));
     }
+
+export const getStreamMessagesUrl = (slug: string,) => {
+
+
+
+
+  return `/api/projects/${slug}/messages/stream`
+}
+
+/**
+ * @summary SSE stream of live project messages (text/event-stream)
+ */
+export const streamMessages = async (slug: string, options?: RequestInit): Promise<string> => {
+
+  return customFetch<string>(getStreamMessagesUrl(slug),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getStreamMessagesQueryKey = (slug: string,) => {
+    return [
+    `/api/projects/${slug}/messages/stream`
+    ] as const;
+    }
+
+
+export const getStreamMessagesQueryOptions = <TData = Awaited<ReturnType<typeof streamMessages>>, TError = ErrorType<void>>(slug: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof streamMessages>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getStreamMessagesQueryKey(slug);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof streamMessages>>> = ({ signal }) => streamMessages(slug, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(slug), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof streamMessages>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type StreamMessagesQueryResult = NonNullable<Awaited<ReturnType<typeof streamMessages>>>
+export type StreamMessagesQueryError = ErrorType<void>
+
+
+/**
+ * @summary SSE stream of live project messages (text/event-stream)
+ */
+
+export function useStreamMessages<TData = Awaited<ReturnType<typeof streamMessages>>, TError = ErrorType<void>>(
+ slug: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof streamMessages>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getStreamMessagesQueryOptions(slug,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
 
 export const getListPresenceUrl = () => {
 

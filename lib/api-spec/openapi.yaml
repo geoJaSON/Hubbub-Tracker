@@ -130,6 +130,46 @@ paths:
               schema:
                 $ref: "#/components/schemas/User"
 
+  /users/setup:
+    get:
+      operationId: getAuthSetup
+      tags: [users]
+      summary: Returns whether the app has been initialized (first user exists)
+      responses:
+        "200":
+          description: Setup status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SetupStatus"
+
+  /users/sync:
+    post:
+      operationId: syncUser
+      tags: [users]
+      summary: JIT-provision the current Clerk user (creates or returns existing)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserSync"
+      responses:
+        "200":
+          description: Existing user returned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "201":
+          description: New user provisioned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          description: Unauthorized
+
   # ── Projects ───────────────────────────────────────────────────────────────
   /projects:
     get:
@@ -908,6 +948,27 @@ paths:
               schema:
                 $ref: "#/components/schemas/Message"
 
+  /projects/{slug}/messages/stream:
+    get:
+      operationId: streamMessages
+      tags: [messages]
+      summary: SSE stream of live project messages (text/event-stream)
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Server-Sent Events stream; each event is a JSON-encoded Message
+          content:
+            text/event-stream:
+              schema:
+                type: string
+        "401":
+          description: Unauthorized
+
   # ── Presence ───────────────────────────────────────────────────────────────
   /presence:
     get:
@@ -1170,6 +1231,26 @@ components:
         status:
           type: string
       required: [status]
+
+    SetupStatus:
+      type: object
+      required: [initialized]
+      properties:
+        initialized:
+          type: boolean
+          description: True if at least one user exists
+
+    UserSync:
+      type: object
+      required: [email, displayName]
+      properties:
+        email:
+          type: string
+        displayName:
+          type: string
+        avatarUrl:
+          type: string
+          nullable: true
 
     # ── Users ──────────────────────────────────────────────────────────────
     User:
