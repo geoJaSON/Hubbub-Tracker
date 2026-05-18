@@ -7,11 +7,12 @@ import {
   useGetStandup, useCreateDoc, useUpdateDoc, useDeleteDoc,
   useUpdateProject, useDeleteProject,
   useGetBurnDown, useListCostEntries, useCreateCostEntry,
+  useCreateScope, useCreateMilestone,
 } from "@workspace/api-client-react";
 import type {
   Item, Doc, ItemInput, ItemInputType, ItemInputPriority,
   ItemUpdateStatus, Message, DocInput, CostEntry, CostEntryInput,
-  CostEntryInputCategory,
+  CostEntryInputCategory, Scope, Milestone, ScopeInput, MilestoneInput,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -29,7 +30,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import {
   Plus, Send, Bug, CheckSquare, Lightbulb, MessageSquare as ReqIcon,
-  ArrowRight, FileText, Copy, Trash2, Pin, Pencil, Archive,
+  ArrowRight, FileText, Copy, Trash2, Pin, Pencil, Archive, Search,
+  Flag, Layers,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import ReactMarkdown from "react-markdown";
@@ -159,6 +161,14 @@ export default function ProjectPage() {
     description: string;
   }>({ type: "todo", title: "", priority: "medium", description: "" });
 
+  const [docSearch, setDocSearch] = useState("");
+  const [scopeOpen, setScopeOpen] = useState(false);
+  const [newScope, setNewScope] = useState({ name: "", budgetCents: "", startDate: "", targetDate: "" });
+  const [milestoneOpen, setMilestoneOpen] = useState(false);
+  const [newMilestone, setNewMilestone] = useState({ name: "", scopeId: "", targetDate: "" });
+  const createScope = useCreateScope();
+  const createMilestone = useCreateMilestone();
+
   // SSE live chat: accumulate messages that arrive over the stream
   const [sseMessages, setSseMessages] = useState<Message[]>([]);
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -218,6 +228,13 @@ export default function ProjectPage() {
   }, [allMessages, activeTab]);
 
   const items: RichItem[] = itemsData.map((i) => ({ ...i, projectSlug: slug! }));
+
+  const docSearchFiltered = useMemo<Doc[]>(() => {
+    const q = docSearch.trim().toLowerCase();
+    return [...(docs as Doc[])]
+      .filter((d) => !q || d.title.toLowerCase().includes(q) || (d.body ?? "").toLowerCase().includes(q))
+      .sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
+  }, [docs, docSearch]);
 
   const handleSendMsg = async () => {
     if (!chatMsg.trim()) return;
@@ -315,6 +332,45 @@ export default function ProjectPage() {
       toast({ title: "Cost entry added" });
     } catch {
       toast({ title: "Failed to add cost entry", variant: "destructive" });
+    }
+  };
+
+  const handleCreateScope = async () => {
+    if (!newScope.name.trim()) return;
+    try {
+      const scopeSlug = newScope.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || `scope-${Date.now()}`;
+      const input: ScopeInput = {
+        name: newScope.name,
+        slug: scopeSlug,
+        budgetCents: newScope.budgetCents ? Math.round(parseFloat(newScope.budgetCents) * 100) : null,
+        startDate: newScope.startDate || null,
+        targetDate: newScope.targetDate || null,
+      };
+      await createScope.mutateAsync({ slug: slug!, data: input });
+      qc.invalidateQueries({ queryKey: getGetProjectQueryKey(slug!) });
+      setScopeOpen(false);
+      setNewScope({ name: "", budgetCents: "", startDate: "", targetDate: "" });
+      toast({ title: "Scope created" });
+    } catch {
+      toast({ title: "Failed to create scope", variant: "destructive" });
+    }
+  };
+
+  const handleCreateMilestone = async () => {
+    if (!newMilestone.name.trim() || !newMilestone.scopeId) return;
+    try {
+      const input: MilestoneInput = {
+        name: newMilestone.name,
+        scopeId: parseInt(newMilestone.scopeId, 10),
+        targetDate: newMilestone.targetDate || null,
+      };
+      await createMilestone.mutateAsync({ slug: slug!, data: input });
+      qc.invalidateQueries({ queryKey: getGetProjectQueryKey(slug!) });
+      setMilestoneOpen(false);
+      setNewMilestone({ name: "", scopeId: "", targetDate: "" });
+      toast({ title: "Milestone created" });
+    } catch {
+      toast({ title: "Failed to create milestone", variant: "destructive" });
     }
   };
 
@@ -525,10 +581,16 @@ export default function ProjectPage() {
                           </span>
                         )}
                         <span className="text-foreground">
-                          {m.body.split(/(@\w+)/g).map((part, pi) =>
+                          {m.body.split(/(@\w+|#\d+)/g).map((part, pi) =>
                             part.startsWith("@")
                               ? <span key={pi} className="text-accent font-bold">{part}</span>
-                              : part
+                              : part.startsWith("#") && /^#\d+$/.test(part)
+                                ? (
+                                  <Link key={pi} href={`/projects/${slug}/items/${part.slice(1)}`}>
+                                    <a className="text-primary font-bold hover:underline">{part}</a>
+                                  </Link>
+                                )
+                                : part
                           )}
                         </span>
                         <span className="text-muted-foreground text-xs ml-2">
@@ -560,25 +622,34 @@ export default function ProjectPage() {
             </div>
           </TabsContent>
 
-          {/* DOCS TAB — full CRUD */}
+          {/* DOCS TAB — full CRUD + search */}
           <TabsContent value="docs" className="mt-3 space-y-3">
-            <div className="flex">
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground pointer-events-none" />
+                <Input
+                  value={docSearch}
+                  onChange={(e) => setDocSearch(e.target.value)}
+                  className="pl-6 h-8 bg-background border-border font-mono text-xs"
+                  placeholder="search docs..."
+                />
+              </div>
               <Button
                 size="sm"
                 variant="ghost"
-                className="ml-auto font-mono text-xs border border-primary/50 text-primary hover:bg-primary/10 gap-1"
+                className="font-mono text-xs border border-primary/50 text-primary hover:bg-primary/10 gap-1 shrink-0"
                 onClick={() => { setEditDoc(null); setDocForm({ title: "", body: "" }); setDocOpen(true); }}
               >
                 <Plus className="h-3 w-3" /> NEW DOC
               </Button>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-              {(docs as Doc[]).length === 0 ? (
-                <div className="col-span-3 border border-border bg-card p-6 text-center text-muted-foreground font-mono text-sm">
-                  no docs yet — create one above
-                </div>
-              ) : (
-                [...(docs as Doc[])].sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0)).map((doc) => (
+            {docSearchFiltered.length === 0 ? (
+              <div className="border border-border bg-card p-6 text-center text-muted-foreground font-mono text-sm">
+                {docSearch.trim() ? `no docs matching "${docSearch.trim()}"` : "no docs yet — create one above"}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {docSearchFiltered.map((doc) => (
                   <div key={doc.id} className="border border-border bg-card p-4 flex flex-col gap-2 hover:border-primary/40 transition-colors">
                     <div className="flex items-center gap-2">
                       <FileText className="h-3.5 w-3.5 text-primary shrink-0" />
@@ -617,9 +688,9 @@ export default function ProjectPage() {
                       </button>
                     </div>
                   </div>
-                ))
-              )}
-            </div>
+                ))}
+              </div>
+            )}
           </TabsContent>
 
           {/* ACTIVITY TAB */}
@@ -754,6 +825,77 @@ export default function ProjectPage() {
                       )}
                       <span className="text-foreground shrink-0 font-bold">${(c.amountCents / 100).toFixed(2)}</span>
                       <span className="text-muted-foreground shrink-0">{new Date(c.incurredOn).toLocaleDateString()}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Scopes */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="font-mono text-xs tracking-widest text-muted-foreground">// SCOPES</span>
+                <Button size="sm" variant="ghost"
+                  className="font-mono text-xs border border-primary/50 text-primary hover:bg-primary/10 gap-1"
+                  onClick={() => setScopeOpen(true)}>
+                  <Plus className="h-3 w-3" /> NEW SCOPE
+                </Button>
+              </div>
+              {(project.scopes as Scope[]).length === 0 ? (
+                <div className="border border-border bg-card p-4 text-center text-muted-foreground font-mono text-sm">
+                  no scopes — add one to track work packages and budgets
+                </div>
+              ) : (
+                <div className="border border-border bg-card divide-y divide-border">
+                  {(project.scopes as Scope[]).map((s) => (
+                    <div key={s.id} className="flex items-center gap-3 px-4 py-3 font-mono text-xs">
+                      <Layers className="h-3.5 w-3.5 text-primary shrink-0" />
+                      <span className="flex-1 text-foreground">{s.name}</span>
+                      <span className={cn(
+                        "border px-1 text-[10px]",
+                        s.status === "active" ? "border-accent/50 text-accent" :
+                        s.status === "complete" ? "border-primary/50 text-primary" :
+                        "border-border text-muted-foreground",
+                      )}>{s.status.toUpperCase()}</span>
+                      {s.budgetCents != null && (
+                        <span className="text-muted-foreground shrink-0">
+                          ${((s.spentCents ?? 0) / 100).toFixed(0)} / ${(s.budgetCents / 100).toFixed(0)}
+                        </span>
+                      )}
+                      {s.targetDate && <span className="text-muted-foreground shrink-0">{s.targetDate}</span>}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Milestones */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="font-mono text-xs tracking-widest text-muted-foreground">// MILESTONES</span>
+                <Button size="sm" variant="ghost"
+                  className="font-mono text-xs border border-primary/50 text-primary hover:bg-primary/10 gap-1"
+                  onClick={() => setMilestoneOpen(true)}
+                  disabled={(project.scopes as Scope[]).length === 0}
+                >
+                  <Plus className="h-3 w-3" /> NEW MILESTONE
+                </Button>
+              </div>
+              {(project.milestones as Milestone[]).length === 0 ? (
+                <div className="border border-border bg-card p-4 text-center text-muted-foreground font-mono text-sm">
+                  no milestones — create a scope first, then add milestones
+                </div>
+              ) : (
+                <div className="border border-border bg-card divide-y divide-border">
+                  {(project.milestones as Milestone[]).map((m) => (
+                    <div key={m.id} className="flex items-center gap-3 px-4 py-3 font-mono text-xs">
+                      <Flag className="h-3.5 w-3.5 text-accent shrink-0" />
+                      <span className="flex-1 text-foreground">{m.name}</span>
+                      <span className={cn(
+                        "border px-1 text-[10px]",
+                        m.status === "complete" ? "border-primary/50 text-primary" : "border-border text-muted-foreground",
+                      )}>{m.status.toUpperCase()}</span>
+                      {m.targetDate && <span className="text-muted-foreground shrink-0">{m.targetDate}</span>}
                     </div>
                   ))}
                 </div>
@@ -992,6 +1134,85 @@ export default function ProjectPage() {
                 className="font-mono text-xs bg-primary text-primary-foreground hover:bg-primary/90"
               >
                 {createCostEntry.isPending ? "SAVING..." : "ADD"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create Scope Dialog */}
+      <Dialog open={scopeOpen} onOpenChange={setScopeOpen}>
+        <DialogContent className="bg-card border-border max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="font-['VT323'] tracking-widest text-xl text-primary">// NEW SCOPE</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <Label className="font-mono text-xs tracking-widest text-muted-foreground">NAME</Label>
+              <Input value={newScope.name} onChange={(e) => setNewScope((p) => ({ ...p, name: e.target.value }))}
+                className="bg-background border-border font-mono text-sm rounded-none" placeholder="scope name" />
+            </div>
+            <div className="space-y-1">
+              <Label className="font-mono text-xs tracking-widest text-muted-foreground">BUDGET ($)</Label>
+              <Input value={newScope.budgetCents} onChange={(e) => setNewScope((p) => ({ ...p, budgetCents: e.target.value }))}
+                className="bg-background border-border font-mono text-sm rounded-none" placeholder="0.00" type="number" min="0" step="0.01" />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <Label className="font-mono text-xs tracking-widest text-muted-foreground">START DATE</Label>
+                <Input type="date" value={newScope.startDate} onChange={(e) => setNewScope((p) => ({ ...p, startDate: e.target.value }))}
+                  className="bg-background border-border font-mono text-xs rounded-none h-8" />
+              </div>
+              <div className="space-y-1">
+                <Label className="font-mono text-xs tracking-widest text-muted-foreground">TARGET DATE</Label>
+                <Input type="date" value={newScope.targetDate} onChange={(e) => setNewScope((p) => ({ ...p, targetDate: e.target.value }))}
+                  className="bg-background border-border font-mono text-xs rounded-none h-8" />
+              </div>
+            </div>
+            <div className="flex gap-2 justify-end">
+              <Button variant="ghost" size="sm" onClick={() => setScopeOpen(false)} className="font-mono text-xs text-muted-foreground">CANCEL</Button>
+              <Button size="sm" onClick={() => void handleCreateScope()} disabled={!newScope.name.trim() || createScope.isPending}
+                className="font-mono text-xs bg-primary text-primary-foreground hover:bg-primary/90">
+                {createScope.isPending ? "CREATING..." : "CREATE"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create Milestone Dialog */}
+      <Dialog open={milestoneOpen} onOpenChange={setMilestoneOpen}>
+        <DialogContent className="bg-card border-border max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="font-['VT323'] tracking-widest text-xl text-primary">// NEW MILESTONE</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <Label className="font-mono text-xs tracking-widest text-muted-foreground">NAME</Label>
+              <Input value={newMilestone.name} onChange={(e) => setNewMilestone((p) => ({ ...p, name: e.target.value }))}
+                className="bg-background border-border font-mono text-sm rounded-none" placeholder="milestone name" />
+            </div>
+            <div className="space-y-1">
+              <Label className="font-mono text-xs tracking-widest text-muted-foreground">SCOPE</Label>
+              <Select value={newMilestone.scopeId} onValueChange={(v) => setNewMilestone((p) => ({ ...p, scopeId: v }))}>
+                <SelectTrigger className="bg-background border-border font-mono text-xs h-8 rounded-none"><SelectValue placeholder="select scope" /></SelectTrigger>
+                <SelectContent className="bg-card border-border">
+                  {(project.scopes as Scope[]).map((s) => (
+                    <SelectItem key={s.id} value={String(s.id)} className="font-mono text-xs">{s.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="font-mono text-xs tracking-widest text-muted-foreground">TARGET DATE</Label>
+              <Input type="date" value={newMilestone.targetDate} onChange={(e) => setNewMilestone((p) => ({ ...p, targetDate: e.target.value }))}
+                className="bg-background border-border font-mono text-xs rounded-none h-8" />
+            </div>
+            <div className="flex gap-2 justify-end">
+              <Button variant="ghost" size="sm" onClick={() => setMilestoneOpen(false)} className="font-mono text-xs text-muted-foreground">CANCEL</Button>
+              <Button size="sm" onClick={() => void handleCreateMilestone()} disabled={!newMilestone.name.trim() || !newMilestone.scopeId || createMilestone.isPending}
+                className="font-mono text-xs bg-primary text-primary-foreground hover:bg-primary/90">
+                {createMilestone.isPending ? "CREATING..." : "CREATE"}
               </Button>
             </div>
           </div>

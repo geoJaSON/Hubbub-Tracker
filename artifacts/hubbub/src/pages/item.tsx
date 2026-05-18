@@ -2,8 +2,9 @@ import { useState } from "react";
 import { useParams, Link } from "wouter";
 import {
   useGetItem, useUpdateItem, useCreateComment, useCreateTimeEntry,
+  useGetProject, useUpsertPresence,
 } from "@workspace/api-client-react";
-import type { ItemUpdateStatus } from "@workspace/api-client-react";
+import type { ItemUpdateStatus, ItemUpdatePriority, Commit } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { getGetItemQueryKey } from "@workspace/api-client-react";
 import { Layout } from "../components/layout";
@@ -13,7 +14,10 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
-import { ArrowLeft, Clock, Bug, CheckSquare, Lightbulb, MessageSquare as ReqIcon, Send } from "lucide-react";
+import {
+  ArrowLeft, Clock, Bug, CheckSquare, Lightbulb, MessageSquare as ReqIcon,
+  Send, GitCommit, User as UserIcon, Zap,
+} from "lucide-react";
 import ReactMarkdown from "react-markdown";
 
 const STATUS_LABELS: Record<string, string> = {
@@ -31,58 +35,49 @@ const PRIORITY_COLORS: Record<string, string> = {
   low: "text-muted-foreground", medium: "text-foreground",
   high: "text-accent", urgent: "text-destructive",
 };
+const PRIORITY_OPTIONS = ["low", "medium", "high", "urgent"] as const;
 
-/**
- * Parse a time string into minutes. Supports:
- *   - "90"          → 90 min
- *   - "1h30m"       → 90 min
- *   - "1h"          → 60 min
- *   - "30m"         → 30 min
- *   - "1:30"        → 90 min
- *   - "1.5"         → 90 min (treated as hours)
- * Returns 0 if the input is unparseable.
- */
 function parseTimeToMinutes(raw: string): number {
   const s = raw.trim().toLowerCase();
   if (!s) return 0;
-
-  // "1h30m" or "1h" or "30m"
   const hm = s.match(/^(?:(\d+(?:\.\d+)?)h)?(?:(\d+(?:\.\d+)?)m)?$/);
   if (hm && (hm[1] || hm[2])) {
-    const h = parseFloat(hm[1] ?? "0");
-    const m = parseFloat(hm[2] ?? "0");
-    return Math.round(h * 60 + m);
+    return Math.round(parseFloat(hm[1] ?? "0") * 60 + parseFloat(hm[2] ?? "0"));
   }
-
-  // "1:30"
   const colon = s.match(/^(\d+):(\d{1,2})$/);
-  if (colon) {
-    return parseInt(colon[1], 10) * 60 + parseInt(colon[2], 10);
-  }
-
-  // plain number — treat as minutes if integer, hours if decimal
+  if (colon) return parseInt(colon[1], 10) * 60 + parseInt(colon[2], 10);
   const n = parseFloat(s);
-  if (!isNaN(n)) {
-    return Number.isInteger(n) ? n : Math.round(n * 60);
-  }
-
+  if (!isNaN(n)) return Number.isInteger(n) ? n : Math.round(n * 60);
   return 0;
+}
+
+function formatMinutes(m: number) {
+  return m < 60 ? `${m}m` : `${Math.floor(m / 60)}h ${m % 60}m`.replace(" 0m", "");
 }
 
 export default function ItemPage() {
   const { slug, number } = useParams<{ slug: string; number: string }>();
   const { data: item, isLoading } = useGetItem(slug!, Number(number));
+  const { data: project } = useGetProject(slug!);
   const updateItem = useUpdateItem();
   const createComment = useCreateComment();
   const createTimeEntry = useCreateTimeEntry();
+  const upsertPresence = useUpsertPresence();
   const qc = useQueryClient();
   const { toast } = useToast();
 
   const [comment, setComment] = useState("");
   const [editDesc, setEditDesc] = useState(false);
   const [desc, setDesc] = useState("");
+  const [editRationale, setEditRationale] = useState(false);
+  const [rationale, setRationale] = useState("");
+  const [editEstimate, setEditEstimate] = useState(false);
+  const [estimateInput, setEstimateInput] = useState("");
+  const [editDue, setEditDue] = useState(false);
+  const [dueInput, setDueInput] = useState("");
   const [logTime, setLogTime] = useState("");
   const [logNote, setLogNote] = useState("");
+  const [workingOn, setWorkingOn] = useState(false);
 
   if (isLoading) {
     return (
@@ -91,7 +86,6 @@ export default function ItemPage() {
       </Layout>
     );
   }
-
   if (!item) {
     return (
       <Layout title="NOT FOUND">
@@ -101,23 +95,55 @@ export default function ItemPage() {
   }
 
   const TypeIcon =
-    { bug: Bug, todo: CheckSquare, decision: Lightbulb, request: ReqIcon }[item.type] ??
-    CheckSquare;
+    { bug: Bug, todo: CheckSquare, decision: Lightbulb, request: ReqIcon }[item.type] ?? CheckSquare;
 
-  const handleStatusChange = async (status: string) => {
-    await updateItem.mutateAsync({
-      slug,
-      itemNumber: item.number,
-      data: { status: status as ItemUpdateStatus },
-    });
-    qc.invalidateQueries({ queryKey: getGetItemQueryKey(slug!, item.number) });
+  const members = (project as { members?: Array<{ userId: string; user?: { displayName?: string } }> })?.members ?? [];
+  const commits = (item.commits ?? []) as Commit[];
+  const estimateMin = item.estimateMinutes ?? null;
+  const loggedMin = item.totalMinutesLogged ?? 0;
+
+  const invalidate = () => qc.invalidateQueries({ queryKey: getGetItemQueryKey(slug!, item.number) });
+
+  const handleField = async (patch: Parameters<typeof updateItem.mutateAsync>[0]["data"]) => {
+    await updateItem.mutateAsync({ slug, itemNumber: item.number, data: patch });
+    invalidate();
+  };
+
+  const handleStatusChange = (status: string) =>
+    void handleField({ status: status as ItemUpdateStatus });
+
+  const handlePriorityChange = (priority: string) =>
+    void handleField({ priority: priority as ItemUpdatePriority });
+
+  const handleAssigneeChange = (assigneeId: string) =>
+    void handleField({ assigneeId: assigneeId === "__none__" ? null : assigneeId });
+
+  const handleSaveEstimate = async () => {
+    const mins = parseTimeToMinutes(estimateInput);
+    await handleField({ estimateMinutes: mins > 0 ? mins : null });
+    setEditEstimate(false);
+  };
+
+  const handleSaveDue = async () => {
+    await handleField({ dueDate: dueInput || null });
+    setEditDue(false);
+  };
+
+  const handleSaveDesc = async () => {
+    await handleField({ description: desc });
+    setEditDesc(false);
+  };
+
+  const handleSaveRationale = async () => {
+    await handleField({ decisionRationale: rationale });
+    setEditRationale(false);
   };
 
   const handlePostComment = async () => {
     if (!comment.trim()) return;
     try {
       await createComment.mutateAsync({ slug, itemNumber: item.number, data: { body: comment } });
-      qc.invalidateQueries({ queryKey: getGetItemQueryKey(slug!, item.number) });
+      invalidate();
       setComment("");
     } catch {
       toast({ title: "Failed to post comment", variant: "destructive" });
@@ -132,32 +158,25 @@ export default function ItemPage() {
     }
     try {
       await createTimeEntry.mutateAsync({
-        slug,
-        itemNumber: item.number,
-        data: {
-          minutes,
-          spentOn: new Date().toISOString().split("T")[0],
-          note: logNote || null,
-          billable: true,
-        },
+        slug, itemNumber: item.number,
+        data: { minutes, spentOn: new Date().toISOString().split("T")[0], note: logNote || null, billable: true },
       });
-      qc.invalidateQueries({ queryKey: getGetItemQueryKey(slug!, item.number) });
-      setLogTime("");
-      setLogNote("");
-      toast({ title: `Logged ${minutes}m` });
+      invalidate();
+      setLogTime(""); setLogNote("");
+      toast({ title: `Logged ${formatMinutes(minutes)}` });
     } catch {
       toast({ title: "Failed to log time", variant: "destructive" });
     }
   };
 
-  const handleSaveDesc = async () => {
-    await updateItem.mutateAsync({
-      slug,
-      itemNumber: item.number,
-      data: { description: desc },
-    });
-    qc.invalidateQueries({ queryKey: getGetItemQueryKey(slug!, item.number) });
-    setEditDesc(false);
+  const handleWorkingOn = async () => {
+    try {
+      await upsertPresence.mutateAsync({ data: { itemId: workingOn ? null : item.id, note: workingOn ? null : `working on #${item.number}` } });
+      setWorkingOn(!workingOn);
+      toast({ title: workingOn ? "Presence cleared" : `Set working on #${item.number}` });
+    } catch {
+      toast({ title: "Failed to update presence", variant: "destructive" });
+    }
   };
 
   return (
@@ -171,45 +190,140 @@ export default function ItemPage() {
         </Link>
 
         {/* Header */}
-        <div className="border border-border bg-card p-4 space-y-3">
+        <div className="border border-border bg-card p-4 space-y-4">
           <div className="flex items-start gap-3">
             <TypeIcon className={cn("h-5 w-5 shrink-0 mt-0.5", PRIORITY_COLORS[item.priority])} />
             <div className="flex-1 min-w-0">
               <h2 className="text-lg font-['VT323'] tracking-wider text-foreground">
                 #{item.number} {item.title}
               </h2>
-              <div className="flex flex-wrap items-center gap-3 mt-1 text-xs font-mono text-muted-foreground">
+              <div className="flex flex-wrap items-center gap-2 mt-1 text-xs font-mono text-muted-foreground">
                 <span className="text-primary">{item.type}</span>
-                <span>priority: <span className={PRIORITY_COLORS[item.priority]}>{item.priority}</span></span>
-                {item.assignee && (
-                  <span>assigned: <span className="text-accent">{(item.assignee as { displayName?: string }).displayName}</span></span>
-                )}
-                {item.dueDate && <span>due: {item.dueDate}</span>}
+                <span>created: {new Date(item.createdAt).toLocaleDateString()}</span>
               </div>
             </div>
+            <Button
+              size="sm"
+              variant={workingOn ? "default" : "ghost"}
+              onClick={() => void handleWorkingOn()}
+              disabled={upsertPresence.isPending}
+              className={cn(
+                "font-mono text-xs gap-1 shrink-0",
+                workingOn ? "bg-accent text-accent-foreground" : "border border-border text-muted-foreground hover:text-primary hover:border-primary/50",
+              )}
+            >
+              <Zap className="h-3 w-3" />
+              {workingOn ? "WORKING ON THIS" : "WORK ON THIS"}
+            </Button>
           </div>
 
-          {/* Status picker */}
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-mono text-muted-foreground">STATUS:</span>
-            <Select value={item.status} onValueChange={(v) => void handleStatusChange(v)}>
-              <SelectTrigger
-                className={cn("h-7 w-36 border font-mono text-xs rounded-none", STATUS_COLORS[item.status])}
+          {/* Inline-editable fields grid */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs font-mono">
+            {/* STATUS */}
+            <div className="space-y-1">
+              <span className="text-muted-foreground tracking-wider">STATUS</span>
+              <Select value={item.status} onValueChange={(v) => void handleStatusChange(v)}>
+                <SelectTrigger className={cn("h-7 border font-mono text-xs rounded-none w-full", STATUS_COLORS[item.status])}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-card border-border font-mono text-xs">
+                  {Object.entries(STATUS_LABELS).map(([v, label]) => (
+                    <SelectItem key={v} value={v} className="font-mono text-xs">{label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* PRIORITY */}
+            <div className="space-y-1">
+              <span className="text-muted-foreground tracking-wider">PRIORITY</span>
+              <Select value={item.priority} onValueChange={(v) => void handlePriorityChange(v)}>
+                <SelectTrigger className={cn("h-7 border border-border font-mono text-xs rounded-none w-full", PRIORITY_COLORS[item.priority])}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-card border-border font-mono text-xs">
+                  {PRIORITY_OPTIONS.map((p) => (
+                    <SelectItem key={p} value={p} className={cn("font-mono text-xs", PRIORITY_COLORS[p])}>{p.toUpperCase()}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* ASSIGNEE */}
+            <div className="space-y-1">
+              <span className="text-muted-foreground tracking-wider">ASSIGNEE</span>
+              <Select
+                value={(item.assignee as { id?: string } | null)?.id ?? "__none__"}
+                onValueChange={(v) => void handleAssigneeChange(v)}
               >
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="bg-card border-border font-mono text-xs">
-                {Object.entries(STATUS_LABELS).map(([v, label]) => (
-                  <SelectItem key={v} value={v} className="font-mono text-xs">{label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {item.totalMinutesLogged != null && item.totalMinutesLogged > 0 && (
-              <span className="text-xs font-mono text-muted-foreground ml-auto">
-                <Clock className="h-3 w-3 inline mr-1" />
-                {Math.floor(item.totalMinutesLogged / 60)}h {item.totalMinutesLogged % 60}m logged
-              </span>
-            )}
+                <SelectTrigger className="h-7 border border-border font-mono text-xs rounded-none w-full text-accent">
+                  <SelectValue placeholder="unassigned" />
+                </SelectTrigger>
+                <SelectContent className="bg-card border-border font-mono text-xs">
+                  <SelectItem value="__none__" className="font-mono text-xs text-muted-foreground">— unassigned</SelectItem>
+                  {members.map((m) => (
+                    <SelectItem key={m.userId} value={m.userId} className="font-mono text-xs">
+                      <UserIcon className="h-3 w-3 inline mr-1" />
+                      {m.user?.displayName ?? m.userId.slice(0, 8)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* ESTIMATE vs ACTUAL */}
+            <div className="space-y-1">
+              <span className="text-muted-foreground tracking-wider">ESTIMATE / ACTUAL</span>
+              {editEstimate ? (
+                <div className="flex gap-1">
+                  <Input
+                    value={estimateInput}
+                    onChange={(e) => setEstimateInput(e.target.value)}
+                    className="h-7 bg-background border-border font-mono text-xs flex-1"
+                    placeholder="2h, 30m..."
+                    autoFocus
+                    onKeyDown={(e) => { if (e.key === "Enter") void handleSaveEstimate(); if (e.key === "Escape") setEditEstimate(false); }}
+                  />
+                  <button onClick={() => void handleSaveEstimate()} className="text-primary text-xs hover:text-primary/80">[ok]</button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => { setEstimateInput(estimateMin ? formatMinutes(estimateMin) : ""); setEditEstimate(true); }}
+                  className="h-7 flex items-center gap-1 text-foreground hover:text-primary transition-colors"
+                >
+                  <Clock className="h-3 w-3 text-primary shrink-0" />
+                  <span>{estimateMin ? formatMinutes(estimateMin) : "—"}</span>
+                  {loggedMin > 0 && (
+                    <span className="text-muted-foreground">/ {formatMinutes(loggedMin)} logged</span>
+                  )}
+                </button>
+              )}
+            </div>
+
+            {/* DUE DATE */}
+            <div className="space-y-1">
+              <span className="text-muted-foreground tracking-wider">DUE DATE</span>
+              {editDue ? (
+                <div className="flex gap-1">
+                  <Input
+                    type="date"
+                    value={dueInput}
+                    onChange={(e) => setDueInput(e.target.value)}
+                    className="h-7 bg-background border-border font-mono text-xs flex-1"
+                    autoFocus
+                    onKeyDown={(e) => { if (e.key === "Enter") void handleSaveDue(); if (e.key === "Escape") setEditDue(false); }}
+                  />
+                  <button onClick={() => void handleSaveDue()} className="text-primary text-xs hover:text-primary/80">[ok]</button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => { setDueInput(item.dueDate ?? ""); setEditDue(true); }}
+                  className="h-7 flex items-center text-foreground hover:text-primary transition-colors"
+                >
+                  {item.dueDate ?? <span className="text-muted-foreground">— click to set</span>}
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
@@ -236,22 +350,10 @@ export default function ItemPage() {
                 placeholder="Markdown supported..."
               />
               <div className="flex gap-2">
-                <Button
-                  size="sm"
-                  onClick={() => void handleSaveDesc()}
-                  disabled={updateItem.isPending}
-                  className="bg-primary text-primary-foreground font-mono text-xs"
-                >
-                  SAVE
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => setEditDesc(false)}
-                  className="border border-border font-mono text-xs"
-                >
-                  CANCEL
-                </Button>
+                <Button size="sm" onClick={() => void handleSaveDesc()} disabled={updateItem.isPending}
+                  className="bg-primary text-primary-foreground font-mono text-xs">SAVE</Button>
+                <Button size="sm" variant="ghost" onClick={() => setEditDesc(false)}
+                  className="border border-border font-mono text-xs">CANCEL</Button>
               </div>
             </div>
           ) : item.description ? (
@@ -259,38 +361,89 @@ export default function ItemPage() {
               <ReactMarkdown>{item.description}</ReactMarkdown>
             </div>
           ) : (
-            <p className="text-muted-foreground font-mono text-xs">no description</p>
+            <p className="text-muted-foreground font-mono text-xs">no description — click [edit] to add</p>
           )}
         </div>
+
+        {/* Decision Rationale (only for decision type) */}
+        {item.type === "decision" && (
+          <div className="border border-border bg-card p-4 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-mono text-muted-foreground tracking-widest">// DECISION RATIONALE</span>
+              {!editRationale && (
+                <button
+                  onClick={() => { setRationale(item.decisionRationale ?? ""); setEditRationale(true); }}
+                  className="text-xs font-mono text-muted-foreground hover:text-primary transition-colors"
+                >
+                  [edit]
+                </button>
+              )}
+            </div>
+            {editRationale ? (
+              <div className="space-y-2">
+                <Textarea
+                  value={rationale}
+                  onChange={(e) => setRationale(e.target.value)}
+                  className="bg-background border-border font-mono text-sm resize-none"
+                  rows={4}
+                  placeholder="Why was this decision made?"
+                />
+                <div className="flex gap-2">
+                  <Button size="sm" onClick={() => void handleSaveRationale()} disabled={updateItem.isPending}
+                    className="bg-primary text-primary-foreground font-mono text-xs">SAVE</Button>
+                  <Button size="sm" variant="ghost" onClick={() => setEditRationale(false)}
+                    className="border border-border font-mono text-xs">CANCEL</Button>
+                </div>
+              </div>
+            ) : item.decisionRationale ? (
+              <p className="text-sm font-mono text-foreground">{item.decisionRationale}</p>
+            ) : (
+              <p className="text-muted-foreground font-mono text-xs">no rationale — click [edit] to add</p>
+            )}
+          </div>
+        )}
+
+        {/* Linked Commits */}
+        {commits.length > 0 && (
+          <div className="border border-border bg-card p-4 space-y-2">
+            <span className="text-xs font-mono text-muted-foreground tracking-widest">// LINKED COMMITS</span>
+            <div className="divide-y divide-border">
+              {commits.map((c) => (
+                <div key={c.id} className="flex items-start gap-3 py-2 text-xs font-mono">
+                  <GitCommit className="h-3.5 w-3.5 text-primary shrink-0 mt-0.5" />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <code className="text-accent text-[10px]">{c.sha.slice(0, 7)}</code>
+                      {c.url ? (
+                        <a href={c.url} target="_blank" rel="noreferrer"
+                          className="text-foreground hover:text-primary truncate transition-colors">
+                          {c.message}
+                        </a>
+                      ) : (
+                        <span className="text-foreground truncate">{c.message}</span>
+                      )}
+                    </div>
+                    <span className="text-muted-foreground">{c.authorName ?? c.authorGithub ?? "unknown"} · {new Date(c.committedAt).toLocaleDateString()}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Log time */}
         <div className="border border-border bg-card p-4 space-y-2">
           <span className="text-xs font-mono text-muted-foreground tracking-widest">// LOG TIME</span>
           <div className="flex gap-2 flex-wrap">
-            <Input
-              value={logTime}
-              onChange={(e) => setLogTime(e.target.value)}
-              className="bg-background border-border font-mono text-sm h-8 w-28"
-              placeholder="1h30m, 1:30..."
-            />
-            <Input
-              value={logNote}
-              onChange={(e) => setLogNote(e.target.value)}
-              className="bg-background border-border font-mono text-sm h-8 flex-1"
-              placeholder="optional note"
-            />
-            <Button
-              size="sm"
-              onClick={() => void handleLogTime()}
+            <Input value={logTime} onChange={(e) => setLogTime(e.target.value)}
+              className="bg-background border-border font-mono text-sm h-8 w-28" placeholder="1h30m, 1:30..." />
+            <Input value={logNote} onChange={(e) => setLogNote(e.target.value)}
+              className="bg-background border-border font-mono text-sm h-8 flex-1" placeholder="optional note" />
+            <Button size="sm" onClick={() => void handleLogTime()}
               disabled={!logTime.trim() || createTimeEntry.isPending}
-              className="bg-primary text-primary-foreground font-mono text-xs h-8"
-            >
-              LOG
-            </Button>
+              className="bg-primary text-primary-foreground font-mono text-xs h-8">LOG</Button>
           </div>
-          <p className="text-xs text-muted-foreground font-mono">
-            formats: 1h30m · 1:30 · 90 (min) · 1.5 (hrs)
-          </p>
+          <p className="text-xs text-muted-foreground font-mono">formats: 1h30m · 1:30 · 90 (min) · 1.5 (hrs)</p>
         </div>
 
         {/* Comments */}
@@ -319,9 +472,7 @@ export default function ItemPage() {
               className="flex-1 bg-background border-border font-mono text-sm resize-none"
               rows={2}
               placeholder="add a comment..."
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && e.ctrlKey) void handlePostComment();
-              }}
+              onKeyDown={(e) => { if (e.key === "Enter" && e.ctrlKey) void handlePostComment(); }}
             />
             <button
               onClick={() => void handlePostComment()}
@@ -341,9 +492,7 @@ export default function ItemPage() {
               {(item.timeEntries as Array<{ id: number; minutes: number; spentOn: string; note: string | null; userId: string }>).map((t) => (
                 <div key={t.id} className="flex items-center gap-3 py-1.5 text-xs font-mono">
                   <Clock className="h-3 w-3 text-primary shrink-0" />
-                  <span className="text-foreground">
-                    {Math.floor(t.minutes / 60)}h {t.minutes % 60}m
-                  </span>
+                  <span className="text-foreground">{formatMinutes(t.minutes)}</span>
                   <span className="text-muted-foreground">{t.spentOn}</span>
                   {t.note && <span className="text-muted-foreground truncate">{t.note}</span>}
                 </div>
