@@ -14,6 +14,7 @@ import ProjectPage from "./pages/project";
 import ItemPage from "./pages/item";
 import SearchPage from "./pages/search";
 import AdminPage from "./pages/admin";
+import StandupPage from "./pages/standup";
 import LandingPage from "./pages/landing";
 import { UserSync } from "./components/user-sync";
 
@@ -200,7 +201,10 @@ function ClerkProviderWithRoutes() {
             <Route path="/search">
               {() => <ProtectedRoute component={SearchPage} />}
             </Route>
-            <Route path="/admin">
+            <Route path="/standup">
+              {() => <ProtectedRoute component={StandupPage} />}
+            </Route>
+            <Route path="/admin/users">
               {() => <ProtectedRoute component={AdminPage} />}
             </Route>
             <Route>

@@ -46,11 +46,20 @@ router.get("/", requireAuth, async (req, res) => {
 });
 
 // POST /projects/:slug/milestones
+// Validates that the provided scopeId belongs to this project
 router.post("/", requireAuth, async (req, res) => {
+  const ctx = await getProjectScopeIds(String(req.params.slug));
+  if (!ctx) return res.status(404).json({ error: "Not found" });
+
   const { scopeId, name, description, targetDate } = req.body;
+
+  if (!ctx.scopeIds.includes(Number(scopeId))) {
+    return res.status(403).json({ error: "Scope does not belong to this project" });
+  }
+
   const [created] = await db
     .insert(milestones)
-    .values({ scopeId, name, description, targetDate })
+    .values({ scopeId: Number(scopeId), name, description, targetDate })
     .returning();
   return res.status(201).json(created);
 });

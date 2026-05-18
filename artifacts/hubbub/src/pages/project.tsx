@@ -7,7 +7,7 @@ import {
   useGetStandup,
 } from "@workspace/api-client-react";
 import type {
-  ItemInput, ItemInputType, ItemInputPriority,
+  Item, ItemInput, ItemInputType, ItemInputPriority,
   ItemUpdateStatus, Message,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -53,29 +53,25 @@ const TYPE_ICONS: Record<string, typeof Bug> = {
   bug: Bug, todo: CheckSquare, decision: Lightbulb, request: ReqIcon,
 };
 
-interface RichItem {
-  id: number;
-  number: number;
-  type: string;
-  title: string;
-  status: string;
-  priority: string;
-  projectSlug: string;
-  assignee?: { displayName: string } | null;
-}
+type RichItem = Item & { projectSlug: string };
 
 function ItemCard({
   item,
   onStatusChange,
+  onDragStart,
 }: {
   item: RichItem;
   onStatusChange: (id: number, status: ItemUpdateStatus) => void;
+  onDragStart?: () => void;
 }) {
   const Icon = TYPE_ICONS[item.type] ?? CheckSquare;
   return (
     <div
+      draggable={!!onDragStart}
+      onDragStart={onDragStart}
       className={cn(
         "border bg-card p-3 space-y-2 hover:border-primary/40 transition-colors",
+        onDragStart && "cursor-grab active:cursor-grabbing",
         STATUS_COLORS[item.status] ?? "border-border",
       )}
     >
@@ -132,6 +128,8 @@ export default function ProjectPage() {
 
   const [chatMsg, setChatMsg] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
+  const [draggedItemId, setDraggedItemId] = useState<number | null>(null);
+  const [dragTarget, setDragTarget] = useState<string | null>(null);
   const [newItem, setNewItem] = useState<{
     type: ItemInputType;
     title: string;
@@ -197,7 +195,7 @@ export default function ProjectPage() {
     }
   }, [allMessages, activeTab]);
 
-  const items = (itemsData as unknown as Omit<RichItem, "projectSlug">[]).map((i) => ({ ...i, projectSlug: slug! }));
+  const items: RichItem[] = itemsData.map((i) => ({ ...i, projectSlug: slug! }));
 
   const handleSendMsg = async () => {
     if (!chatMsg.trim()) return;
@@ -324,19 +322,46 @@ export default function ProjectPage() {
             )}
           </TabsContent>
 
-          {/* BOARD TAB */}
+          {/* BOARD TAB — drag-and-drop */}
           <TabsContent value="board" className="mt-3">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 overflow-x-auto">
               {STATUS_COLS.map((col) => {
                 const colItems = items.filter((i) => i.status === col);
+                const isTarget = dragTarget === col;
                 return (
-                  <div key={col} className="space-y-2 min-w-40">
+                  <div
+                    key={col}
+                    className={cn(
+                      "space-y-2 min-w-40 border rounded-none p-1 transition-colors",
+                      isTarget
+                        ? "border-primary/50 bg-primary/5"
+                        : "border-transparent",
+                    )}
+                    onDragOver={(e) => { e.preventDefault(); setDragTarget(col); }}
+                    onDragLeave={(e) => {
+                      if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+                        setDragTarget(null);
+                      }
+                    }}
+                    onDrop={() => {
+                      if (draggedItemId !== null) {
+                        void handleStatusChange(draggedItemId, col as ItemUpdateStatus);
+                        setDraggedItemId(null);
+                        setDragTarget(null);
+                      }
+                    }}
+                  >
                     <div className={cn("text-xs font-mono tracking-widest border-b pb-1", STATUS_COLORS[col])}>
                       {STATUS_LABELS[col]} ({colItems.length})
                     </div>
                     <div className="space-y-2">
                       {colItems.map((item) => (
-                        <ItemCard key={item.id} item={item} onStatusChange={handleStatusChange} />
+                        <ItemCard
+                          key={item.id}
+                          item={item}
+                          onStatusChange={handleStatusChange}
+                          onDragStart={() => setDraggedItemId(item.id)}
+                        />
                       ))}
                     </div>
                   </div>

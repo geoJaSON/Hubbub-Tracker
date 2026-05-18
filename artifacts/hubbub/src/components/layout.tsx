@@ -12,6 +12,7 @@ import {
   Terminal,
   ChevronRight,
   Sun,
+  CalendarDays,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -84,11 +85,12 @@ function useKeyboardChords(
           d: "/dashboard",
           p: "/projects",
           s: "/search",
-          a: "/admin",
+          t: "/standup",
+          a: "/admin/users",
         };
         if (map[e.key]) {
           e.preventDefault();
-          navigate(map[e.key]);
+          navigate(map[e.key] as string);
         }
         return;
       }
@@ -114,7 +116,8 @@ const nav: NavItem[] = [
   { label: "DASHBOARD", icon: LayoutDashboard, href: "/dashboard" },
   { label: "PROJECTS", icon: FolderKanban, href: "/projects" },
   { label: "SEARCH", icon: Search, href: "/search" },
-  { label: "ADMIN", icon: Settings, href: "/admin" },
+  { label: "STANDUP", icon: CalendarDays, href: "/standup" },
+  { label: "ADMIN", icon: Settings, href: "/admin/users" },
 ];
 
 interface LayoutProps {

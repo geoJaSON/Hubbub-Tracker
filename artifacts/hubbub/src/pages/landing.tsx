@@ -1,7 +1,26 @@
+import { useState, useEffect } from "react";
 import { Link } from "wouter";
 import { Terminal, Zap, MessageSquare, BarChart3, Shield } from "lucide-react";
 
-const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
+const BOOT_LINES = [
+  "HUBBUB COMMAND CENTER v1.0",
+  "─────────────────────────────────────",
+  "INITIALIZING CORE MODULES...",
+  "  [  OK  ] database.postgresql",
+  "  [  OK  ] auth.clerk",
+  "  [  OK  ] api.express",
+  "  [  OK  ] realtime.sse",
+  "MOUNTING USER INTERFACE...",
+  "  [  OK  ] components.react",
+  "  [  OK  ] routes.wouter",
+  "  [  OK  ] queries.tanstack",
+  "RUNNING DIAGNOSTICS...",
+  "  [  OK  ] schema.integrity",
+  "  [  OK  ] permissions.rbac",
+  "─────────────────────────────────────",
+  "ALL SYSTEMS NOMINAL.",
+  "STATUS: READY",
+];
 
 const features = [
   { icon: Terminal, text: "PROJECT TRACKING // Items, bugs, decisions" },
@@ -12,9 +31,67 @@ const features = [
 ];
 
 export default function LandingPage() {
+  const alreadyBooted =
+    typeof sessionStorage !== "undefined"
+      ? sessionStorage.getItem("hubbub_booted") === "1"
+      : true;
+
+  const [bootDone, setBootDone] = useState(alreadyBooted);
+  const [visibleLines, setVisibleLines] = useState(alreadyBooted ? BOOT_LINES.length : 0);
+
+  useEffect(() => {
+    if (alreadyBooted) return;
+
+    let idx = 0;
+    const iv = setInterval(() => {
+      idx += 1;
+      setVisibleLines(idx);
+      if (idx >= BOOT_LINES.length) {
+        clearInterval(iv);
+        setTimeout(() => {
+          try {
+            sessionStorage.setItem("hubbub_booted", "1");
+          } catch {
+            // storage may be unavailable
+          }
+          setBootDone(true);
+        }, 700);
+      }
+    }, 110);
+
+    return () => clearInterval(iv);
+  }, [alreadyBooted]);
+
+  if (!bootDone) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-8 font-mono">
+        <div className="w-full max-w-lg space-y-0.5 text-sm">
+          {BOOT_LINES.slice(0, visibleLines).map((line, i) => (
+            <div
+              key={i}
+              className={
+                line.startsWith("STATUS:")
+                  ? "text-primary font-bold tracking-widest mt-2"
+                  : line.startsWith("  [  OK  ]")
+                  ? "text-muted-foreground"
+                  : line.startsWith("─")
+                  ? "text-border"
+                  : "text-foreground tracking-wide"
+              }
+            >
+              {line}
+            </div>
+          ))}
+          {visibleLines < BOOT_LINES.length && (
+            <span className="text-primary animate-pulse">█</span>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background flex flex-col items-center justify-center px-4 py-16">
-      {/* CRT scanline effect reinforced */}
       <div className="w-full max-w-2xl space-y-12 text-center">
         {/* Logo */}
         <div className="space-y-2">
@@ -45,7 +122,9 @@ export default function LandingPage() {
               key={i}
               className="flex items-center gap-3 border border-border px-4 py-3 bg-card/50 hover:border-primary/50 hover:bg-muted/30 transition-colors"
             >
-              <span className="text-primary font-mono text-xs shrink-0">[{String(i + 1).padStart(2, "0")}]</span>
+              <span className="text-primary font-mono text-xs shrink-0">
+                [{String(i + 1).padStart(2, "0")}]
+              </span>
               <f.icon className="h-4 w-4 text-primary shrink-0" />
               <span className="text-foreground font-mono text-sm">{f.text}</span>
             </div>
@@ -68,7 +147,6 @@ export default function LandingPage() {
           </Link>
         </div>
 
-        {/* Footer */}
         <p className="text-muted-foreground font-mono text-xs">
           SELF-HOSTED TEAM INTELLIGENCE PLATFORM
         </p>

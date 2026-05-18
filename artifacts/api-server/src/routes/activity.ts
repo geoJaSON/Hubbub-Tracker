@@ -1,8 +1,8 @@
 import { Router } from "express";
 import { eq, desc, sql } from "drizzle-orm";
 import { db } from "../lib/db";
-import { projects, activityEvents, users } from "../lib/schema";
-import { requireAuth } from "../lib/auth";
+import { projects, activityEvents, users, projectMembers } from "../lib/schema";
+import { requireAuth, AuthRequest } from "../lib/auth";
 
 const router = Router();
 
@@ -62,11 +62,25 @@ router.get("/projects/:slug/activity", requireAuth, async (req, res) => {
   return res.json(await enrichEvents(rows));
 });
 
-// GET /activity/recent
-router.get("/activity/recent", requireAuth, async (_req, res) => {
+// GET /activity/recent — only events from projects the caller is a member of
+router.get("/activity/recent", requireAuth, async (req: AuthRequest, res) => {
+  const memberRows = await db
+    .select({ projectId: projectMembers.projectId })
+    .from(projectMembers)
+    .where(eq(projectMembers.userId, req.userId!));
+
+  const ids = memberRows.map((r) => r.projectId);
+  if (ids.length === 0) return res.json([]);
+
   const rows = await db
     .select()
     .from(activityEvents)
+    .where(
+      sql`${activityEvents.projectId} = ANY(ARRAY[${sql.join(
+        ids.map((id) => sql`${id}`),
+        sql`, `,
+      )}]::int[])`,
+    )
     .orderBy(desc(activityEvents.createdAt))
     .limit(30);
 
