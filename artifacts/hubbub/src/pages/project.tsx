@@ -192,6 +192,12 @@ export default function ProjectPage() {
   }>({ type: "todo", title: "", priority: "medium", description: "" });
 
   const [docSearch, setDocSearch] = useState("");
+  const [githubRepoInput, setGithubRepoInput] = useState<string>("");
+
+  useEffect(() => {
+    setGithubRepoInput(project?.githubRepo ?? "");
+  }, [project?.githubRepo]);
+
   const [scopeOpen, setScopeOpen] = useState(false);
   const [newScope, setNewScope] = useState({ name: "", budgetCents: "", startDate: "", targetDate: "" });
   const [milestoneOpen, setMilestoneOpen] = useState(false);
@@ -357,6 +363,18 @@ export default function ProjectPage() {
   const handleTogglePin = async (doc: Doc) => {
     await updateDoc.mutateAsync({ slug: slug!, docSlug: doc.slug, data: { pinned: !doc.pinned } });
     qc.invalidateQueries({ queryKey: getListDocsQueryKey(slug!) });
+  };
+
+  const handleSaveGithubRepo = async () => {
+    const val = githubRepoInput.trim() || null;
+    try {
+      await updateProject.mutateAsync({ slug: slug!, data: { githubRepo: val } });
+      qc.invalidateQueries({ queryKey: getGetProjectQueryKey(slug!) });
+      qc.invalidateQueries({ queryKey: getListCommitsQueryKey(slug!) });
+      toast({ title: val ? "GitHub repo linked" : "GitHub repo removed" });
+    } catch {
+      toast({ title: "Failed to save GitHub repo", variant: "destructive" });
+    }
   };
 
   const handleArchiveProject = async (archived: boolean) => {
@@ -1277,6 +1295,39 @@ export default function ProjectPage() {
           {/* SETTINGS TAB */}
           <TabsContent value="settings" className="mt-3">
             <div className="max-w-lg space-y-4">
+              {/* GitHub Repo */}
+              <div className="border border-border bg-card p-4 space-y-3">
+                <div className="flex items-center gap-2">
+                  <div className="h-2 w-2 rounded-full bg-primary shrink-0" />
+                  <div className="font-mono text-sm text-foreground">GitHub Repository</div>
+                </div>
+                <div className="text-xs text-muted-foreground font-mono">
+                  Link a GitHub repo to show commit activity on the Stats tab. Use <code className="text-accent">owner/repo</code> format.
+                </div>
+                <div className="flex gap-2">
+                  <Input
+                    value={githubRepoInput}
+                    onChange={(e) => setGithubRepoInput(e.target.value)}
+                    className="bg-background border-border font-mono text-sm rounded-none flex-1"
+                    placeholder="owner/repo"
+                    onKeyDown={(e) => { if (e.key === "Enter") void handleSaveGithubRepo(); }}
+                  />
+                  <Button
+                    size="sm"
+                    onClick={() => void handleSaveGithubRepo()}
+                    disabled={updateProject.isPending}
+                    className="font-mono text-xs bg-primary text-primary-foreground hover:bg-primary/90 shrink-0"
+                  >
+                    {updateProject.isPending ? "SAVING..." : "SAVE"}
+                  </Button>
+                </div>
+                {project.githubRepo && (
+                  <div className="text-xs font-mono text-primary">
+                    linked: {project.githubRepo}
+                  </div>
+                )}
+              </div>
+
               {/* Archive */}
               <div className="border border-border bg-card p-4 flex items-center gap-3">
                 <Archive className="h-4 w-4 text-muted-foreground shrink-0" />
