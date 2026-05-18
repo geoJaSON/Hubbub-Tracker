@@ -58,7 +58,13 @@ async function pollGitHubCommits() {
           `https://api.github.com/repos/${repoPath}/commits?per_page=20`,
           { headers },
         );
-        if (!resp.ok) continue;
+        if (!resp.ok) {
+          logger.warn(
+            { project: project.slug, repo: repoPath, status: resp.status },
+            "GitHub API returned non-200 — skipping project",
+          );
+          continue;
+        }
 
         const ghCommits = (await resp.json()) as Array<{
           sha: string;
