@@ -2,29 +2,15 @@ import { useState } from "react";
 import {
   useListUsers,
   useUpdateUser,
-  useCreateUser,
   getListUsersQueryKey,
 } from "@workspace/api-client-react";
-import type {
-  UserAdminUpdate,
-  UserAdminUpdateRole,
-  UserInput,
-  UserInputRole,
-} from "@workspace/api-client-react";
+import type { UserAdminUpdate, UserAdminUpdateRole } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Layout } from "../components/layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Shield, User, Plus, DollarSign } from "lucide-react";
+import { Shield, User, DollarSign, UserPlus, ExternalLink } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
@@ -41,18 +27,9 @@ type UserRow = {
 export default function AdminPage() {
   const { data: users = [], isLoading } = useListUsers();
   const updateUser = useUpdateUser();
-  const createUser = useCreateUser();
   const qc = useQueryClient();
   const { toast } = useToast();
 
-  const [showCreate, setShowCreate] = useState(false);
-  const [newUser, setNewUser] = useState({
-    email: "",
-    displayName: "",
-    username: "",
-    role: "member" as UserInputRole,
-    hourlyRate: "",
-  });
   const [editingRate, setEditingRate] = useState<Record<string, string>>({});
 
   const patch = async (userId: string, data: UserAdminUpdate) => {
@@ -61,32 +38,6 @@ export default function AdminPage() {
       qc.invalidateQueries({ queryKey: getListUsersQueryKey() });
     } catch {
       toast({ title: "Failed to update user", variant: "destructive" });
-    }
-  };
-
-  const handleCreate = async () => {
-    if (!newUser.email.trim() || !newUser.displayName.trim()) {
-      toast({ title: "Email and display name are required", variant: "destructive" });
-      return;
-    }
-    try {
-      const hourlyRateCents = newUser.hourlyRate
-        ? Math.round(parseFloat(newUser.hourlyRate) * 100)
-        : null;
-      const input: UserInput = {
-        email: newUser.email,
-        displayName: newUser.displayName,
-        username: newUser.username || null,
-        role: newUser.role,
-        hourlyRateCents,
-      };
-      await createUser.mutateAsync({ data: input });
-      qc.invalidateQueries({ queryKey: getListUsersQueryKey() });
-      setShowCreate(false);
-      setNewUser({ email: "", displayName: "", username: "", role: "member", hourlyRate: "" });
-      toast({ title: "User created" });
-    } catch {
-      toast({ title: "Failed to create user", variant: "destructive" });
     }
   };
 
@@ -101,97 +52,37 @@ export default function AdminPage() {
     });
   };
 
+  const signUpUrl = `${window.location.origin}/sign-up`;
+
   return (
     <Layout title="ADMIN // USERS">
       <div className="max-w-4xl space-y-4">
-        {/* Header */}
-        <div className="flex items-center gap-3">
-          <div className="text-xs text-muted-foreground font-mono">
-            {(users as UserRow[]).length} user(s) in system
+        {/* Onboarding guidance */}
+        <div className="border border-border bg-card/50 p-4 flex items-start gap-3">
+          <UserPlus className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+          <div className="flex-1 space-y-1">
+            <div className="text-xs font-mono text-primary tracking-widest">// ONBOARDING NEW USERS</div>
+            <p className="text-xs font-mono text-muted-foreground">
+              New team members sign up at{" "}
+              <a
+                href={signUpUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="text-primary hover:underline inline-flex items-center gap-1"
+              >
+                {signUpUrl}
+                <ExternalLink className="h-2.5 w-2.5" />
+              </a>
+              {" "}— their account is automatically provisioned on first login. Manage their role,
+              hourly rate, and active status below after they sign in.
+            </p>
           </div>
-          <Button
-            size="sm"
-            variant="ghost"
-            className="ml-auto font-mono text-xs border border-primary/50 text-primary hover:bg-primary/10 gap-1"
-            onClick={() => setShowCreate((v) => !v)}
-          >
-            <Plus className="h-3 w-3" />
-            {showCreate ? "CANCEL" : "NEW USER"}
-          </Button>
         </div>
 
-        {/* Create user form */}
-        {showCreate && (
-          <div className="border border-primary/30 bg-card p-4 space-y-3">
-            <div className="text-xs font-mono text-primary tracking-widest">// CREATE USER</div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label className="font-mono text-xs text-muted-foreground">EMAIL *</Label>
-                <Input
-                  value={newUser.email}
-                  onChange={(e) => setNewUser((p) => ({ ...p, email: e.target.value }))}
-                  className="bg-background border-border font-mono text-sm h-8 rounded-none"
-                  placeholder="user@example.com"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label className="font-mono text-xs text-muted-foreground">DISPLAY NAME *</Label>
-                <Input
-                  value={newUser.displayName}
-                  onChange={(e) => setNewUser((p) => ({ ...p, displayName: e.target.value }))}
-                  className="bg-background border-border font-mono text-sm h-8 rounded-none"
-                  placeholder="Jane Doe"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label className="font-mono text-xs text-muted-foreground">USERNAME</Label>
-                <Input
-                  value={newUser.username}
-                  onChange={(e) => setNewUser((p) => ({ ...p, username: e.target.value }))}
-                  className="bg-background border-border font-mono text-sm h-8 rounded-none"
-                  placeholder="janedoe"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label className="font-mono text-xs text-muted-foreground">ROLE</Label>
-                <Select
-                  value={newUser.role}
-                  onValueChange={(v) => setNewUser((p) => ({ ...p, role: v as UserInputRole }))}
-                >
-                  <SelectTrigger className="h-8 border-border font-mono text-xs rounded-none">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="bg-card border-border font-mono text-xs rounded-none">
-                    <SelectItem value="member">MEMBER</SelectItem>
-                    <SelectItem value="admin">ADMIN</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <Label className="font-mono text-xs text-muted-foreground">
-                  HOURLY RATE ($/hr)
-                </Label>
-                <Input
-                  value={newUser.hourlyRate}
-                  onChange={(e) => setNewUser((p) => ({ ...p, hourlyRate: e.target.value }))}
-                  className="bg-background border-border font-mono text-sm h-8 rounded-none"
-                  placeholder="0.00"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                />
-              </div>
-            </div>
-            <Button
-              size="sm"
-              onClick={() => void handleCreate()}
-              disabled={createUser.isPending}
-              className="bg-primary text-primary-foreground font-mono text-xs hover:bg-primary/90"
-            >
-              {createUser.isPending ? "CREATING..." : "CREATE USER"}
-            </Button>
-          </div>
-        )}
+        {/* Header */}
+        <div className="text-xs text-muted-foreground font-mono">
+          {(users as UserRow[]).length} user(s) in system
+        </div>
 
         {/* User list */}
         {isLoading ? (

@@ -1,24 +1,57 @@
 import { Router } from "express";
 import { eq, sql } from "drizzle-orm";
 import { db } from "../lib/db";
-import { presence, users, items } from "../lib/schema";
+import { presence, users, items, projectMembers } from "../lib/schema";
 import { requireAuth, AuthRequest } from "../lib/auth";
 
 const router = Router();
 
-// GET /presence
-router.get("/", requireAuth, async (_req, res) => {
-  const rows = await db.select().from(presence);
+// GET /presence — scoped to users who share at least one project with the caller
+router.get("/", requireAuth, async (req: AuthRequest, res) => {
+  // Find the caller's project memberships
+  const callerMemberships = await db
+    .select({ projectId: projectMembers.projectId })
+    .from(projectMembers)
+    .where(eq(projectMembers.userId, req.userId!));
 
-  const userIds = rows.map((p) => p.userId);
+  const callerProjectIds = callerMemberships.map((m) => m.projectId);
+
+  // Collect all user IDs who are members of any shared project
+  const coMemberRows =
+    callerProjectIds.length > 0
+      ? await db
+          .select({ userId: projectMembers.userId })
+          .from(projectMembers)
+          .where(
+            sql`${projectMembers.projectId} = ANY(ARRAY[${sql.join(
+              callerProjectIds.map((id) => sql`${id}`),
+              sql`, `,
+            )}]::int[])`,
+          )
+      : [];
+
+  const coMemberIds = [...new Set(coMemberRows.map((r) => r.userId))];
+  if (coMemberIds.length === 0) return res.json([]);
+
+  // Fetch presence only for co-members
+  const rows = await db
+    .select()
+    .from(presence)
+    .where(
+      sql`${presence.userId} = ANY(ARRAY[${sql.join(
+        coMemberIds.map((id) => sql`${id}`),
+        sql`, `,
+      )}]::text[])`,
+    );
+
   const userRows =
-    userIds.length > 0
+    rows.length > 0
       ? await db
           .select()
           .from(users)
           .where(
             sql`${users.clerkId} = ANY(ARRAY[${sql.join(
-              userIds.map((id) => sql`${id}`),
+              rows.map((p) => sql`${p.userId}`),
               sql`, `,
             )}]::text[])`,
           )
