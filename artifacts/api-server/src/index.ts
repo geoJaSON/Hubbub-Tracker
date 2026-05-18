@@ -129,3 +129,25 @@ async function pollGitHubCommits() {
 // Run immediately on startup, then every 5 minutes
 pollGitHubCommits().catch(() => {});
 setInterval(() => pollGitHubCommits().catch(() => {}), 5 * 60 * 1000);
+
+// ── Docs Full-Text Search Index ───────────────────────────────────────────────
+// Creates a GIN tsvector index on docs(title, body) for fast full-text search.
+// Runs once on startup; CONCURRENTLY + IF NOT EXISTS make it safe to repeat.
+async function ensureDocsFtsIndex() {
+  try {
+    // Add the "order" column to docs if it doesn't exist yet (schema migration)
+    await db.execute(sql`
+      ALTER TABLE docs ADD COLUMN IF NOT EXISTS "order" integer NOT NULL DEFAULT 0
+    `);
+    // Create GIN index for full-text search on title + body
+    await db.execute(sql`
+      CREATE INDEX CONCURRENTLY IF NOT EXISTS docs_fts_gin_idx
+      ON docs USING GIN (to_tsvector('english', title || ' ' || COALESCE(body, '')))
+    `);
+    logger.info("docs_fts_gin_idx ready");
+  } catch (err) {
+    logger.warn({ err }, "Could not create docs FTS index — search will still work without it");
+  }
+}
+
+ensureDocsFtsIndex().catch(() => {});

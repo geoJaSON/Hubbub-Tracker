@@ -20,7 +20,7 @@ import type {
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
 } from "recharts";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import {
   getListItemsQueryKey, getListMessagesQueryKey, getListActivityQueryKey,
   getListDocsQueryKey, getGetProjectQueryKey, getListCostEntriesQueryKey,
@@ -197,11 +197,18 @@ export default function ProjectPage() {
   }>({ type: "todo", title: "", priority: "medium", description: "" });
 
   const [docSearch, setDocSearch] = useState("");
+  const [debouncedDocSearch, setDebouncedDocSearch] = useState("");
   const [githubRepoInput, setGithubRepoInput] = useState<string>("");
 
   useEffect(() => {
     setGithubRepoInput(project?.githubRepo ?? "");
   }, [project?.githubRepo]);
+
+  // Debounce the doc search so we only fire the API call 350ms after typing stops
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedDocSearch(docSearch.trim()), 350);
+    return () => clearTimeout(timer);
+  }, [docSearch]);
 
   const [scopeOpen, setScopeOpen] = useState(false);
   const [newScope, setNewScope] = useState({ name: "", budgetCents: "", startDate: "", targetDate: "" });
@@ -289,13 +296,24 @@ export default function ProjectPage() {
     }
   }, [docs]);
 
-  const docSearchFiltered = useMemo<Doc[]>(() => {
-    const q = docSearch.trim().toLowerCase();
-    if (!q) return localDocs;
-    return [...(docs as Doc[])]
-      .filter((d) => d.title.toLowerCase().includes(q) || (d.body ?? "").toLowerCase().includes(q))
-      .sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
-  }, [docs, localDocs, docSearch]);
+  type DocWithSnippet = Doc & { snippet?: string };
+
+  const { data: serverSearchResults, isFetching: searchFetching } = useQuery<DocWithSnippet[]>({
+    queryKey: ["docs-search", slug, debouncedDocSearch],
+    queryFn: async ({ signal }) => {
+      const url = `${basePath}/api/projects/${slug}/docs?q=${encodeURIComponent(debouncedDocSearch)}`;
+      const resp = await fetch(url, { credentials: "include", signal });
+      if (!resp.ok) throw new Error("Search failed");
+      return resp.json() as Promise<DocWithSnippet[]>;
+    },
+    enabled: !!debouncedDocSearch && !!slug,
+    staleTime: 10_000,
+  });
+
+  const docSearchFiltered = useMemo<DocWithSnippet[]>(() => {
+    if (debouncedDocSearch) return serverSearchResults ?? [];
+    return localDocs as DocWithSnippet[];
+  }, [debouncedDocSearch, serverSearchResults, localDocs]);
 
   // Presence heartbeat: send PUT /api/presence while the chat tab is open
   useEffect(() => {
@@ -848,7 +866,10 @@ export default function ProjectPage() {
                 drag rows to reorder within each group
               </p>
             )}
-            {docSearchFiltered.length === 0 ? (
+            {docSearch.trim() && debouncedDocSearch !== docSearch.trim() || searchFetching ? (
+              <p className="text-[10px] font-mono text-muted-foreground/60 py-1">searching…</p>
+            ) : null}
+            {!searchFetching && docSearchFiltered.length === 0 ? (
               <div className="border border-border bg-card p-6 text-center text-muted-foreground font-mono text-sm">
                 {docSearch.trim() ? `no docs matching "${docSearch.trim()}"` : "no docs yet — create one above"}
               </div>
@@ -879,11 +900,12 @@ export default function ProjectPage() {
                       }}
                       onDrop={() => { void handleDocDrop(doc.slug); setDragOverDocSlug(null); }}
                       className={cn(
-                        "flex items-center gap-2 px-3 py-2.5 bg-card hover:bg-muted/20 transition-colors",
+                        "flex flex-col gap-1 px-3 py-2.5 bg-card hover:bg-muted/20 transition-colors",
                         isBeingDragged && "opacity-40",
                         isDragTarget && "border-l-2 border-l-primary bg-primary/5",
                       )}
                     >
+                      <div className="flex items-center gap-2">
                       <div
                         className={cn(
                           "shrink-0 text-muted-foreground/40 transition-colors",
@@ -928,6 +950,13 @@ export default function ProjectPage() {
                           <Trash2 className="h-3 w-3" />
                         </button>
                       </div>
+                      </div>
+                      {doc.snippet && (
+                        <p
+                          className="text-[11px] font-mono text-muted-foreground pl-10 leading-relaxed [&_mark]:bg-primary/20 [&_mark]:text-primary [&_mark]:rounded-sm [&_mark]:px-0.5"
+                          dangerouslySetInnerHTML={{ __html: doc.snippet }}
+                        />
+                      )}
                     </div>
                   );
                 })}

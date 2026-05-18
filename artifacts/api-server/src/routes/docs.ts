@@ -1,10 +1,25 @@
 import { Router } from "express";
-import { eq, and, max, desc, asc } from "drizzle-orm";
+import { eq, and, max, desc, asc, sql } from "drizzle-orm";
 import { db } from "../lib/db";
 import { projects, docs } from "../lib/schema";
 import { requireAuth, AuthRequest } from "../lib/auth";
 
 const router = Router({ mergeParams: true });
+
+/**
+ * Sanitize a ts_headline snippet so only bare <mark>…</mark> tags survive.
+ * Strategy: HTML-encode the whole string, then restore only the safe pair
+ * (&lt;mark&gt; → <mark> and &lt;/mark&gt; → </mark>).
+ * Any user-authored HTML (scripts, event handlers, etc.) stays encoded.
+ */
+function sanitizeSnippet(raw: string): string {
+  return raw
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/&lt;mark&gt;/g, "<mark>")
+    .replace(/&lt;\/mark&gt;/g, "</mark>");
+}
 
 async function getProject(slug: string) {
   const [p] = await db.select().from(projects).where(eq(projects.slug, slug)).limit(1);
@@ -15,6 +30,44 @@ async function getProject(slug: string) {
 router.get("/", requireAuth, async (req, res) => {
   const project = await getProject(String(req.params.slug));
   if (!project) return res.status(404).json({ error: "Not found" });
+
+  const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
+
+  if (q) {
+    const rows = await db.execute(sql`
+      SELECT
+        id,
+        project_id AS "projectId",
+        title,
+        slug,
+        body,
+        pinned,
+        "order",
+        created_by_id AS "createdById",
+        created_at AS "createdAt",
+        updated_at AS "updatedAt",
+        ts_headline(
+          'english',
+          title || ' ' || COALESCE(body, ''),
+          plainto_tsquery('english', ${q}),
+          'StartSel=<mark>, StopSel=</mark>, MaxWords=35, MinWords=15, ShortWord=3, HighlightAll=false, MaxFragments=2, FragmentDelimiter=" … "'
+        ) AS snippet
+      FROM docs
+      WHERE
+        project_id = ${project.id}
+        AND to_tsvector('english', title || ' ' || COALESCE(body, '')) @@ plainto_tsquery('english', ${q})
+      ORDER BY
+        ts_rank(
+          to_tsvector('english', title || ' ' || COALESCE(body, '')),
+          plainto_tsquery('english', ${q})
+        ) DESC
+    `);
+    const sanitized = (rows.rows as Array<Record<string, unknown>>).map((row) => ({
+      ...row,
+      snippet: typeof row.snippet === "string" ? sanitizeSnippet(row.snippet) : null,
+    }));
+    return res.json(sanitized);
+  }
 
   const rows = await db
     .select()
