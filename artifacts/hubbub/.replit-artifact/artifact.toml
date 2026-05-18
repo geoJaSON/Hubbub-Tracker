@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "Hubbub"
+version = "1.0.0"
+id = "artifacts/hubbub"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 18394
+
+[services.development]
+run = "pnpm --filter @workspace/hubbub run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/hubbub", "run", "build" ]
+publicDir = "artifacts/hubbub/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "18394"
+BASE_PATH = "/"

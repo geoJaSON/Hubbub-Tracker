@@ -3,20 +3,35 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Hubbub team command-center API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
-    description: Health operations
+  - name: users
+  - name: projects
+  - name: scopes
+  - name: milestones
+  - name: items
+  - name: comments
+  - name: commits
+  - name: messages
+  - name: time
+  - name: costs
+  - name: presence
+  - name: standup
+  - name: activity
+  - name: docs
+  - name: search
+  - name: dashboard
+
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +39,1129 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  # ── Users ──────────────────────────────────────────────────────────────────
+  /users/me:
+    get:
+      operationId: getMe
+      tags: [users]
+      summary: Get current user profile
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          description: Unauthorized
+    patch:
+      operationId: updateMe
+      tags: [users]
+      summary: Update own profile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserUpdate"
+      responses:
+        "200":
+          description: Updated user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  /users:
+    get:
+      operationId: listUsers
+      tags: [users]
+      summary: List all users (admin)
+      responses:
+        "200":
+          description: List of users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/User"
+    post:
+      operationId: createUser
+      tags: [users]
+      summary: Create user (admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  /users/{userId}:
+    patch:
+      operationId: updateUser
+      tags: [users]
+      summary: Update user (admin)
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserAdminUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  # ── Projects ───────────────────────────────────────────────────────────────
+  /projects:
+    get:
+      operationId: listProjects
+      tags: [projects]
+      summary: List projects the current user is a member of
+      responses:
+        "200":
+          description: List of projects
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Project"
+    post:
+      operationId: createProject
+      tags: [projects]
+      summary: Create a project
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProjectInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Project"
+
+  /projects/{slug}:
+    get:
+      operationId: getProject
+      tags: [projects]
+      summary: Get project by slug
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Project detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectDetail"
+        "404":
+          description: Not found
+    patch:
+      operationId: updateProject
+      tags: [projects]
+      summary: Update project
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProjectUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Project"
+    delete:
+      operationId: deleteProject
+      tags: [projects]
+      summary: Delete project
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Deleted
+
+  /projects/{slug}/members:
+    get:
+      operationId: listProjectMembers
+      tags: [projects]
+      summary: List project members
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Members
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ProjectMember"
+    post:
+      operationId: addProjectMember
+      tags: [projects]
+      summary: Add member to project
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProjectMemberInput"
+      responses:
+        "201":
+          description: Added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectMember"
+
+  /projects/{slug}/members/{userId}:
+    delete:
+      operationId: removeProjectMember
+      tags: [projects]
+      summary: Remove member from project
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: userId
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Removed
+
+  # ── Scopes ─────────────────────────────────────────────────────────────────
+  /projects/{slug}/scopes:
+    get:
+      operationId: listScopes
+      tags: [scopes]
+      summary: List scopes for a project
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Scopes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Scope"
+    post:
+      operationId: createScope
+      tags: [scopes]
+      summary: Create scope
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ScopeInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Scope"
+
+  /projects/{slug}/scopes/{scopeId}:
+    patch:
+      operationId: updateScope
+      tags: [scopes]
+      summary: Update scope
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: scopeId
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ScopeUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Scope"
+    delete:
+      operationId: deleteScope
+      tags: [scopes]
+      summary: Delete scope
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: scopeId
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  # ── Milestones ─────────────────────────────────────────────────────────────
+  /projects/{slug}/milestones:
+    get:
+      operationId: listMilestones
+      tags: [milestones]
+      summary: List milestones
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Milestones
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Milestone"
+    post:
+      operationId: createMilestone
+      tags: [milestones]
+      summary: Create milestone
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MilestoneInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Milestone"
+
+  /projects/{slug}/milestones/{milestoneId}:
+    patch:
+      operationId: updateMilestone
+      tags: [milestones]
+      summary: Update milestone
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: milestoneId
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MilestoneUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Milestone"
+    delete:
+      operationId: deleteMilestone
+      tags: [milestones]
+      summary: Delete milestone
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: milestoneId
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  # ── Items ──────────────────────────────────────────────────────────────────
+  /projects/{slug}/items:
+    get:
+      operationId: listItems
+      tags: [items]
+      summary: List items for a project
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Item"
+    post:
+      operationId: createItem
+      tags: [items]
+      summary: Create item
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ItemInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Item"
+
+  /projects/{slug}/items/{itemNumber}:
+    get:
+      operationId: getItem
+      tags: [items]
+      summary: Get item by number
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: itemNumber
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Item detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ItemDetail"
+        "404":
+          description: Not found
+    patch:
+      operationId: updateItem
+      tags: [items]
+      summary: Update item
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: itemNumber
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ItemUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Item"
+    delete:
+      operationId: deleteItem
+      tags: [items]
+      summary: Delete item
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: itemNumber
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  # ── Comments ───────────────────────────────────────────────────────────────
+  /projects/{slug}/items/{itemNumber}/comments:
+    get:
+      operationId: listComments
+      tags: [comments]
+      summary: List comments on an item
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: itemNumber
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Comments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Comment"
+    post:
+      operationId: createComment
+      tags: [comments]
+      summary: Post a comment
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: itemNumber
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CommentInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Comment"
+
+  /projects/{slug}/items/{itemNumber}/comments/{commentId}:
+    patch:
+      operationId: updateComment
+      tags: [comments]
+      summary: Edit comment
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: itemNumber
+          required: true
+          schema:
+            type: integer
+        - in: path
+          name: commentId
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CommentUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Comment"
+    delete:
+      operationId: deleteComment
+      tags: [comments]
+      summary: Delete comment
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: itemNumber
+          required: true
+          schema:
+            type: integer
+        - in: path
+          name: commentId
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  # ── Time Entries ───────────────────────────────────────────────────────────
+  /projects/{slug}/items/{itemNumber}/time:
+    get:
+      operationId: listTimeEntries
+      tags: [time]
+      summary: List time entries for an item
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: itemNumber
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Time entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TimeEntry"
+    post:
+      operationId: createTimeEntry
+      tags: [time]
+      summary: Log time on an item
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: itemNumber
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TimeEntryInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TimeEntry"
+
+  /projects/{slug}/time:
+    get:
+      operationId: listProjectTimeEntries
+      tags: [time]
+      summary: List all time entries for a project
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Time entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TimeEntry"
+
+  # ── Cost Entries ───────────────────────────────────────────────────────────
+  /projects/{slug}/costs:
+    get:
+      operationId: listCostEntries
+      tags: [costs]
+      summary: List cost entries for a project
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Cost entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CostEntry"
+    post:
+      operationId: createCostEntry
+      tags: [costs]
+      summary: Create cost entry
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CostEntryInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CostEntry"
+
+  /projects/{slug}/costs/{costId}:
+    delete:
+      operationId: deleteCostEntry
+      tags: [costs]
+      summary: Delete cost entry
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: costId
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  # ── Commits ────────────────────────────────────────────────────────────────
+  /projects/{slug}/commits:
+    get:
+      operationId: listCommits
+      tags: [commits]
+      summary: List commits for a project
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Commits
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Commit"
+
+  # ── Messages / Chat ────────────────────────────────────────────────────────
+  /projects/{slug}/messages:
+    get:
+      operationId: listMessages
+      tags: [messages]
+      summary: List recent messages
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Messages
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Message"
+    post:
+      operationId: postMessage
+      tags: [messages]
+      summary: Post a chat message
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MessageInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+
+  # ── Presence ───────────────────────────────────────────────────────────────
+  /presence:
+    get:
+      operationId: listPresence
+      tags: [presence]
+      summary: List all team presence
+      responses:
+        "200":
+          description: Presence list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Presence"
+    put:
+      operationId: upsertPresence
+      tags: [presence]
+      summary: Set my presence
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PresenceInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Presence"
+
+  # ── Standup ────────────────────────────────────────────────────────────────
+  /standup:
+    get:
+      operationId: getStandup
+      tags: [standup]
+      summary: Get or generate standup for today
+      responses:
+        "200":
+          description: Standup content
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Standup"
+
+  # ── Activity ───────────────────────────────────────────────────────────────
+  /projects/{slug}/activity:
+    get:
+      operationId: listActivity
+      tags: [activity]
+      summary: List activity events for a project
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Events
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ActivityEvent"
+
+  /activity/recent:
+    get:
+      operationId: listRecentActivity
+      tags: [activity]
+      summary: Recent cross-project activity
+      responses:
+        "200":
+          description: Recent events
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ActivityEvent"
+
+  # ── Docs ───────────────────────────────────────────────────────────────────
+  /projects/{slug}/docs:
+    get:
+      operationId: listDocs
+      tags: [docs]
+      summary: List docs for a project
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Docs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Doc"
+    post:
+      operationId: createDoc
+      tags: [docs]
+      summary: Create doc
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DocInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Doc"
+
+  /projects/{slug}/docs/{docSlug}:
+    get:
+      operationId: getDoc
+      tags: [docs]
+      summary: Get doc by slug
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: docSlug
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Doc
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Doc"
+        "404":
+          description: Not found
+    patch:
+      operationId: updateDoc
+      tags: [docs]
+      summary: Update doc
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: docSlug
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DocUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Doc"
+    delete:
+      operationId: deleteDoc
+      tags: [docs]
+      summary: Delete doc
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: docSlug
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Deleted
+
+  # ── Search ─────────────────────────────────────────────────────────────────
+  /search:
+    get:
+      operationId: search
+      tags: [search]
+      summary: Full-text search across items and docs
+      parameters:
+        - in: query
+          name: q
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Search results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SearchResults"
+
+  # ── Dashboard ──────────────────────────────────────────────────────────────
+  /dashboard:
+    get:
+      operationId: getDashboard
+      tags: [dashboard]
+      summary: Dashboard summary stats
+      responses:
+        "200":
+          description: Dashboard data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Dashboard"
+
+  /projects/{slug}/burn-down:
+    get:
+      operationId: getBurnDown
+      tags: [dashboard]
+      summary: Burn-down data for a project
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Burn-down
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BurnDown"
+
 components:
   schemas:
     HealthStatus:
@@ -31,6 +1169,870 @@ components:
       properties:
         status:
           type: string
-      required:
-        - status
+      required: [status]
 
+    # ── Users ──────────────────────────────────────────────────────────────
+    User:
+      type: object
+      required: [id, clerkId, displayName, role, active]
+      properties:
+        id:
+          type: integer
+        clerkId:
+          type: string
+        email:
+          type: ["string", "null"]
+        displayName:
+          type: string
+        username:
+          type: ["string", "null"]
+        avatarUrl:
+          type: ["string", "null"]
+        role:
+          type: string
+          enum: [admin, member]
+        hourlyRateCents:
+          type: ["integer", "null"]
+        active:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+
+    UserInput:
+      type: object
+      required: [email, displayName]
+      properties:
+        email:
+          type: string
+        displayName:
+          type: string
+        username:
+          type: ["string", "null"]
+        role:
+          type: string
+          enum: [admin, member]
+        hourlyRateCents:
+          type: ["integer", "null"]
+
+    UserUpdate:
+      type: object
+      properties:
+        displayName:
+          type: string
+        avatarUrl:
+          type: ["string", "null"]
+        username:
+          type: ["string", "null"]
+
+    UserAdminUpdate:
+      type: object
+      properties:
+        displayName:
+          type: string
+        role:
+          type: string
+          enum: [admin, member]
+        hourlyRateCents:
+          type: ["integer", "null"]
+        active:
+          type: boolean
+
+    # ── Projects ─────────────────────────────────────────────────────────
+    Project:
+      type: object
+      required: [id, name, slug, archived, createdAt]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        slug:
+          type: string
+        description:
+          type: ["string", "null"]
+        githubRepo:
+          type: ["string", "null"]
+        archived:
+          type: boolean
+        memberCount:
+          type: integer
+        openItemCount:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+
+    ProjectDetail:
+      type: object
+      required: [id, name, slug, archived, members, scopes, milestones, createdAt]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        slug:
+          type: string
+        description:
+          type: ["string", "null"]
+        githubRepo:
+          type: ["string", "null"]
+        archived:
+          type: boolean
+        members:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProjectMember"
+        scopes:
+          type: array
+          items:
+            $ref: "#/components/schemas/Scope"
+        milestones:
+          type: array
+          items:
+            $ref: "#/components/schemas/Milestone"
+        createdAt:
+          type: string
+          format: date-time
+
+    ProjectInput:
+      type: object
+      required: [name, slug]
+      properties:
+        name:
+          type: string
+        slug:
+          type: string
+        description:
+          type: ["string", "null"]
+        githubRepo:
+          type: ["string", "null"]
+
+    ProjectUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: ["string", "null"]
+        githubRepo:
+          type: ["string", "null"]
+        archived:
+          type: boolean
+
+    ProjectMember:
+      type: object
+      required: [id, projectId, userId, role, user]
+      properties:
+        id:
+          type: integer
+        projectId:
+          type: integer
+        userId:
+          type: string
+        role:
+          type: string
+          enum: [owner, member]
+        user:
+          $ref: "#/components/schemas/User"
+
+    ProjectMemberInput:
+      type: object
+      required: [userId]
+      properties:
+        userId:
+          type: string
+        role:
+          type: string
+          enum: [owner, member]
+
+    # ── Scopes ────────────────────────────────────────────────────────────
+    Scope:
+      type: object
+      required: [id, projectId, name, slug, status, order]
+      properties:
+        id:
+          type: integer
+        projectId:
+          type: integer
+        name:
+          type: string
+        slug:
+          type: string
+        sow:
+          type: ["string", "null"]
+        budgetCents:
+          type: ["integer", "null"]
+        status:
+          type: string
+          enum: [planned, active, on_hold, complete]
+        startDate:
+          type: ["string", "null"]
+          format: date
+        targetDate:
+          type: ["string", "null"]
+          format: date
+        order:
+          type: integer
+        spentCents:
+          type: ["integer", "null"]
+
+    ScopeInput:
+      type: object
+      required: [name, slug]
+      properties:
+        name:
+          type: string
+        slug:
+          type: string
+        sow:
+          type: ["string", "null"]
+        budgetCents:
+          type: ["integer", "null"]
+        status:
+          type: string
+          enum: [planned, active, on_hold, complete]
+        startDate:
+          type: ["string", "null"]
+        targetDate:
+          type: ["string", "null"]
+
+    ScopeUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        sow:
+          type: ["string", "null"]
+        budgetCents:
+          type: ["integer", "null"]
+        status:
+          type: string
+          enum: [planned, active, on_hold, complete]
+        startDate:
+          type: ["string", "null"]
+        targetDate:
+          type: ["string", "null"]
+        order:
+          type: integer
+
+    # ── Milestones ────────────────────────────────────────────────────────
+    Milestone:
+      type: object
+      required: [id, scopeId, name, status, order]
+      properties:
+        id:
+          type: integer
+        scopeId:
+          type: integer
+        name:
+          type: string
+        description:
+          type: ["string", "null"]
+        targetDate:
+          type: ["string", "null"]
+          format: date
+        status:
+          type: string
+          enum: [open, complete]
+        order:
+          type: integer
+
+    MilestoneInput:
+      type: object
+      required: [scopeId, name]
+      properties:
+        scopeId:
+          type: integer
+        name:
+          type: string
+        description:
+          type: ["string", "null"]
+        targetDate:
+          type: ["string", "null"]
+
+    MilestoneUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: ["string", "null"]
+        targetDate:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [open, complete]
+        order:
+          type: integer
+
+    # ── Items ─────────────────────────────────────────────────────────────
+    Item:
+      type: object
+      required: [id, projectId, number, type, title, status, priority, createdAt]
+      properties:
+        id:
+          type: integer
+        projectId:
+          type: integer
+        number:
+          type: integer
+        type:
+          type: string
+          enum: [todo, bug, request, decision]
+        title:
+          type: string
+        description:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [open, in_progress, blocked, done, cancelled]
+        priority:
+          type: string
+          enum: [low, medium, high, urgent]
+        assigneeId:
+          type: ["string", "null"]
+        assignee:
+          $ref: "#/components/schemas/User"
+          nullable: true
+        scopeId:
+          type: ["integer", "null"]
+        milestoneId:
+          type: ["integer", "null"]
+        estimateMinutes:
+          type: ["integer", "null"]
+        dueDate:
+          type: ["string", "null"]
+          format: date
+        decisionRationale:
+          type: ["string", "null"]
+        closedAt:
+          type: ["string", "null"]
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        totalMinutesLogged:
+          type: ["integer", "null"]
+
+    ItemDetail:
+      type: object
+      required: [id, projectId, number, type, title, status, priority, comments, timeEntries, commits, createdAt]
+      properties:
+        id:
+          type: integer
+        projectId:
+          type: integer
+        number:
+          type: integer
+        type:
+          type: string
+          enum: [todo, bug, request, decision]
+        title:
+          type: string
+        description:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [open, in_progress, blocked, done, cancelled]
+        priority:
+          type: string
+          enum: [low, medium, high, urgent]
+        assigneeId:
+          type: ["string", "null"]
+        assignee:
+          $ref: "#/components/schemas/User"
+          nullable: true
+        scopeId:
+          type: ["integer", "null"]
+        milestoneId:
+          type: ["integer", "null"]
+        estimateMinutes:
+          type: ["integer", "null"]
+        dueDate:
+          type: ["string", "null"]
+          format: date
+        decisionRationale:
+          type: ["string", "null"]
+        closedAt:
+          type: ["string", "null"]
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        totalMinutesLogged:
+          type: ["integer", "null"]
+        comments:
+          type: array
+          items:
+            $ref: "#/components/schemas/Comment"
+        timeEntries:
+          type: array
+          items:
+            $ref: "#/components/schemas/TimeEntry"
+        commits:
+          type: array
+          items:
+            $ref: "#/components/schemas/Commit"
+
+    ItemInput:
+      type: object
+      required: [type, title]
+      properties:
+        type:
+          type: string
+          enum: [todo, bug, request, decision]
+        title:
+          type: string
+        description:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [open, in_progress, blocked, done, cancelled]
+        priority:
+          type: string
+          enum: [low, medium, high, urgent]
+        assigneeId:
+          type: ["string", "null"]
+        scopeId:
+          type: ["integer", "null"]
+        milestoneId:
+          type: ["integer", "null"]
+        estimateMinutes:
+          type: ["integer", "null"]
+        dueDate:
+          type: ["string", "null"]
+        decisionRationale:
+          type: ["string", "null"]
+
+    ItemUpdate:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [todo, bug, request, decision]
+        title:
+          type: string
+        description:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [open, in_progress, blocked, done, cancelled]
+        priority:
+          type: string
+          enum: [low, medium, high, urgent]
+        assigneeId:
+          type: ["string", "null"]
+        scopeId:
+          type: ["integer", "null"]
+        milestoneId:
+          type: ["integer", "null"]
+        estimateMinutes:
+          type: ["integer", "null"]
+        dueDate:
+          type: ["string", "null"]
+        decisionRationale:
+          type: ["string", "null"]
+
+    # ── Comments ──────────────────────────────────────────────────────────
+    Comment:
+      type: object
+      required: [id, itemId, authorId, body, createdAt]
+      properties:
+        id:
+          type: integer
+        itemId:
+          type: integer
+        authorId:
+          type: string
+        author:
+          $ref: "#/components/schemas/User"
+        body:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CommentInput:
+      type: object
+      required: [body]
+      properties:
+        body:
+          type: string
+
+    CommentUpdate:
+      type: object
+      required: [body]
+      properties:
+        body:
+          type: string
+
+    # ── Commits ───────────────────────────────────────────────────────────
+    Commit:
+      type: object
+      required: [id, projectId, sha, message, committedAt]
+      properties:
+        id:
+          type: integer
+        projectId:
+          type: integer
+        sha:
+          type: string
+        authorGithub:
+          type: ["string", "null"]
+        authorName:
+          type: ["string", "null"]
+        message:
+          type: string
+        url:
+          type: ["string", "null"]
+        committedAt:
+          type: string
+          format: date-time
+
+    # ── Messages ──────────────────────────────────────────────────────────
+    Message:
+      type: object
+      required: [id, projectId, authorId, body, createdAt]
+      properties:
+        id:
+          type: integer
+        projectId:
+          type: integer
+        authorId:
+          type: string
+        author:
+          $ref: "#/components/schemas/User"
+        body:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    MessageInput:
+      type: object
+      required: [body]
+      properties:
+        body:
+          type: string
+
+    # ── Time entries ──────────────────────────────────────────────────────
+    TimeEntry:
+      type: object
+      required: [id, projectId, userId, minutes, billable, spentOn, createdAt]
+      properties:
+        id:
+          type: integer
+        projectId:
+          type: integer
+        itemId:
+          type: ["integer", "null"]
+        userId:
+          type: string
+        user:
+          $ref: "#/components/schemas/User"
+        minutes:
+          type: integer
+        billable:
+          type: boolean
+        note:
+          type: ["string", "null"]
+        spentOn:
+          type: string
+          format: date
+        createdAt:
+          type: string
+          format: date-time
+
+    TimeEntryInput:
+      type: object
+      required: [minutes, spentOn]
+      properties:
+        minutes:
+          type: integer
+        billable:
+          type: boolean
+        note:
+          type: ["string", "null"]
+        spentOn:
+          type: string
+          format: date
+
+    # ── Cost entries ──────────────────────────────────────────────────────
+    CostEntry:
+      type: object
+      required: [id, projectId, category, amountCents, currency, recurring, incurredOn]
+      properties:
+        id:
+          type: integer
+        projectId:
+          type: integer
+        scopeId:
+          type: ["integer", "null"]
+        category:
+          type: string
+          enum: [labor, hosting, saas, contractor, ai, other]
+        vendor:
+          type: ["string", "null"]
+        description:
+          type: ["string", "null"]
+        amountCents:
+          type: integer
+        currency:
+          type: string
+        recurring:
+          type: boolean
+        incurredOn:
+          type: string
+          format: date
+
+    CostEntryInput:
+      type: object
+      required: [category, amountCents, incurredOn]
+      properties:
+        scopeId:
+          type: ["integer", "null"]
+        category:
+          type: string
+          enum: [labor, hosting, saas, contractor, ai, other]
+        vendor:
+          type: ["string", "null"]
+        description:
+          type: ["string", "null"]
+        amountCents:
+          type: integer
+        currency:
+          type: string
+        recurring:
+          type: boolean
+        incurredOn:
+          type: string
+          format: date
+
+    # ── Presence ──────────────────────────────────────────────────────────
+    Presence:
+      type: object
+      required: [userId, updatedAt]
+      properties:
+        userId:
+          type: string
+        user:
+          $ref: "#/components/schemas/User"
+        itemId:
+          type: ["integer", "null"]
+        item:
+          $ref: "#/components/schemas/Item"
+          nullable: true
+        note:
+          type: ["string", "null"]
+        updatedAt:
+          type: string
+          format: date-time
+
+    PresenceInput:
+      type: object
+      properties:
+        itemId:
+          type: ["integer", "null"]
+        note:
+          type: ["string", "null"]
+
+    # ── Standup ───────────────────────────────────────────────────────────
+    Standup:
+      type: object
+      required: [userId, forDate, content, generatedAt]
+      properties:
+        userId:
+          type: string
+        forDate:
+          type: string
+          format: date
+        content:
+          type: string
+        generatedAt:
+          type: string
+          format: date-time
+
+    # ── Activity ──────────────────────────────────────────────────────────
+    ActivityEvent:
+      type: object
+      required: [id, type, createdAt]
+      properties:
+        id:
+          type: integer
+        projectId:
+          type: ["integer", "null"]
+        projectSlug:
+          type: ["string", "null"]
+        actorId:
+          type: ["string", "null"]
+        actor:
+          $ref: "#/components/schemas/User"
+          nullable: true
+        type:
+          type: string
+          enum: [item_created, item_status_changed, item_assigned, comment_added, commit_linked, message_posted, cost_added, decision_logged]
+        payload:
+          type: object
+          additionalProperties: true
+        createdAt:
+          type: string
+          format: date-time
+
+    # ── Docs ──────────────────────────────────────────────────────────────
+    Doc:
+      type: object
+      required: [id, projectId, title, slug, body, pinned, createdAt]
+      properties:
+        id:
+          type: integer
+        projectId:
+          type: integer
+        title:
+          type: string
+        slug:
+          type: string
+        body:
+          type: string
+        pinned:
+          type: boolean
+        createdById:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    DocInput:
+      type: object
+      required: [title, slug, body]
+      properties:
+        title:
+          type: string
+        slug:
+          type: string
+        body:
+          type: string
+        pinned:
+          type: boolean
+
+    DocUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+        body:
+          type: string
+        pinned:
+          type: boolean
+
+    # ── Search ────────────────────────────────────────────────────────────
+    SearchResultItem:
+      type: object
+      required: [type, id, title, projectSlug]
+      properties:
+        type:
+          type: string
+          enum: [item, doc]
+        id:
+          type: integer
+        title:
+          type: string
+        projectSlug:
+          type: string
+        projectName:
+          type: string
+        snippet:
+          type: ["string", "null"]
+        number:
+          type: ["integer", "null"]
+        itemType:
+          type: ["string", "null"]
+        status:
+          type: ["string", "null"]
+
+    SearchResults:
+      type: object
+      required: [results, total]
+      properties:
+        results:
+          type: array
+          items:
+            $ref: "#/components/schemas/SearchResultItem"
+        total:
+          type: integer
+
+    # ── Dashboard ─────────────────────────────────────────────────────────
+    Dashboard:
+      type: object
+      required: [projects, openItems, overdueItems, teamPresence, recentActivity]
+      properties:
+        projects:
+          type: array
+          items:
+            $ref: "#/components/schemas/Project"
+        openItems:
+          type: integer
+        overdueItems:
+          type: integer
+        itemsByStatus:
+          type: object
+          additionalProperties:
+            type: integer
+        teamPresence:
+          type: array
+          items:
+            $ref: "#/components/schemas/Presence"
+        recentActivity:
+          type: array
+          items:
+            $ref: "#/components/schemas/ActivityEvent"
+
+    BurnDownPoint:
+      type: object
+      required: [date, budgetCents, spentCents]
+      properties:
+        date:
+          type: string
+          format: date
+        budgetCents:
+          type: integer
+        spentCents:
+          type: integer
+        label:
+          type: ["string", "null"]
+
+    BurnDown:
+      type: object
+      required: [totalBudgetCents, totalSpentCents, points, scopes]
+      properties:
+        totalBudgetCents:
+          type: integer
+        totalSpentCents:
+          type: integer
+        points:
+          type: array
+          items:
+            $ref: "#/components/schemas/BurnDownPoint"
+        scopes:
+          type: array
+          items:
+            $ref: "#/components/schemas/ScopeBurnDown"
+
+    ScopeBurnDown:
+      type: object
+      required: [scopeId, scopeName, budgetCents, spentCents]
+      properties:
+        scopeId:
+          type: integer
+        scopeName:
+          type: string
+        budgetCents:
+          type: integer
+        spentCents:
+          type: integer

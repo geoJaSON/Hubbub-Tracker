@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 60" width="200" height="60">
+  <rect width="200" height="60" fill="#07100a"/>
+  <text x="10" y="44" font-family="'Share Tech Mono', monospace" font-size="36" fill="#00ff41" letter-spacing="4" font-weight="bold" style="text-shadow: 0 0 10px #00ff41;">HUBBUB</text>
+  <rect x="8" y="48" width="120" height="2" fill="#00ff41" opacity="0.6"/>
+  <text x="134" y="58" font-family="'Share Tech Mono', monospace" font-size="10" fill="#00ff41" opacity="0.5">v1.0</text>
+</svg>
