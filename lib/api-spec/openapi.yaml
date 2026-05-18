@@ -1322,7 +1322,7 @@ components:
     # ── Projects ─────────────────────────────────────────────────────────
     Project:
       type: object
-      required: [id, name, slug, archived, createdAt]
+      required: [id, name, slug, archived, hasGithubToken, createdAt]
       properties:
         id:
           type: integer
@@ -1334,6 +1334,8 @@ components:
           type: ["string", "null"]
         githubRepo:
           type: ["string", "null"]
+        hasGithubToken:
+          type: boolean
         archived:
           type: boolean
         memberCount:
@@ -1346,7 +1348,7 @@ components:
 
     ProjectDetail:
       type: object
-      required: [id, name, slug, archived, members, scopes, milestones, createdAt]
+      required: [id, name, slug, archived, hasGithubToken, members, scopes, milestones, createdAt]
       properties:
         id:
           type: integer
@@ -1358,6 +1360,8 @@ components:
           type: ["string", "null"]
         githubRepo:
           type: ["string", "null"]
+        hasGithubToken:
+          type: boolean
         archived:
           type: boolean
         members:

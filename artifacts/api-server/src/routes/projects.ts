@@ -19,9 +19,9 @@ const router = Router();
 /** Strip write-only fields before sending a project to the client. */
 function sanitizeProject<T extends { githubToken?: string | null }>(
   project: T,
-): Omit<T, "githubToken"> {
-  const { githubToken: _tok, ...safe } = project;
-  return safe;
+): Omit<T, "githubToken"> & { hasGithubToken: boolean } {
+  const { githubToken, ...safe } = project;
+  return { ...safe, hasGithubToken: !!githubToken };
 }
 
 async function getProjectBySlug(slug: string) {
@@ -205,9 +205,7 @@ router.patch("/:slug", requireAuth, async (req: AuthRequest, res) => {
     .where(eq(projects.slug, slug))
     .returning();
 
-  // Strip the token before returning — it is write-only
-  const { githubToken: _tok, ...safeProject } = updated;
-  return res.json(safeProject);
+  return res.json(sanitizeProject(updated));
 });
 
 // ── DELETE /projects/:slug ─────────────────────────────────────────────────────

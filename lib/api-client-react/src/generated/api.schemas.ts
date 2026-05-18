@@ -95,6 +95,7 @@ export interface Project {
   description?: string | null;
   /** @nullable */
   githubRepo?: string | null;
+  hasGithubToken: boolean;
   archived: boolean;
   memberCount?: number;
   openItemCount?: number;
@@ -174,6 +175,7 @@ export interface ProjectDetail {
   description?: string | null;
   /** @nullable */
   githubRepo?: string | null;
+  hasGithubToken: boolean;
   archived: boolean;
   members: ProjectMember[];
   scopes: Scope[];

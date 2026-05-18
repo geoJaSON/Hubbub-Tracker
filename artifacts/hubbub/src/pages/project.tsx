@@ -506,6 +506,7 @@ export default function ProjectPage() {
     try {
       await updateProject.mutateAsync({ slug: slug!, data: { githubToken: val } });
       setGithubTokenInput("");
+      qc.invalidateQueries({ queryKey: getGetProjectQueryKey(slug!) });
       toast({ title: val ? "GitHub token saved" : "GitHub token removed" });
     } catch {
       toast({ title: "Failed to save GitHub token", variant: "destructive" });
@@ -1474,9 +1475,16 @@ export default function ProjectPage() {
 
               {/* GitHub Token */}
               <div className="border border-border bg-card p-4 space-y-3">
-                <div className="flex items-center gap-2">
-                  <div className="h-2 w-2 rounded-full bg-primary shrink-0" />
-                  <div className="font-mono text-sm text-foreground">GitHub Personal Access Token</div>
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <div className="h-2 w-2 rounded-full bg-primary shrink-0" />
+                    <div className="font-mono text-sm text-foreground">GitHub Personal Access Token</div>
+                  </div>
+                  {project.hasGithubToken ? (
+                    <span className="font-mono text-xs text-primary border border-primary/40 px-1.5 py-0.5 shrink-0">token saved ✓</span>
+                  ) : (
+                    <span className="font-mono text-xs text-muted-foreground border border-border px-1.5 py-0.5 shrink-0">no token set</span>
+                  )}
                 </div>
                 <div className="text-xs text-muted-foreground font-mono">
                   Required to poll private repositories. Enter a token with <code className="text-accent">repo</code> read scope. The token is stored securely and never shown again.
