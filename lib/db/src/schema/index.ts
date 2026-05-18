@@ -98,6 +98,7 @@ export const projects = pgTable(
     slug: varchar("slug", { length: 64 }).notNull(),
     description: text("description"),
     githubRepo: text("github_repo"),
+    githubToken: text("github_token"),
     archived: boolean("archived").notNull().default(false),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },

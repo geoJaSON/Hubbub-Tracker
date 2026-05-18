@@ -242,6 +242,7 @@ export const UpdateProjectBody = zod.object({
   "name": zod.string().optional(),
   "description": zod.string().nullish(),
   "githubRepo": zod.string().nullish(),
+  "githubToken": zod.string().nullish(),
   "archived": zod.boolean().optional()
 })
 

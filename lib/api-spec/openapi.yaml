@@ -1398,6 +1398,9 @@ components:
           type: ["string", "null"]
         githubRepo:
           type: ["string", "null"]
+        githubToken:
+          type: ["string", "null"]
+          description: "Write-only personal access token for private repo polling. Never returned in responses."
         archived:
           type: boolean
 

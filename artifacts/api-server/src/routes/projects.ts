@@ -16,6 +16,14 @@ const router = Router();
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
+/** Strip write-only fields before sending a project to the client. */
+function sanitizeProject<T extends { githubToken?: string | null }>(
+  project: T,
+): Omit<T, "githubToken"> {
+  const { githubToken: _tok, ...safe } = project;
+  return safe;
+}
+
 async function getProjectBySlug(slug: string) {
   const [p] = await db
     .select()
@@ -76,7 +84,7 @@ router.get("/", requireAuth, async (req: AuthRequest, res) => {
           ),
         );
       return {
-        ...p,
+        ...sanitizeProject(p),
         memberCount: Number(memberCount?.count ?? 0),
         openItemCount: Number(openCount?.count ?? 0),
       };
@@ -105,7 +113,7 @@ router.post("/", requireAuth, async (req: AuthRequest, res) => {
   });
 
   return res.status(201).json({
-    ...project,
+    ...sanitizeProject(project),
     memberCount: 1,
     openItemCount: 0,
   });
@@ -155,7 +163,7 @@ router.get("/:slug", requireAuth, async (req: AuthRequest, res) => {
       : [];
 
   return res.json({
-    ...project,
+    ...sanitizeProject(project),
     members: memberRows.map((m) => ({
       ...m,
       user: userRows.find((u) => u.clerkId === m.userId) ?? null,
@@ -184,19 +192,22 @@ router.patch("/:slug", requireAuth, async (req: AuthRequest, res) => {
   const isOwnerOrAdmin = membership?.role === "owner" || caller?.role === "admin";
   if (!isOwnerOrAdmin) return res.status(403).json({ error: "Forbidden: owners only" });
 
-  const { name, description, githubRepo, archived } = req.body;
+  const { name, description, githubRepo, githubToken, archived } = req.body;
   const [updated] = await db
     .update(projects)
     .set({
       ...(name !== undefined && { name }),
       ...(description !== undefined && { description }),
       ...(githubRepo !== undefined && { githubRepo }),
+      ...(githubToken !== undefined && { githubToken: githubToken || null }),
       ...(archived !== undefined && { archived }),
     })
     .where(eq(projects.slug, slug))
     .returning();
 
-  return res.json(updated);
+  // Strip the token before returning — it is write-only
+  const { githubToken: _tok, ...safeProject } = updated;
+  return res.json(safeProject);
 });
 
 // ── DELETE /projects/:slug ─────────────────────────────────────────────────────

@@ -218,6 +218,7 @@ export default function ProjectPage() {
   const [docSearch, setDocSearch] = useState("");
   const [debouncedDocSearch, setDebouncedDocSearch] = useState("");
   const [githubRepoInput, setGithubRepoInput] = useState<string>("");
+  const [githubTokenInput, setGithubTokenInput] = useState<string>("");
 
   useEffect(() => {
     setGithubRepoInput(project?.githubRepo ?? "");
@@ -497,6 +498,17 @@ export default function ProjectPage() {
       toast({ title: val ? "GitHub repo linked" : "GitHub repo removed" });
     } catch {
       toast({ title: "Failed to save GitHub repo", variant: "destructive" });
+    }
+  };
+
+  const handleSaveGithubToken = async () => {
+    const val = githubTokenInput.trim() || null;
+    try {
+      await updateProject.mutateAsync({ slug: slug!, data: { githubToken: val } });
+      setGithubTokenInput("");
+      toast({ title: val ? "GitHub token saved" : "GitHub token removed" });
+    } catch {
+      toast({ title: "Failed to save GitHub token", variant: "destructive" });
     }
   };
 
@@ -1458,6 +1470,38 @@ export default function ProjectPage() {
                     linked: {project.githubRepo}
                   </div>
                 )}
+              </div>
+
+              {/* GitHub Token */}
+              <div className="border border-border bg-card p-4 space-y-3">
+                <div className="flex items-center gap-2">
+                  <div className="h-2 w-2 rounded-full bg-primary shrink-0" />
+                  <div className="font-mono text-sm text-foreground">GitHub Personal Access Token</div>
+                </div>
+                <div className="text-xs text-muted-foreground font-mono">
+                  Required to poll private repositories. Enter a token with <code className="text-accent">repo</code> read scope. The token is stored securely and never shown again.
+                </div>
+                <div className="flex gap-2">
+                  <Input
+                    type="password"
+                    value={githubTokenInput}
+                    onChange={(e) => setGithubTokenInput(e.target.value)}
+                    className="bg-background border-border font-mono text-sm rounded-none flex-1"
+                    placeholder="ghp_…"
+                    onKeyDown={(e) => { if (e.key === "Enter") void handleSaveGithubToken(); }}
+                  />
+                  <Button
+                    size="sm"
+                    onClick={() => void handleSaveGithubToken()}
+                    disabled={updateProject.isPending}
+                    className="font-mono text-xs bg-primary text-primary-foreground hover:bg-primary/90 shrink-0"
+                  >
+                    {updateProject.isPending ? "SAVING..." : "SAVE"}
+                  </Button>
+                </div>
+                <div className="text-xs font-mono text-muted-foreground">
+                  Leave blank and save to remove the stored token.
+                </div>
               </div>
 
               {/* Archive */}

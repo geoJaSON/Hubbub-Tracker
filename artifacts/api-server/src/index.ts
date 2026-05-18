@@ -50,8 +50,9 @@ async function pollGitHubCommits() {
           Accept: "application/vnd.github.v3+json",
           "User-Agent": "hubbub-poller/1.0",
         };
-        if (process.env.GITHUB_TOKEN) {
-          headers["Authorization"] = `Bearer ${process.env.GITHUB_TOKEN}`;
+        const token = project.githubToken ?? process.env.GITHUB_TOKEN;
+        if (token) {
+          headers["Authorization"] = `Bearer ${token}`;
         }
 
         const resp = await fetch(
@@ -126,10 +127,6 @@ async function pollGitHubCommits() {
   }
 }
 
-// Run immediately on startup, then every 5 minutes
-pollGitHubCommits().catch(() => {});
-setInterval(() => pollGitHubCommits().catch(() => {}), 5 * 60 * 1000);
-
 // ── Docs Full-Text Search Index ───────────────────────────────────────────────
 // Creates a GIN tsvector index on docs(title, body) for fast full-text search.
 // Runs once on startup; CONCURRENTLY + IF NOT EXISTS make it safe to repeat.
@@ -150,4 +147,26 @@ async function ensureDocsFtsIndex() {
   }
 }
 
-ensureDocsFtsIndex().catch(() => {});
+// ── Projects github_token Column Migration ────────────────────────────────────
+// Adds the github_token column to projects if it doesn't exist yet.
+async function ensureProjectsGithubToken() {
+  try {
+    await db.execute(sql`
+      ALTER TABLE projects ADD COLUMN IF NOT EXISTS github_token text
+    `);
+    logger.info("projects.github_token column ready");
+  } catch (err) {
+    logger.warn({ err }, "Could not add github_token column to projects");
+  }
+}
+
+// Run migrations first, then start the poller so the schema is ready
+async function startup() {
+  await ensureProjectsGithubToken();
+  await ensureDocsFtsIndex();
+  // Run immediately on startup, then every 5 minutes
+  pollGitHubCommits().catch(() => {});
+  setInterval(() => pollGitHubCommits().catch(() => {}), 5 * 60 * 1000);
+}
+
+startup().catch(() => {});

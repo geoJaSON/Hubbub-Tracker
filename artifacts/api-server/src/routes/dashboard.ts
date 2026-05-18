@@ -99,7 +99,7 @@ router.get("/", requireAuth, async (req: AuthRequest, res) => {
     : [];
 
   return res.json({
-    projects: myProjects.map((p) => ({ ...p, memberCount: 0, openItemCount: 0 })),
+    projects: myProjects.map(({ githubToken: _tok, ...p }) => ({ ...p, memberCount: 0, openItemCount: 0 })),
     openItems: Number(openCount?.count ?? 0),
     overdueItems: Number(overdueCount?.count ?? 0),
     itemsByStatus: {},
