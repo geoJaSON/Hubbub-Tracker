@@ -101,12 +101,23 @@ router.post("/", requireAuth, async (req: AuthRequest, res) => {
 
 // PATCH /projects/:slug/items/:itemNumber/comments/:commentId
 router.patch("/:commentId", requireAuth, async (req: AuthRequest, res) => {
+  const slug = String(req.params.slug);
+  const [project] = await db.select().from(projects).where(eq(projects.slug, slug)).limit(1);
+  if (!project) return res.status(404).json({ error: "Not found" });
+  const [item] = await db
+    .select()
+    .from(items)
+    .where(and(eq(items.projectId, project.id), eq(items.number, Number(req.params.itemNumber))))
+    .limit(1);
+  if (!item) return res.status(404).json({ error: "Not found" });
+
   const [updated] = await db
     .update(comments)
     .set({ body: req.body.body, updatedAt: new Date() })
     .where(
       and(
         eq(comments.id, Number(req.params.commentId)),
+        eq(comments.itemId, item.id),
         eq(comments.authorId, req.userId!),
       ),
     )
@@ -117,11 +128,22 @@ router.patch("/:commentId", requireAuth, async (req: AuthRequest, res) => {
 
 // DELETE /projects/:slug/items/:itemNumber/comments/:commentId
 router.delete("/:commentId", requireAuth, async (req: AuthRequest, res) => {
+  const slug = String(req.params.slug);
+  const [project] = await db.select().from(projects).where(eq(projects.slug, slug)).limit(1);
+  if (!project) return res.status(404).json({ error: "Not found" });
+  const [item] = await db
+    .select()
+    .from(items)
+    .where(and(eq(items.projectId, project.id), eq(items.number, Number(req.params.itemNumber))))
+    .limit(1);
+  if (!item) return res.status(404).json({ error: "Not found" });
+
   await db
     .delete(comments)
     .where(
       and(
         eq(comments.id, Number(req.params.commentId)),
+        eq(comments.itemId, item.id),
         eq(comments.authorId, req.userId!),
       ),
     );

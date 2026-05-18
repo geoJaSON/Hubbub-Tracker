@@ -61,7 +61,21 @@ router.get("/", requireAuth, async (req: AuthRequest, res) => {
         : sql`FALSE`,
     );
 
-  const presenceRows = await db.select().from(presence);
+  // Scope presence to users who share at least one project with the caller
+  const presenceRows =
+    ids.length > 0
+      ? await db
+          .select({ presence })
+          .from(presence)
+          .innerJoin(projectMembers, eq(projectMembers.userId, presence.userId))
+          .where(
+            sql`${projectMembers.projectId} = ANY(ARRAY[${sql.join(
+              ids.map((id) => sql`${id}`),
+              sql`, `,
+            )}]::int[])`,
+          )
+          .then((rows) => rows.map((r) => r.presence))
+      : [];
   const recentActivity =
     ids.length > 0
       ? await db
