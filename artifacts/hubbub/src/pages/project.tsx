@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useParams, Link } from "wouter";
 import { useAuth } from "@clerk/react";
 import {
@@ -64,6 +64,26 @@ const PRIORITY_COLORS: Record<string, string> = {
 const TYPE_ICONS: Record<string, typeof Bug> = {
   bug: Bug, todo: CheckSquare, decision: Lightbulb, request: ReqIcon,
 };
+
+function TeletypeText({ text, onDone }: { text: string; onDone: () => void }) {
+  const [idx, setIdx] = useState(0);
+  const onDoneRef = useRef(onDone);
+  onDoneRef.current = onDone;
+  const calledDone = useRef(false);
+
+  useEffect(() => {
+    if (calledDone.current) return;
+    if (idx >= text.length) {
+      calledDone.current = true;
+      onDoneRef.current();
+      return;
+    }
+    const t = setTimeout(() => setIdx((i) => i + 1), 14);
+    return () => clearTimeout(t);
+  }, [idx, text.length]);
+
+  return <>{text.slice(0, idx)}<span className="animate-pulse">_</span></>;
+}
 
 type RichItem = Item & { projectSlug: string };
 
@@ -157,7 +177,6 @@ export default function ProjectPage() {
     query: {
       queryKey: getListPresenceQueryKey(),
       refetchInterval: 30_000,
-      enabled: activeTab === "chat",
     },
   });
 
@@ -229,22 +248,28 @@ export default function ProjectPage() {
   // SSE live chat: accumulate messages that arrive over the stream
   const [sseMessages, setSseMessages] = useState<Message[]>([]);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const [newMessageIds, setNewMessageIds] = useState<Set<number>>(new Set());
+
+  const markRevealed = useCallback((id: number) => {
+    setNewMessageIds((ids) => {
+      const next = new Set(ids);
+      next.delete(id);
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
     setSseMessages([]); // reset on slug change
+    setNewMessageIds(new Set());
   }, [slug]);
 
   useEffect(() => {
-    if (activeTab !== "chat") return;
-
+    // Always keep SSE open — chat sidebar is always visible
     let es: EventSource | null = null;
 
     const connect = async () => {
       const token = await getToken();
-      // EventSource uses cookie-based Clerk auth (same-origin via Vite proxy)
-      // We add the token as a header workaround via fetchEventSource if cookies
-      // don't propagate; for now rely on Clerk's __session cookie.
-      void token; // obtained but not needed when cookies flow through proxy
+      void token;
       es = new EventSource(
         `${window.location.origin}${basePath}/api/projects/${slug}/messages/stream`,
       );
@@ -253,22 +278,24 @@ export default function ProjectPage() {
         try {
           const payload = JSON.parse(evt.data) as { type: string; message?: Message };
           if (payload.type === "message" && payload.message) {
+            const incoming = payload.message;
             setSseMessages((prev) => {
-              if (prev.some((m) => m.id === payload.message!.id)) return prev;
-              return [...prev, payload.message!];
+              if (prev.some((m) => m.id === incoming.id)) return prev;
+              setNewMessageIds((ids) => new Set([...ids, incoming.id]));
+              return [...prev, incoming];
             });
           }
         } catch { /* ignore malformed */ }
       };
 
       es.onerror = () => {
-        // auto-reconnects are handled by EventSource; close on component unmount
+        // auto-reconnects handled by EventSource
       };
     };
 
     void connect();
     return () => { es?.close(); };
-  }, [slug, activeTab, getToken]);
+  }, [slug, getToken]);
 
   // Merge query messages + SSE messages, dedup by id
   const allMessages = useMemo<Message[]>(() => {
@@ -279,10 +306,8 @@ export default function ProjectPage() {
 
   // Scroll to bottom when new messages arrive
   useEffect(() => {
-    if (activeTab === "chat") {
-      chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    }
-  }, [allMessages, activeTab]);
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [allMessages]);
 
   const items: RichItem[] = itemsData.map((i) => ({ ...i, projectSlug: slug! }));
 
@@ -598,8 +623,9 @@ export default function ProjectPage() {
   }
 
   return (
-    <Layout title={project.name.toUpperCase()}>
-      <div className="space-y-4 max-w-6xl">
+    <Layout title={project.name.toUpperCase()} fluid>
+      <div className="flex h-full min-h-0 gap-0">
+        <div className="flex-1 overflow-auto p-4 min-w-0 space-y-4">
         {/* Project header */}
         <div className="flex items-center gap-3 flex-wrap">
           <span className="text-muted-foreground font-mono text-xs">{project.slug}</span>
@@ -627,7 +653,6 @@ export default function ProjectPage() {
             {[
               { value: "items", label: "ITEMS" },
               { value: "board", label: "BOARD" },
-              { value: "chat", label: "CHAT" },
               { value: "docs", label: "DOCS" },
               { value: "activity", label: "ACTIVITY" },
               { value: "standup", label: "STANDUP" },
@@ -755,88 +780,6 @@ export default function ProjectPage() {
                   </div>
                 );
               })}
-            </div>
-          </TabsContent>
-
-          {/* CHAT TAB — SSE live */}
-          <TabsContent value="chat" className="mt-3 space-y-2">
-            {/* Online now panel */}
-            <div className="border border-border bg-card px-3 py-2 flex items-center gap-2 flex-wrap">
-              <span className="font-mono text-[10px] tracking-widest text-muted-foreground shrink-0">ONLINE</span>
-              {onlineUsers.length === 0 ? (
-                <span className="font-mono text-[10px] text-muted-foreground">no one online right now</span>
-              ) : (
-                onlineUsers.map((p) => {
-                  const name = p.user?.displayName ?? p.userId.slice(0, 8);
-                  return (
-                    <span key={p.userId} className="flex items-center gap-1 font-mono text-xs text-foreground">
-                      <span className="h-1.5 w-1.5 rounded-full bg-primary shrink-0" />
-                      {name}
-                    </span>
-                  );
-                })
-              )}
-            </div>
-            <div className="border border-border bg-card flex flex-col h-[500px]">
-              <div className="flex-1 overflow-y-auto p-3 space-y-2 font-mono text-sm">
-                {allMessages.length === 0 ? (
-                  <p className="text-muted-foreground text-xs">
-                    no messages yet — try /todo, /bug, /close, /assign
-                  </p>
-                ) : (
-                  allMessages.map((m) => (
-                    <div
-                      key={m.id}
-                      className={cn("flex gap-2", m.authorId === "system" && "opacity-70")}
-                    >
-                      <span className={m.authorId === "system" ? "text-accent shrink-0" : "text-primary shrink-0"}>
-                        {m.authorId === "system" ? "sys" : ">"}
-                      </span>
-                      <div>
-                        {m.authorId !== "system" && (
-                          <span className="text-xs text-accent mr-2">
-                            {(m.author as { displayName?: string } | null)?.displayName ?? "USER"}
-                          </span>
-                        )}
-                        <span className="text-foreground">
-                          {m.body.split(/(@\w+|#\d+)/g).map((part, pi) =>
-                            part.startsWith("@")
-                              ? <span key={pi} className="text-accent font-bold">{part}</span>
-                              : part.startsWith("#") && /^#\d+$/.test(part)
-                                ? (
-                                  <Link key={pi} href={`/projects/${slug}/items/${part.slice(1)}`}>
-                                    <a className="text-primary font-bold hover:underline">{part}</a>
-                                  </Link>
-                                )
-                                : part
-                          )}
-                        </span>
-                        <span className="text-muted-foreground text-xs ml-2">
-                          {new Date(m.createdAt).toLocaleTimeString()}
-                        </span>
-                      </div>
-                    </div>
-                  ))
-                )}
-                <div ref={chatEndRef} />
-              </div>
-              <div className="border-t border-border p-2 flex gap-2">
-                <span className="text-primary font-mono text-sm self-center">$</span>
-                <input
-                  value={chatMsg}
-                  onChange={(e) => setChatMsg(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && void handleSendMsg()}
-                  className="flex-1 bg-transparent font-mono text-sm text-foreground outline-none placeholder:text-muted-foreground"
-                  placeholder="message or /todo /bug /close /assign..."
-                />
-                <button
-                  onClick={() => void handleSendMsg()}
-                  disabled={!chatMsg.trim() || postMessage.isPending}
-                  className="text-primary hover:text-primary/80 disabled:text-muted-foreground"
-                >
-                  <Send className="h-4 w-4" />
-                </button>
-              </div>
             </div>
           </TabsContent>
 
@@ -1577,7 +1520,107 @@ export default function ProjectPage() {
             </div>
           </TabsContent>
         </Tabs>
-      </div>
+        </div>{/* end left column */}
+
+        {/* ── Chat Sidebar ─────────────────────────────────────────── */}
+        <aside className="w-72 border-l border-border flex flex-col shrink-0 overflow-hidden bg-card">
+          {/* Header */}
+          <div className="border-b border-border px-3 py-1.5 shrink-0 flex items-center gap-2">
+            <span className="font-mono text-[10px] tracking-widest text-primary">// CHAT</span>
+            <div className="ml-auto flex items-center gap-1.5 flex-wrap">
+              {onlineUsers.length === 0 ? (
+                <span className="font-mono text-[10px] text-muted-foreground">no one online</span>
+              ) : (
+                onlineUsers.map((p) => {
+                  const name = p.user?.displayName ?? p.userId.slice(0, 8);
+                  return (
+                    <span key={p.userId} className="flex items-center gap-1 font-mono text-[10px] text-foreground">
+                      <span className="h-1.5 w-1.5 rounded-full bg-primary shrink-0" />
+                      {name}
+                    </span>
+                  );
+                })
+              )}
+            </div>
+          </div>
+
+          {/* Messages */}
+          <div className="flex-1 overflow-y-auto p-3 space-y-2 font-mono">
+            {allMessages.length === 0 ? (
+              <p className="text-muted-foreground text-[10px] leading-relaxed">
+                no messages yet{"\n"}try /todo /bug /close /assign
+              </p>
+            ) : (
+              allMessages.map((m) => {
+                const isNew = newMessageIds.has(m.id);
+                return (
+                  <div
+                    key={m.id}
+                    className={cn("flex gap-1.5", m.authorId === "system" && "opacity-70")}
+                  >
+                    <span className={cn(
+                      "shrink-0 text-[10px] mt-0.5",
+                      m.authorId === "system" ? "text-accent" : "text-primary",
+                    )}>
+                      {m.authorId === "system" ? "sys" : ">"}
+                    </span>
+                    <div className="min-w-0">
+                      {m.authorId !== "system" && (
+                        <span className="text-[10px] text-accent mr-1.5">
+                          {(m.author as { displayName?: string } | null)?.displayName ?? "USER"}
+                        </span>
+                      )}
+                      <span className="text-foreground text-xs break-words">
+                        {isNew ? (
+                          <TeletypeText
+                            text={m.body}
+                            onDone={() => markRevealed(m.id)}
+                          />
+                        ) : (
+                          m.body.split(/(@\w+|#\d+)/g).map((part, pi) =>
+                            part.startsWith("@")
+                              ? <span key={pi} className="text-accent font-bold">{part}</span>
+                              : part.startsWith("#") && /^#\d+$/.test(part)
+                                ? (
+                                  <Link key={pi} href={`/projects/${slug}/items/${part.slice(1)}`}>
+                                    <a className="text-primary font-bold hover:underline">{part}</a>
+                                  </Link>
+                                )
+                                : part
+                          )
+                        )}
+                      </span>
+                      <span className="text-muted-foreground text-[10px] ml-1">
+                        {new Date(m.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+            <div ref={chatEndRef} />
+          </div>
+
+          {/* Input */}
+          <div className="border-t border-border p-2 flex gap-2 shrink-0">
+            <span className="text-primary font-mono text-sm self-center">$</span>
+            <input
+              value={chatMsg}
+              onChange={(e) => setChatMsg(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && void handleSendMsg()}
+              className="flex-1 bg-transparent font-mono text-xs text-foreground outline-none placeholder:text-muted-foreground"
+              placeholder="message or /todo /bug..."
+            />
+            <button
+              onClick={() => void handleSendMsg()}
+              disabled={!chatMsg.trim() || postMessage.isPending}
+              className="text-primary hover:text-primary/80 disabled:text-muted-foreground"
+            >
+              <Send className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </aside>
+      </div>{/* end outer flex */}
 
       {/* Log Time Dialog */}
       <Dialog open={logTimeOpen} onOpenChange={(open) => { setLogTimeOpen(open); if (!open) setNewTimeEntry({ itemNumber: "", minutes: "", note: "", billable: true }); }}>

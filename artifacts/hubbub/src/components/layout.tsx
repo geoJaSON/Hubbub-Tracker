@@ -123,9 +123,10 @@ const nav: NavItem[] = [
 interface LayoutProps {
   children: ReactNode;
   title?: string;
+  fluid?: boolean;
 }
 
-export function Layout({ children, title }: LayoutProps) {
+export function Layout({ children, title, fluid }: LayoutProps) {
   const [location, navigate] = useLocation();
   const { signOut } = useClerk();
   const { user } = useUser();
@@ -275,7 +276,7 @@ export function Layout({ children, title }: LayoutProps) {
         </header>
 
         {/* Content */}
-        <main className="flex-1 overflow-auto p-4">{children}</main>
+        <main className={fluid ? "flex-1 overflow-hidden flex min-h-0" : "flex-1 overflow-auto p-4"}>{children}</main>
       </div>
     </div>
   );
