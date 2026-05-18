@@ -177,6 +177,7 @@ export default function ProjectPage() {
   const [docOpen, setDocOpen] = useState(false);
   const [editDoc, setEditDoc] = useState<Doc | null>(null);
   const [docForm, setDocForm] = useState({ title: "", body: "" });
+  const [docToDelete, setDocToDelete] = useState<Doc | null>(null);
   const [costOpen, setCostOpen] = useState(false);
   const [newCost, setNewCost] = useState<{
     category: CostEntryInputCategory;
@@ -358,14 +359,20 @@ export default function ProjectPage() {
     }
   };
 
-  const handleDeleteDoc = async (doc: Doc) => {
-    if (!window.confirm(`Delete "${doc.title}"?`)) return;
+  const handleDeleteDoc = (doc: Doc) => {
+    setDocToDelete(doc);
+  };
+
+  const confirmDeleteDoc = async () => {
+    if (!docToDelete) return;
     try {
-      await deleteDoc.mutateAsync({ slug: slug!, docSlug: doc.slug });
+      await deleteDoc.mutateAsync({ slug: slug!, docSlug: docToDelete.slug });
       qc.invalidateQueries({ queryKey: getListDocsQueryKey(slug!) });
       toast({ title: "Doc deleted" });
     } catch {
       toast({ title: "Failed to delete doc", variant: "destructive" });
+    } finally {
+      setDocToDelete(null);
     }
   };
 
@@ -1839,6 +1846,39 @@ export default function ProjectPage() {
                   <p className="text-muted-foreground italic text-sm font-mono">nothing to preview yet…</p>
                 )}
               </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+      {/* Delete Doc Confirmation Dialog */}
+      <Dialog open={!!docToDelete} onOpenChange={(open) => { if (!open) setDocToDelete(null); }}>
+        <DialogContent className="bg-card border-border max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="font-['VT323'] tracking-widest text-xl text-destructive">
+              // DELETE DOC
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="font-mono text-sm text-foreground">
+              Are you sure you want to delete{" "}
+              <span className="text-primary font-bold">"{docToDelete?.title}"</span>?
+              This cannot be undone.
+            </p>
+            <div className="flex gap-2 justify-end">
+              <Button
+                variant="outline"
+                className="font-mono text-xs border-border hover:bg-muted"
+                onClick={() => setDocToDelete(null)}
+              >
+                CANCEL
+              </Button>
+              <Button
+                className="font-mono text-xs bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                onClick={() => void confirmDeleteDoc()}
+                disabled={deleteDoc.isPending}
+              >
+                {deleteDoc.isPending ? "DELETING..." : "DELETE"}
+              </Button>
             </div>
           </div>
         </DialogContent>
