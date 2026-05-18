@@ -236,12 +236,42 @@ export default function ProjectPage() {
       .sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
   }, [docs, docSearch]);
 
+  // Presence heartbeat: send PUT /api/presence while the chat tab is open
+  useEffect(() => {
+    if (activeTab !== "chat") return;
+
+    const heartbeat = async () => {
+      try {
+        await fetch(`${window.location.origin}${basePath}/api/presence`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({}),
+        });
+      } catch { /* ignore network errors */ }
+    };
+
+    void heartbeat();
+    const id = setInterval(() => void heartbeat(), 30_000);
+    return () => clearInterval(id);
+  }, [slug, activeTab]);
+
   const handleSendMsg = async () => {
-    if (!chatMsg.trim()) return;
-    await postMessage.mutateAsync({ slug, data: { body: chatMsg } });
-    // SSE will deliver the reply; also invalidate for non-SSE clients
-    qc.invalidateQueries({ queryKey: getListMessagesQueryKey(slug!) });
-    setChatMsg("");
+    const text = chatMsg.trim();
+    if (!text) return;
+    setChatMsg(""); // clear input immediately for snappy UX
+    try {
+      const created = await postMessage.mutateAsync({ slug, data: { body: text } });
+      // Immediately show the sender's own message (SSE may also deliver it; dedup handles both)
+      setSseMessages((prev) => {
+        if (prev.some((m) => m.id === created.id)) return prev;
+        return [...prev, created];
+      });
+      // Also invalidate so non-SSE state stays consistent
+      qc.invalidateQueries({ queryKey: getListMessagesQueryKey(slug!) });
+    } catch {
+      setChatMsg(text); // restore draft so the user can retry
+      toast({ title: "Failed to send message", variant: "destructive" });
+    }
   };
 
   const handleCreateItem = async () => {
