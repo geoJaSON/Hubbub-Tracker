@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { eq, desc, sql } from "drizzle-orm";
+import { eq, and, desc, sql } from "drizzle-orm";
 import { db } from "../lib/db";
 import { projects, activityEvents, users, projectMembers } from "../lib/schema";
 import { requireAuth, AuthRequest } from "../lib/auth";
@@ -42,8 +42,8 @@ async function enrichEvents(rows: (typeof activityEvents.$inferSelect)[]) {
   }));
 }
 
-// GET /projects/:slug/activity
-router.get("/projects/:slug/activity", requireAuth, async (req, res) => {
+// GET /projects/:slug/activity — caller must be a project member
+router.get("/projects/:slug/activity", requireAuth, async (req: AuthRequest, res) => {
   const slug = String(req.params.slug);
   const [project] = await db
     .select()
@@ -51,6 +51,19 @@ router.get("/projects/:slug/activity", requireAuth, async (req, res) => {
     .where(eq(projects.slug, slug))
     .limit(1);
   if (!project) return res.status(404).json({ error: "Not found" });
+
+  // Enforce membership before returning project activity
+  const [membership] = await db
+    .select()
+    .from(projectMembers)
+    .where(
+      and(
+        eq(projectMembers.projectId, project.id),
+        eq(projectMembers.userId, req.userId!),
+      ),
+    )
+    .limit(1);
+  if (!membership) return res.status(403).json({ error: "Forbidden" });
 
   const rows = await db
     .select()

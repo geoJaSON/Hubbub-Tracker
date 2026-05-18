@@ -62,11 +62,20 @@ router.get("/", requireAuth, async (req: AuthRequest, res) => {
     );
 
   const presenceRows = await db.select().from(presence);
-  const recentActivity = await db
-    .select()
-    .from(activityEvents)
-    .orderBy(desc(activityEvents.createdAt))
-    .limit(20);
+  const recentActivity =
+    ids.length > 0
+      ? await db
+          .select()
+          .from(activityEvents)
+          .where(
+            sql`${activityEvents.projectId} = ANY(ARRAY[${sql.join(
+              ids.map((id) => sql`${id}`),
+              sql`, `,
+            )}]::int[])`,
+          )
+          .orderBy(desc(activityEvents.createdAt))
+          .limit(20)
+      : [];
 
   const projectActorIds = [...new Set(recentActivity.filter(e => e.actorId).map(e => e.actorId!))];
   const actorRows = projectActorIds.length > 0

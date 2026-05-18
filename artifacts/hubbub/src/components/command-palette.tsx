@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Command, CommandInput, CommandList, CommandItem, CommandGroup, CommandEmpty } from "cmdk";
-import { LayoutDashboard, FolderKanban, Search, Settings, LogOut } from "lucide-react";
+import { LayoutDashboard, FolderKanban, Search, Settings, LogOut, CalendarDays } from "lucide-react";
 import { useClerk } from "@clerk/react";
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -16,7 +16,8 @@ const commands = [
   { id: "dashboard", label: "Go to Dashboard", icon: LayoutDashboard, href: "/dashboard" },
   { id: "projects", label: "Go to Projects", icon: FolderKanban, href: "/projects" },
   { id: "search", label: "Search", icon: Search, href: "/search" },
-  { id: "admin", label: "Admin", icon: Settings, href: "/admin" },
+  { id: "standup", label: "Daily Standup", icon: CalendarDays, href: "/standup" },
+  { id: "admin", label: "Admin Users", icon: Settings, href: "/admin/users" },
 ];
 
 export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
