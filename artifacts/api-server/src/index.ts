@@ -1,8 +1,9 @@
 import app from "./app";
 import { logger } from "./lib/logger";
 import { db, pool } from "./lib/db";
-import { projects, commits, commitItems, items } from "./lib/schema";
+import { projects, commits, commitItems, items, messages } from "./lib/schema";
 import { eq, sql, and } from "drizzle-orm";
+import { notifyProject } from "./lib/pgnotify";
 
 const rawPort = process.env["PORT"];
 
@@ -77,6 +78,8 @@ async function pollGitHubCommits() {
           html_url: string;
         }>;
 
+        const newCommits: Array<{ message: string; authorName: string; authorGithub: string | null }> = [];
+
         for (const c of ghCommits) {
           const [inserted] = await db
             .insert(commits)
@@ -93,6 +96,12 @@ async function pollGitHubCommits() {
             .returning();
 
           if (inserted) {
+            newCommits.push({
+              message: inserted.message,
+              authorName: inserted.authorName ?? c.commit.author.name,
+              authorGithub: inserted.authorGithub,
+            });
+
             // Auto-link items referenced as "#N" in the commit message
             const refs = [...c.commit.message.matchAll(/#(\d+)/g)].map((m) =>
               Number(m[1]),
@@ -116,6 +125,45 @@ async function pollGitHubCommits() {
               }
             }
           }
+        }
+
+        if (newCommits.length > 0) {
+          // Build a concise chat notification
+          const latest = newCommits[0];
+          const countLabel =
+            newCommits.length === 1
+              ? "1 new commit"
+              : `${newCommits.length} new commits`;
+
+          // Determine unique authors across the batch
+          const authorHandles = [
+            ...new Set(
+              newCommits.map((c) =>
+                c.authorGithub ? `@${c.authorGithub}` : c.authorName,
+              ),
+            ),
+          ];
+          const authorLabel =
+            authorHandles.length <= 2
+              ? authorHandles.join(" & ")
+              : `${authorHandles[0]} +${authorHandles.length - 1} others`;
+
+          const notifBody = `${countLabel} from ${authorLabel} — latest: ${latest.message}`;
+
+          const [sysMsg] = await db
+            .insert(messages)
+            .values({ projectId: project.id, authorId: "system", body: notifBody })
+            .returning();
+
+          await notifyProject(pool, project.id, {
+            type: "message",
+            message: { ...sysMsg, author: null },
+          });
+
+          logger.info(
+            { project: project.slug, newCommits: newCommits.length },
+            "Posted GitHub commit notification to chat",
+          );
         }
       } catch (projectErr) {
         // Log per-project errors but continue polling other projects
