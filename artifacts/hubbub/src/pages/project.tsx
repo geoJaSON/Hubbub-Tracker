@@ -8,16 +8,22 @@ import {
   useUpdateProject, useDeleteProject,
   useGetBurnDown, useListCostEntries, useCreateCostEntry,
   useCreateScope, useCreateMilestone,
+  useListCommits, useListProjectTimeEntries,
 } from "@workspace/api-client-react";
 import type {
   Item, Doc, ItemInput, ItemInputType, ItemInputPriority,
   ItemUpdateStatus, Message, DocInput, CostEntry, CostEntryInput,
   CostEntryInputCategory, Scope, Milestone, ScopeInput, MilestoneInput,
+  Commit, TimeEntry,
 } from "@workspace/api-client-react";
+import {
+  LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
+} from "recharts";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   getListItemsQueryKey, getListMessagesQueryKey, getListActivityQueryKey,
   getListDocsQueryKey, getGetProjectQueryKey, getListCostEntriesQueryKey,
+  getListCommitsQueryKey,
 } from "@workspace/api-client-react";
 import { Layout } from "../components/layout";
 import { Button } from "@/components/ui/button";
@@ -138,6 +144,14 @@ export default function ProjectPage() {
   const createCostEntry = useCreateCostEntry();
   const { data: burnDown } = useGetBurnDown(slug!);
   const { data: costEntries = [] } = useListCostEntries(slug!);
+  const { data: commits = [] } = useListCommits(slug!, {
+    query: {
+      queryKey: getListCommitsQueryKey(slug!),
+      refetchInterval: 60_000,
+      enabled: !!(slug && project?.githubRepo),
+    },
+  });
+  const { data: timeEntries = [] } = useListProjectTimeEntries(slug!);
 
   const [chatMsg, setChatMsg] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
@@ -463,6 +477,7 @@ export default function ProjectPage() {
               { value: "standup", label: "STANDUP" },
               { value: "members", label: "MEMBERS" },
               { value: "budget", label: "BUDGET" },
+              { value: "stats", label: "STATS" },
               { value: "settings", label: "SETTINGS" },
             ].map((t) => (
               <TabsTrigger
@@ -931,6 +946,293 @@ export default function ProjectPage() {
                 </div>
               )}
             </div>
+          </TabsContent>
+
+          {/* STATS TAB — burn-down chart, hours, commits, cost summary */}
+          <TabsContent value="stats" className="mt-3 space-y-6">
+            {/* Cost / Budget summary card */}
+            <div className="border border-border bg-card p-4 space-y-3">
+              <span className="font-mono text-xs tracking-widest text-primary">// BUDGET VS SPEND</span>
+              {burnDown ? (
+                <>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <div className="space-y-1">
+                      <div className="font-mono text-[10px] tracking-widest text-muted-foreground">TOTAL BUDGET</div>
+                      <div className="font-mono text-lg text-foreground">
+                        ${((burnDown as { totalBudgetCents: number }).totalBudgetCents / 100).toFixed(2)}
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <div className="font-mono text-[10px] tracking-widest text-muted-foreground">TOTAL SPENT</div>
+                      <div className="font-mono text-lg text-accent">
+                        ${((burnDown as { totalSpentCents: number }).totalSpentCents / 100).toFixed(2)}
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <div className="font-mono text-[10px] tracking-widest text-muted-foreground">REMAINING</div>
+                      <div className={cn("font-mono text-lg", ((burnDown as { totalBudgetCents: number; totalSpentCents: number }).totalBudgetCents - (burnDown as { totalSpentCents: number }).totalSpentCents) < 0 ? "text-destructive" : "text-primary")}>
+                        ${(((burnDown as { totalBudgetCents: number }).totalBudgetCents - (burnDown as { totalSpentCents: number }).totalSpentCents) / 100).toFixed(2)}
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <div className="font-mono text-[10px] tracking-widest text-muted-foreground">BURN RATE</div>
+                      <div className="font-mono text-lg text-foreground">
+                        {(burnDown as { totalBudgetCents: number }).totalBudgetCents > 0
+                          ? `${Math.round(((burnDown as { totalSpentCents: number }).totalSpentCents / (burnDown as { totalBudgetCents: number }).totalBudgetCents) * 100)}%`
+                          : "—"}
+                      </div>
+                    </div>
+                  </div>
+                  {/* Per-scope breakdown */}
+                  {(burnDown as { scopes: Array<{ scopeId: number; scopeName: string; budgetCents: number; spentCents: number }> }).scopes.length > 0 && (
+                    <div className="space-y-2 pt-2 border-t border-border">
+                      <div className="font-mono text-[10px] tracking-widest text-muted-foreground">BY SCOPE</div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                        {(burnDown as { scopes: Array<{ scopeId: number; scopeName: string; budgetCents: number; spentCents: number }> }).scopes.map((s) => (
+                          <div key={s.scopeId} className="border border-border p-2 space-y-1">
+                            <div className="flex justify-between font-mono text-xs">
+                              <span className="text-foreground truncate">{s.scopeName}</span>
+                              <span className="text-muted-foreground shrink-0 ml-2">
+                                ${(s.spentCents / 100).toFixed(2)} / ${(s.budgetCents / 100).toFixed(2)}
+                              </span>
+                            </div>
+                            <div className="w-full bg-muted h-1">
+                              <div
+                                className={cn("h-1", s.budgetCents > 0 && s.spentCents > s.budgetCents ? "bg-destructive" : "bg-accent")}
+                                style={{ width: `${Math.min(100, s.budgetCents > 0 ? (s.spentCents / s.budgetCents) * 100 : 0)}%` }}
+                              />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="text-muted-foreground font-mono text-sm">no budget data — add scopes with budgets</div>
+              )}
+            </div>
+
+            {/* Burn-down line chart — open items over time */}
+            {items.length > 0 && (() => {
+              const msPerDay = 86_400_000;
+              const endMs = Date.now();
+              const sorted = [...items].sort(
+                (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+              );
+              const projectStartMs = new Date(sorted[0]!.createdAt).getTime();
+              const projectDays = Math.ceil((endMs - projectStartMs) / msPerDay) + 1;
+              const cappedAt90 = projectDays > 90;
+              const totalDays = Math.min(90, projectDays);
+              const startMs = cappedAt90 ? endMs - 90 * msPerDay : projectStartMs;
+              const chartData = Array.from({ length: totalDays }, (_, i) => {
+                const dayMs = startMs + i * msPerDay;
+                const dateStr = new Date(dayMs).toISOString().slice(0, 10);
+                const open = items.filter((it) => {
+                  const created = new Date(it.createdAt).getTime();
+                  const closed = it.closedAt ? new Date(it.closedAt).getTime() : null;
+                  return created <= dayMs && (closed === null || closed > dayMs);
+                }).length;
+                return { date: dateStr, open };
+              });
+              return (
+                <div className="border border-border bg-card p-4 space-y-3">
+                  <span className="font-mono text-xs tracking-widest text-primary">// BURN-DOWN — OPEN ITEMS OVER TIME</span>
+                  <ResponsiveContainer width="100%" height={220}>
+                    <LineChart data={chartData} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="2 4" stroke="hsl(var(--border))" />
+                      <XAxis
+                        dataKey="date"
+                        tick={{ fontFamily: "monospace", fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+                        tickFormatter={(v: string) => v.slice(5)}
+                        stroke="hsl(var(--border))"
+                        interval={Math.max(1, Math.floor(totalDays / 8)) - 1}
+                      />
+                      <YAxis
+                        tick={{ fontFamily: "monospace", fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+                        allowDecimals={false}
+                        stroke="hsl(var(--border))"
+                        width={40}
+                      />
+                      <Tooltip
+                        contentStyle={{
+                          background: "hsl(var(--card))",
+                          border: "1px solid hsl(var(--border))",
+                          fontFamily: "monospace",
+                          fontSize: 11,
+                          color: "hsl(var(--foreground))",
+                        }}
+                        formatter={(value: number) => [value, "OPEN ITEMS"]}
+                        labelFormatter={(label: string) => `DATE: ${label}`}
+                      />
+                      <Line type="monotone" dataKey="open" stroke="hsl(var(--primary))" strokeWidth={2} dot={false} name="open" />
+                    </LineChart>
+                  </ResponsiveContainer>
+                  <div className="flex gap-4 font-mono text-[10px] text-muted-foreground">
+                    <span className="flex items-center gap-1"><span className="inline-block w-4 h-0.5 bg-primary" /> OPEN ITEMS</span>
+                    {cappedAt90 && <span>(last 90 days)</span>}
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Hours logged */}
+            <div className="border border-border bg-card p-4 space-y-3">
+              <span className="font-mono text-xs tracking-widest text-primary">// HOURS LOGGED</span>
+              {(timeEntries as TimeEntry[]).length === 0 ? (
+                <div className="text-muted-foreground font-mono text-sm">no time entries yet</div>
+              ) : (() => {
+                const te = timeEntries as TimeEntry[];
+                const totalMins = te.reduce((sum, t) => sum + t.minutes, 0);
+                const billableMins = te.filter((t) => t.billable).reduce((sum, t) => sum + t.minutes, 0);
+                const byUser = te.reduce<Record<string, number>>((acc, t) => {
+                  const name = (t.user as { displayName?: string } | undefined)?.displayName ?? t.userId;
+                  acc[name] = (acc[name] ?? 0) + t.minutes;
+                  return acc;
+                }, {});
+
+                // Build itemId → scopeId/estimateMinutes map from items
+                const itemScopeMap = new Map<number, { scopeId: number | null; milestoneId: number | null; estimateMinutes: number | null }>();
+                items.forEach((it) => {
+                  itemScopeMap.set(it.id, {
+                    scopeId: (it as { scopeId?: number | null }).scopeId ?? null,
+                    milestoneId: (it as { milestoneId?: number | null }).milestoneId ?? null,
+                    estimateMinutes: (it as { estimateMinutes?: number | null }).estimateMinutes ?? null,
+                  });
+                });
+
+                // Per-scope: sum estimate minutes from items, sum logged minutes from time entries
+                const scopes = project.scopes as Scope[];
+                const scopeStats = scopes.map((s) => {
+                  const scopeItems = items.filter((it) => (it as { scopeId?: number | null }).scopeId === s.id);
+                  const estimateMins = scopeItems.reduce((sum, it) => sum + ((it as { estimateMinutes?: number | null }).estimateMinutes ?? 0), 0);
+                  const loggedMins = te.filter((t) => {
+                    const info = t.itemId != null ? itemScopeMap.get(t.itemId) : null;
+                    return info?.scopeId === s.id;
+                  }).reduce((sum, t) => sum + t.minutes, 0);
+                  return { name: s.name, estimateMins, loggedMins, itemCount: scopeItems.length };
+                }).filter((s) => s.itemCount > 0 || s.loggedMins > 0);
+
+                return (
+                  <div className="space-y-4">
+                    {/* Summary metrics */}
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className="space-y-1">
+                        <div className="font-mono text-[10px] tracking-widest text-muted-foreground">TOTAL LOGGED</div>
+                        <div className="font-mono text-lg text-foreground">{(totalMins / 60).toFixed(1)}h</div>
+                      </div>
+                      <div className="space-y-1">
+                        <div className="font-mono text-[10px] tracking-widest text-muted-foreground">BILLABLE</div>
+                        <div className="font-mono text-lg text-accent">{(billableMins / 60).toFixed(1)}h</div>
+                      </div>
+                      <div className="space-y-1">
+                        <div className="font-mono text-[10px] tracking-widest text-muted-foreground">ENTRIES</div>
+                        <div className="font-mono text-lg text-foreground">{te.length}</div>
+                      </div>
+                    </div>
+
+                    {/* Logged vs estimate per scope */}
+                    {scopeStats.length > 0 && (
+                      <div className="space-y-1 border-t border-border pt-3">
+                        <div className="font-mono text-[10px] tracking-widest text-muted-foreground">LOGGED VS ESTIMATE BY SCOPE</div>
+                        <div className="divide-y divide-border border border-border">
+                          {scopeStats.map((s) => {
+                            const pct = s.estimateMins > 0 ? Math.min(200, Math.round((s.loggedMins / s.estimateMins) * 100)) : null;
+                            const over = pct !== null && pct > 100;
+                            return (
+                              <div key={s.name} className="px-3 py-2 space-y-1">
+                                <div className="flex justify-between font-mono text-xs">
+                                  <span className="text-foreground truncate">{s.name}</span>
+                                  <span className={cn("shrink-0 ml-4", over ? "text-destructive" : "text-muted-foreground")}>
+                                    {(s.loggedMins / 60).toFixed(1)}h logged
+                                    {s.estimateMins > 0 && ` / ${(s.estimateMins / 60).toFixed(1)}h est`}
+                                    {pct !== null && ` (${pct}%)`}
+                                  </span>
+                                </div>
+                                {s.estimateMins > 0 && (
+                                  <div className="w-full bg-muted h-1">
+                                    <div
+                                      className={cn("h-1", over ? "bg-destructive" : "bg-primary")}
+                                      style={{ width: `${Math.min(100, (s.loggedMins / s.estimateMins) * 100)}%` }}
+                                    />
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* By member */}
+                    {Object.keys(byUser).length > 0 && (
+                      <div className="space-y-1 border-t border-border pt-3">
+                        <div className="font-mono text-[10px] tracking-widest text-muted-foreground">BY MEMBER</div>
+                        <div className="divide-y divide-border border border-border">
+                          {Object.entries(byUser).sort((a, b) => b[1] - a[1]).map(([name, mins]) => (
+                            <div key={name} className="flex justify-between px-3 py-1.5 font-mono text-xs">
+                              <span className="text-foreground truncate">{name}</span>
+                              <span className="text-muted-foreground shrink-0 ml-4">{(mins / 60).toFixed(1)}h</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+            </div>
+
+            {/* GitHub commits */}
+            {project.githubRepo ? (
+              <div className="border border-border bg-card p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="font-mono text-xs tracking-widest text-primary">// GITHUB COMMITS</span>
+                  <a
+                    href={`https://github.com/${project.githubRepo}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-mono text-[10px] text-muted-foreground hover:text-primary transition-colors"
+                  >
+                    {project.githubRepo} ↗
+                  </a>
+                </div>
+                {(commits as Commit[]).length === 0 ? (
+                  <div className="text-muted-foreground font-mono text-sm">no commits recorded yet</div>
+                ) : (
+                  <div className="divide-y divide-border border border-border max-h-80 overflow-y-auto">
+                    {(commits as Commit[]).map((c) => (
+                      <div key={c.id} className="flex items-start gap-3 px-3 py-2 font-mono text-xs hover:bg-muted/20 transition-colors">
+                        <span className="text-muted-foreground shrink-0 font-bold">{c.sha.slice(0, 7)}</span>
+                        <div className="flex-1 min-w-0 space-y-0.5">
+                          <div className="text-foreground truncate">{c.message.split("\n")[0]}</div>
+                          <div className="text-muted-foreground">
+                            {c.authorName ?? c.authorGithub ?? "unknown"} · {new Date(c.committedAt).toLocaleDateString()}
+                          </div>
+                        </div>
+                        {c.url && (
+                          <a
+                            href={c.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-primary hover:text-primary/70 shrink-0 transition-colors"
+                          >
+                            ↗
+                          </a>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="border border-border bg-card p-4 space-y-1">
+                <span className="font-mono text-xs tracking-widest text-primary">// GITHUB COMMITS</span>
+                <p className="font-mono text-sm text-muted-foreground pt-1">
+                  no GitHub repo linked — set <code className="text-accent">githubRepo</code> in project settings to enable commit tracking
+                </p>
+              </div>
+            )}
           </TabsContent>
 
           {/* SETTINGS TAB */}
