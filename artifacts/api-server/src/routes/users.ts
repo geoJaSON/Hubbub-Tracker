@@ -79,6 +79,8 @@ router.get("/setup", async (_req, res) => {
   return res.json({ initialized: !!row });
 });
 
+const ALLOWED_DOMAIN = "372geomedia.com";
+
 // POST /users/sync — JIT provision a Clerk user
 router.post("/sync", async (req, res) => {
   const auth = getAuth(req);
@@ -86,6 +88,14 @@ router.post("/sync", async (req, res) => {
   if (!clerkId) return res.status(401).json({ error: "Unauthorized" });
 
   const { email, displayName, avatarUrl } = req.body;
+
+  // Domain allowlist: only @372geomedia.com addresses may register
+  if (!email || !email.toLowerCase().endsWith(`@${ALLOWED_DOMAIN}`)) {
+    return res.status(403).json({
+      error: "access_denied",
+      message: `Only @${ALLOWED_DOMAIN} accounts are permitted.`,
+    });
+  }
 
   // Check for existing row by clerkId
   const existing = await db
