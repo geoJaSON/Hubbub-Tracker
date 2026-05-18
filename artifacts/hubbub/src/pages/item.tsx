@@ -253,7 +253,7 @@ export default function ItemPage() {
             <div className="space-y-1">
               <span className="text-muted-foreground tracking-wider">ASSIGNEE</span>
               <Select
-                value={(item.assignee as { id?: string } | null)?.id ?? "__none__"}
+                value={(item.assignee as { clerkId?: string } | null)?.clerkId ?? "__none__"}
                 onValueChange={(v) => void handleAssigneeChange(v)}
               >
                 <SelectTrigger className="h-7 border border-border font-mono text-xs rounded-none w-full text-accent">
