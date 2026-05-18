@@ -17,10 +17,11 @@ async function enrichEntry(t: typeof timeEntries.$inferSelect) {
 
 // GET /projects/:slug/items/:itemNumber/time
 router.get("/items/:itemNumber/time", requireAuth, async (req, res) => {
+  const slug = String(req.params.slug);
   const [project] = await db
     .select()
     .from(projects)
-    .where(eq(projects.slug, req.params.slug))
+    .where(eq(projects.slug, slug))
     .limit(1);
   if (!project) return res.status(404).json({ error: "Not found" });
 
@@ -50,10 +51,11 @@ router.post(
   "/items/:itemNumber/time",
   requireAuth,
   async (req: AuthRequest, res) => {
+    const slug = String(req.params.slug);
     const [project] = await db
       .select()
       .from(projects)
-      .where(eq(projects.slug, req.params.slug))
+      .where(eq(projects.slug, slug))
       .limit(1);
     if (!project) return res.status(404).json({ error: "Not found" });
 
@@ -89,10 +91,11 @@ router.post(
 
 // GET /projects/:slug/time
 router.get("/time", requireAuth, async (req, res) => {
+  const slug = String(req.params.slug);
   const [project] = await db
     .select()
     .from(projects)
-    .where(eq(projects.slug, req.params.slug))
+    .where(eq(projects.slug, slug))
     .limit(1);
   if (!project) return res.status(404).json({ error: "Not found" });
 

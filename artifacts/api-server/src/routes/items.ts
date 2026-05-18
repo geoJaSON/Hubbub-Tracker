@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { eq, and, sql, sum, count } from "drizzle-orm";
+import { eq, and, sql, sum } from "drizzle-orm";
 import { db } from "../lib/db";
 import {
   projects,
@@ -49,7 +49,7 @@ async function enrichItem(item: typeof items.$inferSelect) {
 
 // GET /projects/:slug/items
 router.get("/", requireAuth, async (req, res) => {
-  const project = await getProject(req.params.slug);
+  const project = await getProject(String(req.params.slug));
   if (!project) return res.status(404).json({ error: "Not found" });
 
   const rows = await db
@@ -64,7 +64,7 @@ router.get("/", requireAuth, async (req, res) => {
 
 // POST /projects/:slug/items
 router.post("/", requireAuth, async (req: AuthRequest, res) => {
-  const project = await getProject(req.params.slug);
+  const project = await getProject(String(req.params.slug));
   if (!project) return res.status(404).json({ error: "Not found" });
 
   const [{ max }] = await db
@@ -124,7 +124,7 @@ router.post("/", requireAuth, async (req: AuthRequest, res) => {
 
 // GET /projects/:slug/items/:itemNumber
 router.get("/:itemNumber", requireAuth, async (req, res) => {
-  const project = await getProject(req.params.slug);
+  const project = await getProject(String(req.params.slug));
   if (!project) return res.status(404).json({ error: "Not found" });
 
   const [item] = await db
@@ -219,7 +219,7 @@ router.get("/:itemNumber", requireAuth, async (req, res) => {
 
 // PATCH /projects/:slug/items/:itemNumber
 router.patch("/:itemNumber", requireAuth, async (req: AuthRequest, res) => {
-  const project = await getProject(req.params.slug);
+  const project = await getProject(String(req.params.slug));
   if (!project) return res.status(404).json({ error: "Not found" });
 
   const [existing] = await db
@@ -295,7 +295,7 @@ router.patch("/:itemNumber", requireAuth, async (req: AuthRequest, res) => {
 
 // DELETE /projects/:slug/items/:itemNumber
 router.delete("/:itemNumber", requireAuth, async (req, res) => {
-  const project = await getProject(req.params.slug);
+  const project = await getProject(String(req.params.slug));
   if (!project) return res.status(404).json({ error: "Not found" });
 
   await db

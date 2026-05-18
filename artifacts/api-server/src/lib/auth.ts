@@ -31,7 +31,7 @@ export const requireAuth = async (
     return res.status(401).json({ error: "User not provisioned" });
   }
   req.localUserId = user.id;
-  next();
+  return next();
 };
 
 export const requireAdmin = async (
@@ -54,7 +54,7 @@ export const requireAdmin = async (
   }
   req.userId = clerkId;
   req.localUserId = user.id;
-  next();
+  return next();
 };
 
 /** Verify the signed-in user is a member of the project identified by

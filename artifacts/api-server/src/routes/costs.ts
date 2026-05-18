@@ -7,13 +7,14 @@ import { logActivity } from "../lib/activity";
 
 const router = Router({ mergeParams: true });
 
+async function getProject(slug: string) {
+  const [p] = await db.select().from(projects).where(eq(projects.slug, slug)).limit(1);
+  return p ?? null;
+}
+
 // GET /projects/:slug/costs
 router.get("/", requireAuth, async (req, res) => {
-  const [project] = await db
-    .select()
-    .from(projects)
-    .where(eq(projects.slug, req.params.slug))
-    .limit(1);
+  const project = await getProject(String(req.params.slug));
   if (!project) return res.status(404).json({ error: "Not found" });
 
   const rows = await db
@@ -27,11 +28,7 @@ router.get("/", requireAuth, async (req, res) => {
 
 // POST /projects/:slug/costs
 router.post("/", requireAuth, async (req: AuthRequest, res) => {
-  const [project] = await db
-    .select()
-    .from(projects)
-    .where(eq(projects.slug, req.params.slug))
-    .limit(1);
+  const project = await getProject(String(req.params.slug));
   if (!project) return res.status(404).json({ error: "Not found" });
 
   const { scopeId, category, vendor, description, amountCents, currency, recurring, incurredOn } =
@@ -64,11 +61,7 @@ router.post("/", requireAuth, async (req: AuthRequest, res) => {
 // DELETE /projects/:slug/costs/:costId
 // Constrain by projectId to prevent cross-project IDOR
 router.delete("/:costId", requireAuth, async (req, res) => {
-  const [project] = await db
-    .select()
-    .from(projects)
-    .where(eq(projects.slug, req.params.slug))
-    .limit(1);
+  const project = await getProject(String(req.params.slug));
   if (!project) return res.status(404).json({ error: "Not found" });
 
   await db

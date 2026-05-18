@@ -13,7 +13,7 @@ async function getProject(slug: string) {
 
 // GET /projects/:slug/scopes
 router.get("/", requireAuth, async (req, res) => {
-  const project = await getProject(req.params.slug);
+  const project = await getProject(String(req.params.slug));
   if (!project) return res.status(404).json({ error: "Not found" });
 
   const rows = await db
@@ -37,13 +37,22 @@ router.get("/", requireAuth, async (req, res) => {
 
 // POST /projects/:slug/scopes
 router.post("/", requireAuth, async (req: AuthRequest, res) => {
-  const project = await getProject(req.params.slug);
+  const project = await getProject(String(req.params.slug));
   if (!project) return res.status(404).json({ error: "Not found" });
 
   const { name, slug, sow, budgetCents, status, startDate, targetDate } = req.body;
   const [created] = await db
     .insert(scopes)
-    .values({ projectId: project.id, name, slug, sow, budgetCents, status: status ?? "planned", startDate, targetDate })
+    .values({
+      projectId: project.id,
+      name,
+      slug,
+      sow,
+      budgetCents,
+      status: status ?? "planned",
+      startDate,
+      targetDate,
+    })
     .returning();
 
   return res.status(201).json({ ...created, spentCents: 0 });
@@ -52,7 +61,7 @@ router.post("/", requireAuth, async (req: AuthRequest, res) => {
 // PATCH /projects/:slug/scopes/:scopeId
 // Constrain update to scopes belonging to this project (IDOR prevention)
 router.patch("/:scopeId", requireAuth, async (req, res) => {
-  const project = await getProject(req.params.slug);
+  const project = await getProject(String(req.params.slug));
   if (!project) return res.status(404).json({ error: "Not found" });
 
   const { name, sow, budgetCents, status, startDate, targetDate, order } = req.body;
@@ -82,7 +91,7 @@ router.patch("/:scopeId", requireAuth, async (req, res) => {
 // DELETE /projects/:slug/scopes/:scopeId
 // Constrain delete to scopes belonging to this project (IDOR prevention)
 router.delete("/:scopeId", requireAuth, async (req, res) => {
-  const project = await getProject(req.params.slug);
+  const project = await getProject(String(req.params.slug));
   if (!project) return res.status(404).json({ error: "Not found" });
 
   await db

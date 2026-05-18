@@ -44,10 +44,11 @@ async function enrichEvents(rows: (typeof activityEvents.$inferSelect)[]) {
 
 // GET /projects/:slug/activity
 router.get("/projects/:slug/activity", requireAuth, async (req, res) => {
+  const slug = String(req.params.slug);
   const [project] = await db
     .select()
     .from(projects)
-    .where(eq(projects.slug, req.params.slug))
+    .where(eq(projects.slug, slug))
     .limit(1);
   if (!project) return res.status(404).json({ error: "Not found" });
 

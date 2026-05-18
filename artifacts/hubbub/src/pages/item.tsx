@@ -71,7 +71,7 @@ function parseTimeToMinutes(raw: string): number {
 
 export default function ItemPage() {
   const { slug, number } = useParams<{ slug: string; number: string }>();
-  const { data: item, isLoading } = useGetItem({ slug, itemNumber: Number(number) });
+  const { data: item, isLoading } = useGetItem(slug!, Number(number));
   const updateItem = useUpdateItem();
   const createComment = useCreateComment();
   const createTimeEntry = useCreateTimeEntry();
@@ -110,14 +110,14 @@ export default function ItemPage() {
       itemNumber: item.number,
       data: { status: status as ItemUpdateStatus },
     });
-    qc.invalidateQueries({ queryKey: getGetItemQueryKey({ slug, itemNumber: item.number }) });
+    qc.invalidateQueries({ queryKey: getGetItemQueryKey(slug!, item.number) });
   };
 
   const handlePostComment = async () => {
     if (!comment.trim()) return;
     try {
       await createComment.mutateAsync({ slug, itemNumber: item.number, data: { body: comment } });
-      qc.invalidateQueries({ queryKey: getGetItemQueryKey({ slug, itemNumber: item.number }) });
+      qc.invalidateQueries({ queryKey: getGetItemQueryKey(slug!, item.number) });
       setComment("");
     } catch {
       toast({ title: "Failed to post comment", variant: "destructive" });
@@ -141,7 +141,7 @@ export default function ItemPage() {
           billable: true,
         },
       });
-      qc.invalidateQueries({ queryKey: getGetItemQueryKey({ slug, itemNumber: item.number }) });
+      qc.invalidateQueries({ queryKey: getGetItemQueryKey(slug!, item.number) });
       setLogTime("");
       setLogNote("");
       toast({ title: `Logged ${minutes}m` });
@@ -156,7 +156,7 @@ export default function ItemPage() {
       itemNumber: item.number,
       data: { description: desc },
     });
-    qc.invalidateQueries({ queryKey: getGetItemQueryKey({ slug, itemNumber: item.number }) });
+    qc.invalidateQueries({ queryKey: getGetItemQueryKey(slug!, item.number) });
     setEditDesc(false);
   };
 

@@ -25,7 +25,6 @@ async function getProjectBySlug(slug: string) {
   return p ?? null;
 }
 
-/** Returns the caller's membership row, or null if not a member. */
 async function getMembership(projectId: number, userId: string) {
   const [m] = await db
     .select()
@@ -114,10 +113,10 @@ router.post("/", requireAuth, async (req: AuthRequest, res) => {
 
 // ── GET /projects/:slug ────────────────────────────────────────────────────────
 router.get("/:slug", requireAuth, async (req: AuthRequest, res) => {
-  const project = await getProjectBySlug(req.params.slug);
+  const slug = String(req.params.slug);
+  const project = await getProjectBySlug(slug);
   if (!project) return res.status(404).json({ error: "Not found" });
 
-  // Membership check — any member can read
   const membership = await getMembership(project.id, req.userId!);
   if (!membership) return res.status(403).json({ error: "Forbidden" });
 
@@ -170,9 +169,9 @@ router.get("/:slug", requireAuth, async (req: AuthRequest, res) => {
 });
 
 // ── PATCH /projects/:slug ──────────────────────────────────────────────────────
-// Restricted to owners or global admins
 router.patch("/:slug", requireAuth, async (req: AuthRequest, res) => {
-  const project = await getProjectBySlug(req.params.slug);
+  const slug = String(req.params.slug);
+  const project = await getProjectBySlug(slug);
   if (!project) return res.status(404).json({ error: "Not found" });
 
   const [caller] = await db
@@ -194,16 +193,16 @@ router.patch("/:slug", requireAuth, async (req: AuthRequest, res) => {
       ...(githubRepo !== undefined && { githubRepo }),
       ...(archived !== undefined && { archived }),
     })
-    .where(eq(projects.slug, req.params.slug))
+    .where(eq(projects.slug, slug))
     .returning();
 
   return res.json(updated);
 });
 
 // ── DELETE /projects/:slug ─────────────────────────────────────────────────────
-// Restricted to owners or global admins
 router.delete("/:slug", requireAuth, async (req: AuthRequest, res) => {
-  const project = await getProjectBySlug(req.params.slug);
+  const slug = String(req.params.slug);
+  const project = await getProjectBySlug(slug);
   if (!project) return res.status(404).json({ error: "Not found" });
 
   const [caller] = await db
@@ -222,7 +221,8 @@ router.delete("/:slug", requireAuth, async (req: AuthRequest, res) => {
 
 // ── GET /projects/:slug/members ────────────────────────────────────────────────
 router.get("/:slug/members", requireAuth, async (req: AuthRequest, res) => {
-  const project = await getProjectBySlug(req.params.slug);
+  const slug = String(req.params.slug);
+  const project = await getProjectBySlug(slug);
   if (!project) return res.status(404).json({ error: "Not found" });
 
   const membership = await getMembership(project.id, req.userId!);
@@ -256,9 +256,9 @@ router.get("/:slug/members", requireAuth, async (req: AuthRequest, res) => {
 });
 
 // ── POST /projects/:slug/members ───────────────────────────────────────────────
-// Restricted to owners
 router.post("/:slug/members", requireAuth, async (req: AuthRequest, res) => {
-  const project = await getProjectBySlug(req.params.slug);
+  const slug = String(req.params.slug);
+  const project = await getProjectBySlug(slug);
   if (!project) return res.status(404).json({ error: "Not found" });
 
   const membership = await getMembership(project.id, req.userId!);
@@ -282,12 +282,12 @@ router.post("/:slug/members", requireAuth, async (req: AuthRequest, res) => {
 });
 
 // ── DELETE /projects/:slug/members/:userId ─────────────────────────────────────
-// Restricted to owners (cannot remove yourself if last owner)
 router.delete(
   "/:slug/members/:userId",
   requireAuth,
   async (req: AuthRequest, res) => {
-    const project = await getProjectBySlug(req.params.slug);
+    const slug = String(req.params.slug);
+    const project = await getProjectBySlug(slug);
     if (!project) return res.status(404).json({ error: "Not found" });
 
     const membership = await getMembership(project.id, req.userId!);
@@ -299,7 +299,7 @@ router.delete(
       .where(
         and(
           eq(projectMembers.projectId, project.id),
-          eq(projectMembers.userId, req.params.userId),
+          eq(projectMembers.userId, String(req.params.userId)),
         ),
       );
 

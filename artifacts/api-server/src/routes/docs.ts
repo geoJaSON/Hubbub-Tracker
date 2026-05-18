@@ -6,13 +6,14 @@ import { requireAuth, AuthRequest } from "../lib/auth";
 
 const router = Router({ mergeParams: true });
 
+async function getProject(slug: string) {
+  const [p] = await db.select().from(projects).where(eq(projects.slug, slug)).limit(1);
+  return p ?? null;
+}
+
 // GET /projects/:slug/docs
 router.get("/", requireAuth, async (req, res) => {
-  const [project] = await db
-    .select()
-    .from(projects)
-    .where(eq(projects.slug, req.params.slug))
-    .limit(1);
+  const project = await getProject(String(req.params.slug));
   if (!project) return res.status(404).json({ error: "Not found" });
 
   const rows = await db
@@ -26,11 +27,7 @@ router.get("/", requireAuth, async (req, res) => {
 
 // POST /projects/:slug/docs
 router.post("/", requireAuth, async (req: AuthRequest, res) => {
-  const [project] = await db
-    .select()
-    .from(projects)
-    .where(eq(projects.slug, req.params.slug))
-    .limit(1);
+  const project = await getProject(String(req.params.slug));
   if (!project) return res.status(404).json({ error: "Not found" });
 
   const { title, slug, body, pinned } = req.body;
@@ -51,19 +48,14 @@ router.post("/", requireAuth, async (req: AuthRequest, res) => {
 
 // GET /projects/:slug/docs/:docSlug
 router.get("/:docSlug", requireAuth, async (req, res) => {
-  const [project] = await db
-    .select()
-    .from(projects)
-    .where(eq(projects.slug, req.params.slug))
-    .limit(1);
+  const project = await getProject(String(req.params.slug));
   if (!project) return res.status(404).json({ error: "Not found" });
 
+  const docSlug = String(req.params.docSlug);
   const [doc] = await db
     .select()
     .from(docs)
-    .where(
-      and(eq(docs.projectId, project.id), eq(docs.slug, req.params.docSlug)),
-    )
+    .where(and(eq(docs.projectId, project.id), eq(docs.slug, docSlug)))
     .limit(1);
   if (!doc) return res.status(404).json({ error: "Not found" });
 
@@ -72,13 +64,10 @@ router.get("/:docSlug", requireAuth, async (req, res) => {
 
 // PATCH /projects/:slug/docs/:docSlug
 router.patch("/:docSlug", requireAuth, async (req, res) => {
-  const [project] = await db
-    .select()
-    .from(projects)
-    .where(eq(projects.slug, req.params.slug))
-    .limit(1);
+  const project = await getProject(String(req.params.slug));
   if (!project) return res.status(404).json({ error: "Not found" });
 
+  const docSlug = String(req.params.docSlug);
   const { title, body, pinned } = req.body;
   const [updated] = await db
     .update(docs)
@@ -88,9 +77,7 @@ router.patch("/:docSlug", requireAuth, async (req, res) => {
       ...(pinned !== undefined && { pinned }),
       updatedAt: new Date(),
     })
-    .where(
-      and(eq(docs.projectId, project.id), eq(docs.slug, req.params.docSlug)),
-    )
+    .where(and(eq(docs.projectId, project.id), eq(docs.slug, docSlug)))
     .returning();
   if (!updated) return res.status(404).json({ error: "Not found" });
   return res.json(updated);
@@ -98,18 +85,13 @@ router.patch("/:docSlug", requireAuth, async (req, res) => {
 
 // DELETE /projects/:slug/docs/:docSlug
 router.delete("/:docSlug", requireAuth, async (req, res) => {
-  const [project] = await db
-    .select()
-    .from(projects)
-    .where(eq(projects.slug, req.params.slug))
-    .limit(1);
+  const project = await getProject(String(req.params.slug));
   if (!project) return res.status(404).json({ error: "Not found" });
 
+  const docSlug = String(req.params.docSlug);
   await db
     .delete(docs)
-    .where(
-      and(eq(docs.projectId, project.id), eq(docs.slug, req.params.docSlug)),
-    );
+    .where(and(eq(docs.projectId, project.id), eq(docs.slug, docSlug)));
   return res.status(204).send();
 });
 

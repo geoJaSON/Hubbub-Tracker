@@ -51,7 +51,6 @@ async function processSlashCommand(
     }
 
     case "close": {
-      // Accept both "#123" and "123"
       const rawNum = arg.replace(/^#/, "");
       const num = Number(rawNum);
       if (!num) return { handled: true, reply: "Usage: /close #<number>" };
@@ -75,7 +74,6 @@ async function processSlashCommand(
     }
 
     case "assign": {
-      // Accept "/assign #123 @user" or "/assign 123 user"
       const parts = arg.split(/\s+/);
       const rawNum = (parts[0] ?? "").replace(/^#/, "");
       const num = Number(rawNum);
@@ -97,10 +95,7 @@ async function processSlashCommand(
         itemNumber: num,
         assigneeId: targetUser.clerkId,
       });
-      return {
-        handled: true,
-        reply: `✓ Assigned #${num} to @${username}`,
-      };
+      return { handled: true, reply: `✓ Assigned #${num} to @${username}` };
     }
 
     default:
@@ -113,10 +108,11 @@ async function processSlashCommand(
 
 // ── GET /projects/:slug/messages ─────────────────────────────────────────────
 router.get("/", requireAuth, async (req, res) => {
+  const slug = String(req.params.slug);
   const [project] = await db
     .select()
     .from(projects)
-    .where(eq(projects.slug, req.params.slug))
+    .where(eq(projects.slug, slug))
     .limit(1);
   if (!project) return res.status(404).json({ error: "Not found" });
 
@@ -151,14 +147,18 @@ router.get("/", requireAuth, async (req, res) => {
   );
 });
 
-// ── GET /projects/:slug/messages/stream  (SSE via pg LISTEN/NOTIFY) ──────────
+// ── GET /projects/:slug/messages/stream (SSE via pg LISTEN/NOTIFY) ────────────
 router.get("/stream", requireAuth, async (req: AuthRequest, res) => {
+  const slug = String(req.params.slug);
   const [project] = await db
     .select()
     .from(projects)
-    .where(eq(projects.slug, req.params.slug))
+    .where(eq(projects.slug, slug))
     .limit(1);
-  if (!project) return res.status(404).json({ error: "Not found" });
+  if (!project) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
 
   res.writeHead(200, {
     "Content-Type": "text/event-stream",
@@ -197,10 +197,11 @@ router.get("/stream", requireAuth, async (req: AuthRequest, res) => {
 
 // ── POST /projects/:slug/messages ────────────────────────────────────────────
 router.post("/", requireAuth, async (req: AuthRequest, res) => {
+  const slug = String(req.params.slug);
   const [project] = await db
     .select()
     .from(projects)
-    .where(eq(projects.slug, req.params.slug))
+    .where(eq(projects.slug, slug))
     .limit(1);
   if (!project) return res.status(404).json({ error: "Not found" });
 

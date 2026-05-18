@@ -2,14 +2,23 @@ import { Router } from "express";
 import { eq, and, sql } from "drizzle-orm";
 import { db } from "../lib/db";
 import { projects, scopes, milestones } from "../lib/schema";
-import { requireAuth, AuthRequest } from "../lib/auth";
+import { requireAuth } from "../lib/auth";
 
 const router = Router({ mergeParams: true });
 
-async function getProjectScopeIds(slug: string): Promise<{ projectId: number; scopeIds: number[] } | null> {
-  const [project] = await db.select().from(projects).where(eq(projects.slug, slug)).limit(1);
+async function getProjectScopeIds(
+  slug: string,
+): Promise<{ projectId: number; scopeIds: number[] } | null> {
+  const [project] = await db
+    .select()
+    .from(projects)
+    .where(eq(projects.slug, slug))
+    .limit(1);
   if (!project) return null;
-  const rows = await db.select({ id: scopes.id }).from(scopes).where(eq(scopes.projectId, project.id));
+  const rows = await db
+    .select({ id: scopes.id })
+    .from(scopes)
+    .where(eq(scopes.projectId, project.id));
   return { projectId: project.id, scopeIds: rows.map((r) => r.id) };
 }
 
@@ -23,7 +32,7 @@ function scopeIdInProject(scopeIds: number[]) {
 
 // GET /projects/:slug/milestones
 router.get("/", requireAuth, async (req, res) => {
-  const ctx = await getProjectScopeIds(req.params.slug);
+  const ctx = await getProjectScopeIds(String(req.params.slug));
   if (!ctx) return res.status(404).json({ error: "Not found" });
   if (ctx.scopeIds.length === 0) return res.json([]);
 
@@ -37,8 +46,8 @@ router.get("/", requireAuth, async (req, res) => {
 });
 
 // POST /projects/:slug/milestones
-router.post("/", requireAuth, async (_req: AuthRequest, res) => {
-  const { scopeId, name, description, targetDate } = _req.body;
+router.post("/", requireAuth, async (req, res) => {
+  const { scopeId, name, description, targetDate } = req.body;
   const [created] = await db
     .insert(milestones)
     .values({ scopeId, name, description, targetDate })
@@ -49,7 +58,7 @@ router.post("/", requireAuth, async (_req: AuthRequest, res) => {
 // PATCH /projects/:slug/milestones/:milestoneId
 // Constrain to milestones whose scope belongs to this project (IDOR prevention)
 router.patch("/:milestoneId", requireAuth, async (req, res) => {
-  const ctx = await getProjectScopeIds(req.params.slug);
+  const ctx = await getProjectScopeIds(String(req.params.slug));
   if (!ctx) return res.status(404).json({ error: "Not found" });
 
   const { name, description, targetDate, status, order } = req.body;
@@ -77,7 +86,7 @@ router.patch("/:milestoneId", requireAuth, async (req, res) => {
 // DELETE /projects/:slug/milestones/:milestoneId
 // Constrain to milestones whose scope belongs to this project (IDOR prevention)
 router.delete("/:milestoneId", requireAuth, async (req, res) => {
-  const ctx = await getProjectScopeIds(req.params.slug);
+  const ctx = await getProjectScopeIds(String(req.params.slug));
   if (!ctx) return res.status(404).json({ error: "Not found" });
 
   await db

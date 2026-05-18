@@ -120,11 +120,11 @@ export default function ProjectPage() {
   const { toast } = useToast();
   const { getToken } = useAuth();
 
-  const { data: project, isLoading: projLoading } = useGetProject({ slug });
-  const { data: itemsData = [] } = useListItems({ slug });
-  const { data: messagesData = [] } = useListMessages({ slug });
-  const { data: activity = [] } = useListActivity({ slug });
-  const { data: docs = [] } = useListDocs({ slug });
+  const { data: project, isLoading: projLoading } = useGetProject(slug!);
+  const { data: itemsData = [] } = useListItems(slug!);
+  const { data: messagesData = [] } = useListMessages(slug!);
+  const { data: activity = [] } = useListActivity(slug!);
+  const { data: docs = [] } = useListDocs(slug!);
   const { data: standup } = useGetStandup();
   const postMessage = usePostMessage();
   const createItem = useCreateItem();
@@ -197,13 +197,13 @@ export default function ProjectPage() {
     }
   }, [allMessages, activeTab]);
 
-  const items = (itemsData as RichItem[]).map((i) => ({ ...i, projectSlug: slug }));
+  const items = (itemsData as unknown as Omit<RichItem, "projectSlug">[]).map((i) => ({ ...i, projectSlug: slug! }));
 
   const handleSendMsg = async () => {
     if (!chatMsg.trim()) return;
     await postMessage.mutateAsync({ slug, data: { body: chatMsg } });
     // SSE will deliver the reply; also invalidate for non-SSE clients
-    qc.invalidateQueries({ queryKey: getListMessagesQueryKey({ slug }) });
+    qc.invalidateQueries({ queryKey: getListMessagesQueryKey(slug!) });
     setChatMsg("");
   };
 
@@ -217,7 +217,7 @@ export default function ProjectPage() {
         description: newItem.description || null,
       };
       await createItem.mutateAsync({ slug, data: payload });
-      qc.invalidateQueries({ queryKey: getListItemsQueryKey({ slug }) });
+      qc.invalidateQueries({ queryKey: getListItemsQueryKey(slug!) });
       setCreateOpen(false);
       setNewItem({ type: "todo", title: "", priority: "medium", description: "" });
       toast({ title: "Item created" });
@@ -230,7 +230,7 @@ export default function ProjectPage() {
     const item = items.find((i) => i.id === itemId);
     if (!item) return;
     await updateItem.mutateAsync({ slug, itemNumber: item.number, data: { status } });
-    qc.invalidateQueries({ queryKey: getListItemsQueryKey({ slug }) });
+    qc.invalidateQueries({ queryKey: getListItemsQueryKey(slug!) });
   };
 
   if (projLoading) {

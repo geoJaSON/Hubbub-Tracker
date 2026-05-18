@@ -67,7 +67,7 @@ router.patch("/:userId", requireAdmin, async (req, res) => {
       ...(hourlyRateCents !== undefined && { hourlyRateCents }),
       ...(active !== undefined && { active }),
     })
-    .where(eq(users.clerkId, req.params.userId))
+    .where(eq(users.clerkId, String(req.params.userId)))
     .returning();
   if (!updated) return res.status(404).json({ error: "Not found" });
   return res.json(updated);
