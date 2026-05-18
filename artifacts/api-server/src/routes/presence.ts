@@ -1,8 +1,9 @@
 import { Router } from "express";
 import { eq, sql } from "drizzle-orm";
-import { db } from "../lib/db";
+import { db, pool } from "../lib/db";
 import { presence, users, items, projectMembers } from "../lib/schema";
 import { requireAuth, AuthRequest } from "../lib/auth";
+import { notifyProject } from "../lib/pgnotify";
 
 const router = Router();
 
@@ -98,7 +99,22 @@ router.put("/", requireAuth, async (req: AuthRequest, res) => {
     .where(eq(users.clerkId, req.userId!))
     .limit(1);
 
-  return res.json({ ...upserted, user: user ?? null, item: null });
+  const entry = { ...upserted, user: user ?? null, item: null };
+
+  // Broadcast a presence event over each project's SSE channel so online
+  // lists update immediately without waiting for the next poll cycle.
+  const memberships = await db
+    .select({ projectId: projectMembers.projectId })
+    .from(projectMembers)
+    .where(eq(projectMembers.userId, req.userId!));
+
+  await Promise.all(
+    memberships.map((m) =>
+      notifyProject(pool, m.projectId, { type: "presence", presence: entry }),
+    ),
+  );
+
+  return res.json(entry);
 });
 
 export default router;

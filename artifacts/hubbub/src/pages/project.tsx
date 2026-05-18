@@ -276,13 +276,19 @@ export default function ProjectPage() {
 
       es.onmessage = (evt) => {
         try {
-          const payload = JSON.parse(evt.data) as { type: string; message?: Message };
+          const payload = JSON.parse(evt.data) as { type: string; message?: Message; presence?: Presence };
           if (payload.type === "message" && payload.message) {
             const incoming = payload.message;
             setSseMessages((prev) => {
               if (prev.some((m) => m.id === incoming.id)) return prev;
               setNewMessageIds((ids) => new Set([...ids, incoming.id]));
               return [...prev, incoming];
+            });
+          } else if (payload.type === "presence" && payload.presence) {
+            const incoming = payload.presence;
+            qc.setQueryData<Presence[]>(getListPresenceQueryKey(), (old = []) => {
+              const others = old.filter((p) => p.userId !== incoming.userId);
+              return [...others, incoming];
             });
           }
         } catch { /* ignore malformed */ }

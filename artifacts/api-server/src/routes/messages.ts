@@ -176,7 +176,7 @@ router.get("/stream", requireAuth, async (req: AuthRequest, res) => {
   let cleanup: (() => void) | null = null;
 
   subscribeToProject(project.id, (payload) => {
-    send({ type: "message", message: payload });
+    send(payload);
   })
     .then((fn) => {
       cleanup = fn;
@@ -227,8 +227,8 @@ router.post("/", requireAuth, async (req: AuthRequest, res) => {
     const cmdFull = { ...cmdMsg, author: author ?? null };
     const sysFull = { ...sysMsg, author: null };
 
-    await notifyProject(pool, project.id, cmdFull);
-    await notifyProject(pool, project.id, sysFull);
+    await notifyProject(pool, project.id, { type: "message", message: cmdFull });
+    await notifyProject(pool, project.id, { type: "message", message: sysFull });
 
     await logActivity("message_posted", req.userId!, project.id, {
       messageId: cmdMsg.id,
@@ -246,7 +246,7 @@ router.post("/", requireAuth, async (req: AuthRequest, res) => {
   });
 
   const msg = { ...created, author: author ?? null };
-  await notifyProject(pool, project.id, msg);
+  await notifyProject(pool, project.id, { type: "message", message: msg });
 
   return res.status(201).json(msg);
 });
