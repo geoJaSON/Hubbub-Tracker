@@ -8,7 +8,7 @@ import {
   useUpdateProject, useDeleteProject,
   useGetBurnDown, useListCostEntries, useCreateCostEntry,
   useCreateScope, useCreateMilestone,
-  useListCommits, useListProjectTimeEntries,
+  useListCommits, useListProjectTimeEntries, useCreateTimeEntry,
   useListPresence,
 } from "@workspace/api-client-react";
 import type {
@@ -24,7 +24,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   getListItemsQueryKey, getListMessagesQueryKey, getListActivityQueryKey,
   getListDocsQueryKey, getGetProjectQueryKey, getListCostEntriesQueryKey,
-  getListCommitsQueryKey, getListPresenceQueryKey,
+  getListCommitsQueryKey, getListPresenceQueryKey, getListProjectTimeEntriesQueryKey,
 } from "@workspace/api-client-react";
 import { Layout } from "../components/layout";
 import { Button } from "@/components/ui/button";
@@ -204,6 +204,15 @@ export default function ProjectPage() {
   const [newMilestone, setNewMilestone] = useState({ name: "", scopeId: "", targetDate: "" });
   const createScope = useCreateScope();
   const createMilestone = useCreateMilestone();
+
+  const [logTimeOpen, setLogTimeOpen] = useState(false);
+  const [newTimeEntry, setNewTimeEntry] = useState({
+    itemNumber: "",
+    minutes: "",
+    note: "",
+    billable: true,
+  });
+  const createTimeEntry = useCreateTimeEntry();
 
   // SSE live chat: accumulate messages that arrive over the stream
   const [sseMessages, setSseMessages] = useState<Message[]>([]);
@@ -457,6 +466,40 @@ export default function ProjectPage() {
     if (!item) return;
     await updateItem.mutateAsync({ slug, itemNumber: item.number, data: { status } });
     qc.invalidateQueries({ queryKey: getListItemsQueryKey(slug!) });
+  };
+
+  const handleLogTime = async () => {
+    const mins = parseInt(newTimeEntry.minutes, 10);
+    if (!newTimeEntry.itemNumber) {
+      toast({ title: "Please select an item", variant: "destructive" });
+      return;
+    }
+    if (!mins || isNaN(mins) || mins <= 0) {
+      toast({ title: "Please enter a valid number of minutes", variant: "destructive" });
+      return;
+    }
+    const itemNum = parseInt(newTimeEntry.itemNumber, 10);
+    // Use local date to avoid UTC day skew near midnight
+    const now = new Date();
+    const spentOn = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+    try {
+      await createTimeEntry.mutateAsync({
+        slug: slug!,
+        itemNumber: itemNum,
+        data: {
+          minutes: mins,
+          billable: newTimeEntry.billable,
+          note: newTimeEntry.note || undefined,
+          spentOn,
+        },
+      });
+      qc.invalidateQueries({ queryKey: getListProjectTimeEntriesQueryKey(slug!) });
+      setLogTimeOpen(false);
+      setNewTimeEntry({ itemNumber: "", minutes: "", note: "", billable: true });
+      toast({ title: "Time logged" });
+    } catch {
+      toast({ title: "Failed to log time", variant: "destructive" });
+    }
   };
 
   if (projLoading) {
@@ -1135,7 +1178,17 @@ export default function ProjectPage() {
 
             {/* Hours logged */}
             <div className="border border-border bg-card p-4 space-y-3">
-              <span className="font-mono text-xs tracking-widest text-primary">// HOURS LOGGED</span>
+              <div className="flex items-center justify-between">
+                <span className="font-mono text-xs tracking-widest text-primary">// HOURS LOGGED</span>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setLogTimeOpen(true)}
+                  className="text-xs font-mono border border-primary/50 text-primary hover:bg-primary/10 gap-1 h-7 px-2"
+                >
+                  <Plus className="h-3 w-3" /> LOG TIME
+                </Button>
+              </div>
               {(timeEntries as TimeEntry[]).length === 0 ? (
                 <div className="text-muted-foreground font-mono text-sm">no time entries yet</div>
               ) : (() => {
@@ -1399,6 +1452,85 @@ export default function ProjectPage() {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Log Time Dialog */}
+      <Dialog open={logTimeOpen} onOpenChange={(open) => { setLogTimeOpen(open); if (!open) setNewTimeEntry({ itemNumber: "", minutes: "", note: "", billable: true }); }}>
+        <DialogContent className="bg-card border-border max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-['VT323'] tracking-widest text-xl text-primary">
+              // LOG TIME
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <Label className="font-mono text-xs tracking-widest text-muted-foreground">ITEM</Label>
+              <Select
+                value={newTimeEntry.itemNumber}
+                onValueChange={(v) => setNewTimeEntry((p) => ({ ...p, itemNumber: v }))}
+              >
+                <SelectTrigger className="bg-background border-border font-mono text-xs h-8">
+                  <SelectValue placeholder="select an item…" />
+                </SelectTrigger>
+                <SelectContent className="bg-card border-border font-mono text-xs max-h-60">
+                  {items.map((it) => (
+                    <SelectItem key={it.id} value={String(it.number)} className="font-mono text-xs">
+                      #{it.number} {it.title}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="font-mono text-xs tracking-widest text-muted-foreground">MINUTES</Label>
+              <Input
+                type="number"
+                min={1}
+                value={newTimeEntry.minutes}
+                onChange={(e) => setNewTimeEntry((p) => ({ ...p, minutes: e.target.value }))}
+                className="bg-background border-border font-mono text-sm rounded-none"
+                placeholder="e.g. 90"
+                onKeyDown={(e) => { if (e.key === "Enter") void handleLogTime(); }}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="font-mono text-xs tracking-widest text-muted-foreground">NOTE (OPTIONAL)</Label>
+              <Input
+                value={newTimeEntry.note}
+                onChange={(e) => setNewTimeEntry((p) => ({ ...p, note: e.target.value }))}
+                className="bg-background border-border font-mono text-sm rounded-none"
+                placeholder="what did you work on?"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setNewTimeEntry((p) => ({ ...p, billable: !p.billable }))}
+                className={cn(
+                  "w-4 h-4 border flex items-center justify-center transition-colors shrink-0",
+                  newTimeEntry.billable
+                    ? "border-primary bg-primary/20 text-primary"
+                    : "border-border text-muted-foreground",
+                )}
+              >
+                {newTimeEntry.billable && <span className="text-[10px] font-mono">✓</span>}
+              </button>
+              <Label
+                className="font-mono text-xs text-muted-foreground cursor-pointer"
+                onClick={() => setNewTimeEntry((p) => ({ ...p, billable: !p.billable }))}
+              >
+                BILLABLE
+              </Label>
+            </div>
+            <Button
+              onClick={() => void handleLogTime()}
+              disabled={createTimeEntry.isPending || !newTimeEntry.minutes || !newTimeEntry.itemNumber}
+              className="w-full font-mono text-xs bg-primary text-primary-foreground hover:bg-primary/90"
+            >
+              {createTimeEntry.isPending ? "LOGGING..." : "LOG TIME"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Create Item Dialog */}
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
