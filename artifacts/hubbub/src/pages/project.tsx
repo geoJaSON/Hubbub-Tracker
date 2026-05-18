@@ -38,7 +38,7 @@ import { useToast } from "@/hooks/use-toast";
 import {
   Plus, Send, Bug, CheckSquare, Lightbulb, MessageSquare as ReqIcon,
   ArrowRight, FileText, Copy, Trash2, Pin, Pencil, Archive, Search,
-  Flag, Layers,
+  Flag, Layers, GripVertical,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import ReactMarkdown from "react-markdown";
@@ -178,6 +178,10 @@ export default function ProjectPage() {
   const [editDoc, setEditDoc] = useState<Doc | null>(null);
   const [docForm, setDocForm] = useState({ title: "", body: "" });
   const [docToDelete, setDocToDelete] = useState<Doc | null>(null);
+  const [draggedDocSlug, setDraggedDocSlug] = useState<string | null>(null);
+  const [dragOverDocSlug, setDragOverDocSlug] = useState<string | null>(null);
+  const [localDocs, setLocalDocs] = useState<Doc[]>([]);
+  const isDraggingDocRef = useRef(false);
   const [costOpen, setCostOpen] = useState(false);
   const [newCost, setNewCost] = useState<{
     category: CostEntryInputCategory;
@@ -275,12 +279,23 @@ export default function ProjectPage() {
 
   const items: RichItem[] = itemsData.map((i) => ({ ...i, projectSlug: slug! }));
 
+  useEffect(() => {
+    if (!isDraggingDocRef.current) {
+      const sorted = [...(docs as Doc[])].sort((a, b) => {
+        if (a.pinned !== b.pinned) return b.pinned ? 1 : -1;
+        return a.order !== b.order ? a.order - b.order : a.title.localeCompare(b.title);
+      });
+      setLocalDocs(sorted);
+    }
+  }, [docs]);
+
   const docSearchFiltered = useMemo<Doc[]>(() => {
     const q = docSearch.trim().toLowerCase();
+    if (!q) return localDocs;
     return [...(docs as Doc[])]
-      .filter((d) => !q || d.title.toLowerCase().includes(q) || (d.body ?? "").toLowerCase().includes(q))
+      .filter((d) => d.title.toLowerCase().includes(q) || (d.body ?? "").toLowerCase().includes(q))
       .sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
-  }, [docs, docSearch]);
+  }, [docs, localDocs, docSearch]);
 
   // Presence heartbeat: send PUT /api/presence while the chat tab is open
   useEffect(() => {
@@ -379,6 +394,45 @@ export default function ProjectPage() {
   const handleTogglePin = async (doc: Doc) => {
     await updateDoc.mutateAsync({ slug: slug!, docSlug: doc.slug, data: { pinned: !doc.pinned } });
     qc.invalidateQueries({ queryKey: getListDocsQueryKey(slug!) });
+  };
+
+  const handleDocDrop = async (targetSlug: string) => {
+    if (!draggedDocSlug || draggedDocSlug === targetSlug) return;
+    const draggedDoc = localDocs.find((d) => d.slug === draggedDocSlug);
+    const targetDoc = localDocs.find((d) => d.slug === targetSlug);
+    if (!draggedDoc || !targetDoc || draggedDoc.pinned !== targetDoc.pinned) return;
+
+    const group = localDocs.filter((d) => d.pinned === draggedDoc.pinned);
+    const otherGroup = localDocs.filter((d) => d.pinned !== draggedDoc.pinned);
+    const fromIdx = group.findIndex((d) => d.slug === draggedDocSlug);
+    const toIdx = group.findIndex((d) => d.slug === targetSlug);
+    if (fromIdx === toIdx) return;
+
+    const newGroup = [...group];
+    const [moved] = newGroup.splice(fromIdx, 1);
+    newGroup.splice(toIdx, 0, moved);
+    const reindexed = newGroup.map((d, i) => ({ ...d, order: i }));
+
+    const newLocalDocs = draggedDoc.pinned
+      ? [...reindexed, ...otherGroup]
+      : [...otherGroup, ...reindexed];
+    setLocalDocs(newLocalDocs);
+
+    const patches = reindexed.filter((d) => {
+      const orig = group.find((g) => g.slug === d.slug);
+      return orig?.order !== d.order;
+    });
+    try {
+      await Promise.all(
+        patches.map((d) =>
+          updateDoc.mutateAsync({ slug: slug!, docSlug: d.slug, data: { order: d.order } })
+        )
+      );
+      qc.invalidateQueries({ queryKey: getListDocsQueryKey(slug!) });
+    } catch {
+      toast({ title: "Failed to save doc order", variant: "destructive" });
+      await qc.invalidateQueries({ queryKey: getListDocsQueryKey(slug!) });
+    }
   };
 
   const handleSaveGithubRepo = async () => {
@@ -789,58 +843,94 @@ export default function ProjectPage() {
                 <Plus className="h-3 w-3" /> NEW DOC
               </Button>
             </div>
+            {!docSearch.trim() && (
+              <p className="text-[10px] font-mono text-muted-foreground/60">
+                drag rows to reorder within each group
+              </p>
+            )}
             {docSearchFiltered.length === 0 ? (
               <div className="border border-border bg-card p-6 text-center text-muted-foreground font-mono text-sm">
                 {docSearch.trim() ? `no docs matching "${docSearch.trim()}"` : "no docs yet — create one above"}
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                {docSearchFiltered.map((doc) => (
-                  <div
-                    key={doc.id}
-                    className="border border-border bg-card flex flex-col gap-2 hover:border-primary/40 transition-colors cursor-pointer"
-                    onClick={() => { setEditDoc(doc); setDocForm({ title: doc.title, body: doc.body }); setDocOpen(true); }}
-                  >
-                    <div className="p-4 pb-0 flex flex-col gap-2 flex-1">
-                      <div className="flex items-center gap-2">
-                        <FileText className="h-3.5 w-3.5 text-primary shrink-0" />
-                        <span className="font-mono text-sm text-foreground truncate flex-1">{doc.title}</span>
-                        {doc.pinned && (
-                          <span className="text-[10px] font-mono text-accent border border-accent/50 px-1 shrink-0">PINNED</span>
+              <div className="border border-border divide-y divide-border">
+                {docSearchFiltered.map((doc) => {
+                  const isBeingDragged = draggedDocSlug === doc.slug;
+                  const isDragTarget = dragOverDocSlug === doc.slug && draggedDocSlug !== doc.slug;
+                  const canDrag = !docSearch.trim();
+                  return (
+                    <div
+                      key={doc.id}
+                      draggable={canDrag}
+                      onDragStart={() => {
+                        isDraggingDocRef.current = true;
+                        setDraggedDocSlug(doc.slug);
+                      }}
+                      onDragEnd={() => {
+                        isDraggingDocRef.current = false;
+                        setDraggedDocSlug(null);
+                        setDragOverDocSlug(null);
+                      }}
+                      onDragOver={(e) => { e.preventDefault(); setDragOverDocSlug(doc.slug); }}
+                      onDragLeave={(e) => {
+                        if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+                          setDragOverDocSlug(null);
+                        }
+                      }}
+                      onDrop={() => { void handleDocDrop(doc.slug); setDragOverDocSlug(null); }}
+                      className={cn(
+                        "flex items-center gap-2 px-3 py-2.5 bg-card hover:bg-muted/20 transition-colors",
+                        isBeingDragged && "opacity-40",
+                        isDragTarget && "border-l-2 border-l-primary bg-primary/5",
+                      )}
+                    >
+                      <div
+                        className={cn(
+                          "shrink-0 text-muted-foreground/40 transition-colors",
+                          canDrag ? "cursor-grab hover:text-muted-foreground" : "invisible",
                         )}
+                      >
+                        <GripVertical className="h-3.5 w-3.5" />
                       </div>
-                      <p className="text-xs text-muted-foreground font-mono line-clamp-3 flex-1">
-                        {doc.body?.slice(0, 120) || "(empty)"}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-1 px-4 py-2 border-t border-border" onClick={(e) => e.stopPropagation()}>
-                      <span className="text-[10px] text-muted-foreground font-mono flex-1">
+                      <FileText className="h-3.5 w-3.5 text-primary shrink-0" />
+                      <button
+                        className="flex-1 text-left font-mono text-sm text-foreground truncate hover:text-primary transition-colors min-w-0"
+                        onClick={() => { setEditDoc(doc); setDocForm({ title: doc.title, body: doc.body }); setDocOpen(true); }}
+                      >
+                        {doc.title}
+                      </button>
+                      {doc.pinned && (
+                        <span className="text-[10px] font-mono text-accent border border-accent/50 px-1 shrink-0">PINNED</span>
+                      )}
+                      <span className="text-[10px] text-muted-foreground font-mono shrink-0 hidden sm:block">
                         {doc.updatedAt ? new Date(doc.updatedAt).toLocaleDateString() : "—"}
                       </span>
-                      <button
-                        title={doc.pinned ? "Unpin" : "Pin"}
-                        onClick={() => void handleTogglePin(doc)}
-                        className={cn("p-1 rounded hover:bg-muted transition-colors", doc.pinned ? "text-accent" : "text-muted-foreground hover:text-foreground")}
-                      >
-                        <Pin className="h-3 w-3" />
-                      </button>
-                      <button
-                        title="Edit"
-                        onClick={() => { setEditDoc(doc); setDocForm({ title: doc.title, body: doc.body }); setDocOpen(true); }}
-                        className="p-1 rounded text-muted-foreground hover:text-primary hover:bg-muted transition-colors"
-                      >
-                        <Pencil className="h-3 w-3" />
-                      </button>
-                      <button
-                        title="Delete"
-                        onClick={() => void handleDeleteDoc(doc)}
-                        className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-muted transition-colors"
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </button>
+                      <div className="flex items-center gap-0.5 shrink-0" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          title={doc.pinned ? "Unpin" : "Pin"}
+                          onClick={() => void handleTogglePin(doc)}
+                          className={cn("p-1 rounded hover:bg-muted transition-colors", doc.pinned ? "text-accent" : "text-muted-foreground hover:text-foreground")}
+                        >
+                          <Pin className="h-3 w-3" />
+                        </button>
+                        <button
+                          title="Edit"
+                          onClick={() => { setEditDoc(doc); setDocForm({ title: doc.title, body: doc.body }); setDocOpen(true); }}
+                          className="p-1 rounded text-muted-foreground hover:text-primary hover:bg-muted transition-colors"
+                        >
+                          <Pencil className="h-3 w-3" />
+                        </button>
+                        <button
+                          title="Delete"
+                          onClick={() => void handleDeleteDoc(doc)}
+                          className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-muted transition-colors"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </TabsContent>

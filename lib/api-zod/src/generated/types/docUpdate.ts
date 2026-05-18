@@ -10,4 +10,5 @@ export interface DocUpdate {
   title?: string;
   body?: string;
   pinned?: boolean;
+  order?: number;
 }

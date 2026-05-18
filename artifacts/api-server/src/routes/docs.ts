@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { eq, and } from "drizzle-orm";
+import { eq, and, max, desc, asc } from "drizzle-orm";
 import { db } from "../lib/db";
 import { projects, docs } from "../lib/schema";
 import { requireAuth, AuthRequest } from "../lib/auth";
@@ -20,7 +20,7 @@ router.get("/", requireAuth, async (req, res) => {
     .select()
     .from(docs)
     .where(eq(docs.projectId, project.id))
-    .orderBy(docs.pinned, docs.title);
+    .orderBy(desc(docs.pinned), asc(docs.order), asc(docs.title));
 
   return res.json(rows);
 });
@@ -31,6 +31,11 @@ router.post("/", requireAuth, async (req: AuthRequest, res) => {
   if (!project) return res.status(404).json({ error: "Not found" });
 
   const { title, slug, body, pinned } = req.body;
+  const [maxOrderRow] = await db
+    .select({ maxOrder: max(docs.order) })
+    .from(docs)
+    .where(eq(docs.projectId, project.id));
+  const nextOrder = (maxOrderRow?.maxOrder ?? -1) + 1;
   const [created] = await db
     .insert(docs)
     .values({
@@ -39,6 +44,7 @@ router.post("/", requireAuth, async (req: AuthRequest, res) => {
       slug,
       body: body ?? "",
       pinned: pinned ?? false,
+      order: nextOrder,
       createdById: req.userId,
     })
     .returning();
@@ -68,13 +74,14 @@ router.patch("/:docSlug", requireAuth, async (req, res) => {
   if (!project) return res.status(404).json({ error: "Not found" });
 
   const docSlug = String(req.params.docSlug);
-  const { title, body, pinned } = req.body;
+  const { title, body, pinned, order } = req.body;
   const [updated] = await db
     .update(docs)
     .set({
       ...(title !== undefined && { title }),
       ...(body !== undefined && { body }),
       ...(pinned !== undefined && { pinned }),
+      ...(order !== undefined && { order }),
       updatedAt: new Date(),
     })
     .where(and(eq(docs.projectId, project.id), eq(docs.slug, docSlug)))

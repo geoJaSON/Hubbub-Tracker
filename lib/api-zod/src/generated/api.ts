@@ -1178,6 +1178,7 @@ export const ListDocsResponseItem = zod.object({
   "slug": zod.string(),
   "body": zod.string(),
   "pinned": zod.boolean(),
+  "order": zod.number(),
   "createdById": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date().optional()
@@ -1215,6 +1216,7 @@ export const GetDocResponse = zod.object({
   "slug": zod.string(),
   "body": zod.string(),
   "pinned": zod.boolean(),
+  "order": zod.number(),
   "createdById": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date().optional()
@@ -1232,7 +1234,8 @@ export const UpdateDocParams = zod.object({
 export const UpdateDocBody = zod.object({
   "title": zod.string().optional(),
   "body": zod.string().optional(),
-  "pinned": zod.boolean().optional()
+  "pinned": zod.boolean().optional(),
+  "order": zod.number().optional()
 })
 
 export const UpdateDocResponse = zod.object({
@@ -1242,6 +1245,7 @@ export const UpdateDocResponse = zod.object({
   "slug": zod.string(),
   "body": zod.string(),
   "pinned": zod.boolean(),
+  "order": zod.number(),
   "createdById": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date().optional()

@@ -13,6 +13,7 @@ export interface Doc {
   slug: string;
   body: string;
   pinned: boolean;
+  order: number;
   /** @nullable */
   createdById?: string | null;
   createdAt: Date;

@@ -328,6 +328,7 @@ export const docs = pgTable(
     slug: varchar("slug", { length: 128 }).notNull(),
     body: text("body").notNull().default(""),
     pinned: boolean("pinned").notNull().default(false),
+    order: integer("order").notNull().default(0),
     createdById: varchar("created_by_id", { length: 128 }),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),

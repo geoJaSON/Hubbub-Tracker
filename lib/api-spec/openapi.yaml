@@ -1966,7 +1966,7 @@ components:
     # ── Docs ──────────────────────────────────────────────────────────────
     Doc:
       type: object
-      required: [id, projectId, title, slug, body, pinned, createdAt]
+      required: [id, projectId, title, slug, body, pinned, order, createdAt]
       properties:
         id:
           type: integer
@@ -1980,6 +1980,8 @@ components:
           type: string
         pinned:
           type: boolean
+        order:
+          type: integer
         createdById:
           type: ["string", "null"]
         createdAt:
@@ -2011,6 +2013,8 @@ components:
           type: string
         pinned:
           type: boolean
+        order:
+          type: integer
 
     # ── Search ────────────────────────────────────────────────────────────
     SearchResultItem:

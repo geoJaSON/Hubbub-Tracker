@@ -700,6 +700,7 @@ export interface Doc {
   slug: string;
   body: string;
   pinned: boolean;
+  order: number;
   /** @nullable */
   createdById?: string | null;
   createdAt: string;
@@ -717,6 +718,7 @@ export interface DocUpdate {
   title?: string;
   body?: string;
   pinned?: boolean;
+  order?: number;
 }
 
 export type SearchResultItemType = typeof SearchResultItemType[keyof typeof SearchResultItemType];
