@@ -4,11 +4,12 @@ import { useAuth } from "@clerk/react";
 import {
   useGetProject, useListItems, useListMessages, usePostMessage,
   useListActivity, useListDocs, useCreateItem, useUpdateItem,
-  useGetStandup,
+  useGetStandup, useCreateDoc, useUpdateDoc, useDeleteDoc,
+  useUpdateProject, useDeleteProject,
 } from "@workspace/api-client-react";
 import type {
-  Item, ItemInput, ItemInputType, ItemInputPriority,
-  ItemUpdateStatus, Message,
+  Item, Doc, ItemInput, ItemInputType, ItemInputPriority,
+  ItemUpdateStatus, Message, DocInput,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -26,7 +27,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import {
   Plus, Send, Bug, CheckSquare, Lightbulb, MessageSquare as ReqIcon,
-  ArrowRight, FileText,
+  ArrowRight, FileText, Copy, Trash2, Pin, Pencil, Archive,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import ReactMarkdown from "react-markdown";
@@ -125,11 +126,20 @@ export default function ProjectPage() {
   const postMessage = usePostMessage();
   const createItem = useCreateItem();
   const updateItem = useUpdateItem();
+  const createDoc = useCreateDoc();
+  const updateDoc = useUpdateDoc();
+  const deleteDoc = useDeleteDoc();
+  const updateProject = useUpdateProject();
+  const deleteProjectMut = useDeleteProject();
 
   const [chatMsg, setChatMsg] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
   const [draggedItemId, setDraggedItemId] = useState<number | null>(null);
   const [dragTarget, setDragTarget] = useState<string | null>(null);
+  const [itemTypeFilter, setItemTypeFilter] = useState<string>("all");
+  const [docOpen, setDocOpen] = useState(false);
+  const [editDoc, setEditDoc] = useState<Doc | null>(null);
+  const [docForm, setDocForm] = useState({ title: "", body: "" });
   const [newItem, setNewItem] = useState<{
     type: ItemInputType;
     title: string;
@@ -224,6 +234,57 @@ export default function ProjectPage() {
     }
   };
 
+  const handleSaveDoc = async () => {
+    if (!docForm.title.trim()) return;
+    try {
+      if (editDoc) {
+        await updateDoc.mutateAsync({ slug: slug!, docSlug: editDoc.slug, data: { title: docForm.title, body: docForm.body } });
+      } else {
+        const docSlug = docForm.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || `doc-${Date.now()}`;
+        const input: DocInput = { title: docForm.title, slug: docSlug, body: docForm.body };
+        await createDoc.mutateAsync({ slug: slug!, data: input });
+      }
+      qc.invalidateQueries({ queryKey: getListDocsQueryKey(slug!) });
+      setDocOpen(false);
+      setEditDoc(null);
+      setDocForm({ title: "", body: "" });
+      toast({ title: editDoc ? "Doc updated" : "Doc created" });
+    } catch {
+      toast({ title: "Failed to save doc", variant: "destructive" });
+    }
+  };
+
+  const handleDeleteDoc = async (doc: Doc) => {
+    if (!window.confirm(`Delete "${doc.title}"?`)) return;
+    try {
+      await deleteDoc.mutateAsync({ slug: slug!, docSlug: doc.slug });
+      qc.invalidateQueries({ queryKey: getListDocsQueryKey(slug!) });
+      toast({ title: "Doc deleted" });
+    } catch {
+      toast({ title: "Failed to delete doc", variant: "destructive" });
+    }
+  };
+
+  const handleTogglePin = async (doc: Doc) => {
+    await updateDoc.mutateAsync({ slug: slug!, docSlug: doc.slug, data: { pinned: !doc.pinned } });
+    qc.invalidateQueries({ queryKey: getListDocsQueryKey(slug!) });
+  };
+
+  const handleArchiveProject = async (archived: boolean) => {
+    await updateProject.mutateAsync({ slug: slug!, data: { archived } });
+    qc.invalidateQueries({ queryKey: getGetProjectQueryKey(slug!) });
+  };
+
+  const handleDeleteProject = async () => {
+    if (!window.confirm(`Permanently delete project "${project?.name}"? This cannot be undone.`)) return;
+    try {
+      await deleteProjectMut.mutateAsync({ slug: slug! });
+      window.location.href = `${window.location.origin}${basePath}/projects`;
+    } catch {
+      toast({ title: "Failed to delete project", variant: "destructive" });
+    }
+  };
+
   const handleStatusChange = async (itemId: number, status: ItemUpdateStatus) => {
     const item = items.find((i) => i.id === itemId);
     if (!item) return;
@@ -282,6 +343,7 @@ export default function ProjectPage() {
               { value: "activity", label: "ACTIVITY" },
               { value: "standup", label: "STANDUP" },
               { value: "members", label: "MEMBERS" },
+              { value: "settings", label: "SETTINGS" },
             ].map((t) => (
               <TabsTrigger
                 key={t.value}
@@ -294,32 +356,67 @@ export default function ProjectPage() {
           </TabsList>
 
           {/* ITEMS TAB */}
-          <TabsContent value="items" className="mt-3">
-            {items.length === 0 ? (
-              <div className="border border-border bg-card p-8 text-center">
-                <p className="text-muted-foreground font-mono text-sm">no items yet</p>
-              </div>
-            ) : (
-              <div className="divide-y divide-border border border-border bg-card">
-                {items.map((item) => (
-                  <Link key={item.id} href={`/projects/${slug}/items/${item.number}`}>
-                    <a className="flex items-center gap-3 px-4 py-3 hover:bg-muted/30 transition-colors group">
-                      {(() => {
-                        const Icon = TYPE_ICONS[item.type] ?? CheckSquare;
-                        return <Icon className={cn("h-3.5 w-3.5 shrink-0", PRIORITY_COLORS[item.priority])} />;
-                      })()}
-                      <span className="text-xs text-muted-foreground font-mono w-8">#{item.number}</span>
-                      <span className="flex-1 font-mono text-sm text-foreground truncate">{item.title}</span>
-                      <span className={cn("text-xs font-mono border px-1.5 py-0.5", STATUS_COLORS[item.status])}>
-                        {STATUS_LABELS[item.status] ?? item.status}
-                      </span>
-                      <span className="text-xs text-muted-foreground font-mono hidden sm:block">{item.type}</span>
-                      <ArrowRight className="h-3.5 w-3.5 text-muted-foreground group-hover:text-primary transition-colors" />
-                    </a>
-                  </Link>
-                ))}
-              </div>
-            )}
+          <TabsContent value="items" className="mt-3 space-y-2">
+            {/* Type filter */}
+            <div className="flex gap-1 flex-wrap">
+              {[
+                { id: "all", label: "ALL" },
+                { id: "todo", label: "TODO" },
+                { id: "bug", label: "BUG" },
+                { id: "decision", label: "DECISION LOG" },
+                { id: "request", label: "REQUEST" },
+              ].map((f) => (
+                <button
+                  key={f.id}
+                  onClick={() => setItemTypeFilter(f.id)}
+                  className={cn(
+                    "text-[10px] font-mono border px-2 py-0.5 transition-colors",
+                    itemTypeFilter === f.id
+                      ? "border-primary text-primary bg-primary/10"
+                      : "border-border text-muted-foreground hover:text-foreground hover:border-muted-foreground",
+                  )}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+            {(() => {
+              const filtered = itemTypeFilter === "all"
+                ? items
+                : items.filter((i) => i.type === itemTypeFilter);
+              return filtered.length === 0 ? (
+                <div className="border border-border bg-card p-8 text-center">
+                  <p className="text-muted-foreground font-mono text-sm">
+                    {itemTypeFilter === "all" ? "no items yet" : `no ${itemTypeFilter} items`}
+                  </p>
+                </div>
+              ) : (
+                <div className="divide-y divide-border border border-border bg-card">
+                  {filtered.map((item) => (
+                    <Link key={item.id} href={`/projects/${slug}/items/${item.number}`}>
+                      <a className="flex items-center gap-3 px-4 py-3 hover:bg-muted/30 transition-colors group">
+                        {(() => {
+                          const Icon = TYPE_ICONS[item.type] ?? CheckSquare;
+                          return <Icon className={cn("h-3.5 w-3.5 shrink-0", PRIORITY_COLORS[item.priority])} />;
+                        })()}
+                        <span className="text-xs text-muted-foreground font-mono w-8">#{item.number}</span>
+                        <span className="flex-1 font-mono text-sm text-foreground truncate">{item.title}</span>
+                        {item.type === "decision" && item.decisionRationale && (
+                          <span className="hidden md:block text-xs text-muted-foreground font-mono truncate max-w-[200px]">
+                            {String(item.decisionRationale).slice(0, 60)}
+                          </span>
+                        )}
+                        <span className={cn("text-xs font-mono border px-1.5 py-0.5", STATUS_COLORS[item.status])}>
+                          {STATUS_LABELS[item.status] ?? item.status}
+                        </span>
+                        <span className="text-xs text-muted-foreground font-mono hidden sm:block">{item.type}</span>
+                        <ArrowRight className="h-3.5 w-3.5 text-muted-foreground group-hover:text-primary transition-colors" />
+                      </a>
+                    </Link>
+                  ))}
+                </div>
+              );
+            })()}
           </TabsContent>
 
           {/* BOARD TAB — drag-and-drop */}
@@ -423,29 +520,62 @@ export default function ProjectPage() {
             </div>
           </TabsContent>
 
-          {/* DOCS TAB */}
-          <TabsContent value="docs" className="mt-3">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              {(docs as Array<{ id: number; title: string; pinned: boolean; body: string; updatedAt: string }>).length === 0 ? (
+          {/* DOCS TAB — full CRUD */}
+          <TabsContent value="docs" className="mt-3 space-y-3">
+            <div className="flex">
+              <Button
+                size="sm"
+                variant="ghost"
+                className="ml-auto font-mono text-xs border border-primary/50 text-primary hover:bg-primary/10 gap-1"
+                onClick={() => { setEditDoc(null); setDocForm({ title: "", body: "" }); setDocOpen(true); }}
+              >
+                <Plus className="h-3 w-3" /> NEW DOC
+              </Button>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {(docs as Doc[]).length === 0 ? (
                 <div className="col-span-3 border border-border bg-card p-6 text-center text-muted-foreground font-mono text-sm">
-                  no docs yet
+                  no docs yet — create one above
                 </div>
               ) : (
-                (docs as Array<{ id: number; title: string; pinned: boolean; body: string; updatedAt: string }>).map((doc) => (
-                  <div key={doc.id} className="border border-border bg-card p-4 hover:border-primary/40 transition-colors">
-                    <div className="flex items-center gap-2 mb-2">
+                [...(docs as Doc[])].sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0)).map((doc) => (
+                  <div key={doc.id} className="border border-border bg-card p-4 flex flex-col gap-2 hover:border-primary/40 transition-colors">
+                    <div className="flex items-center gap-2">
                       <FileText className="h-3.5 w-3.5 text-primary shrink-0" />
-                      <span className="font-mono text-sm text-foreground truncate">{doc.title}</span>
+                      <span className="font-mono text-sm text-foreground truncate flex-1">{doc.title}</span>
                       {doc.pinned && (
-                        <span className="text-xs font-mono text-accent border border-accent/50 px-1">PINNED</span>
+                        <span className="text-[10px] font-mono text-accent border border-accent/50 px-1 shrink-0">PINNED</span>
                       )}
                     </div>
-                    <p className="text-xs text-muted-foreground font-mono line-clamp-3">
-                      {doc.body?.slice(0, 100)}
+                    <p className="text-xs text-muted-foreground font-mono line-clamp-3 flex-1">
+                      {doc.body?.slice(0, 120) || "(empty)"}
                     </p>
-                    <p className="text-xs text-muted-foreground font-mono mt-2">
-                      {new Date(doc.updatedAt).toLocaleDateString()}
-                    </p>
+                    <div className="flex items-center gap-1 pt-1 border-t border-border">
+                      <span className="text-[10px] text-muted-foreground font-mono flex-1">
+                        {doc.updatedAt ? new Date(doc.updatedAt).toLocaleDateString() : "—"}
+                      </span>
+                      <button
+                        title={doc.pinned ? "Unpin" : "Pin"}
+                        onClick={() => void handleTogglePin(doc)}
+                        className={cn("p-1 rounded hover:bg-muted transition-colors", doc.pinned ? "text-accent" : "text-muted-foreground hover:text-foreground")}
+                      >
+                        <Pin className="h-3 w-3" />
+                      </button>
+                      <button
+                        title="Edit"
+                        onClick={() => { setEditDoc(doc); setDocForm({ title: doc.title, body: doc.body }); setDocOpen(true); }}
+                        className="p-1 rounded text-muted-foreground hover:text-primary hover:bg-muted transition-colors"
+                      >
+                        <Pencil className="h-3 w-3" />
+                      </button>
+                      <button
+                        title="Delete"
+                        onClick={() => void handleDeleteDoc(doc)}
+                        className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-muted transition-colors"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </button>
+                    </div>
                   </div>
                 ))
               )}
@@ -472,15 +602,79 @@ export default function ProjectPage() {
           </TabsContent>
 
           {/* STANDUP TAB */}
-          <TabsContent value="standup" className="mt-3">
+          <TabsContent value="standup" className="mt-3 space-y-2">
+            {standup && (
+              <div className="flex justify-end">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="font-mono text-xs border border-border text-muted-foreground hover:text-primary hover:border-primary/50 gap-1"
+                  onClick={() => {
+                    void navigator.clipboard.writeText(standup.content);
+                    toast({ title: "Standup copied to clipboard" });
+                  }}
+                >
+                  <Copy className="h-3 w-3" /> COPY
+                </Button>
+              </div>
+            )}
             <div className="border border-border bg-card p-4">
               {standup ? (
                 <div className="prose prose-sm prose-invert font-mono max-w-none text-foreground [&_h2]:text-primary [&_h2]:font-['VT323'] [&_h2]:text-xl [&_strong]:text-accent">
                   <ReactMarkdown>{standup.content}</ReactMarkdown>
                 </div>
               ) : (
-                <p className="text-muted-foreground font-mono text-sm">loading standup...</p>
+                <p className="text-muted-foreground font-mono text-sm animate-pulse">GENERATING STANDUP...</p>
               )}
+            </div>
+          </TabsContent>
+
+          {/* SETTINGS TAB */}
+          <TabsContent value="settings" className="mt-3">
+            <div className="max-w-lg space-y-4">
+              {/* Archive */}
+              <div className="border border-border bg-card p-4 flex items-center gap-3">
+                <Archive className="h-4 w-4 text-muted-foreground shrink-0" />
+                <div className="flex-1">
+                  <div className="font-mono text-sm text-foreground">Archive project</div>
+                  <div className="text-xs text-muted-foreground font-mono">
+                    Archived projects are hidden from the main list but preserved
+                  </div>
+                </div>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => void handleArchiveProject(!project?.archived)}
+                  className={cn(
+                    "font-mono text-xs border shrink-0",
+                    project?.archived
+                      ? "border-primary/50 text-primary hover:bg-primary/10"
+                      : "border-border text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {project?.archived ? "UNARCHIVE" : "ARCHIVE"}
+                </Button>
+              </div>
+
+              {/* Delete */}
+              <div className="border border-destructive/30 bg-card p-4 flex items-center gap-3">
+                <Trash2 className="h-4 w-4 text-destructive shrink-0" />
+                <div className="flex-1">
+                  <div className="font-mono text-sm text-destructive">Delete project</div>
+                  <div className="text-xs text-muted-foreground font-mono">
+                    Permanently removes this project and all its data. Cannot be undone.
+                  </div>
+                </div>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => void handleDeleteProject()}
+                  disabled={deleteProjectMut.isPending}
+                  className="font-mono text-xs border border-destructive/50 text-destructive hover:bg-destructive/10 shrink-0"
+                >
+                  {deleteProjectMut.isPending ? "DELETING..." : "DELETE"}
+                </Button>
+              </div>
             </div>
           </TabsContent>
 
@@ -589,6 +783,55 @@ export default function ProjectPage() {
                 className="border border-border font-mono text-xs"
               >
                 CANCEL
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Doc Create / Edit Dialog */}
+      <Dialog open={docOpen} onOpenChange={setDocOpen}>
+        <DialogContent className="bg-card border-border max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="font-['VT323'] tracking-widest text-xl text-primary">
+              {editDoc ? "// EDIT DOC" : "// NEW DOC"}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <label className="font-mono text-xs tracking-widest text-muted-foreground">TITLE</label>
+              <Input
+                value={docForm.title}
+                onChange={(e) => setDocForm((p) => ({ ...p, title: e.target.value }))}
+                className="bg-background border-border font-mono text-sm rounded-none focus-visible:ring-primary"
+                placeholder="doc title"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="font-mono text-xs tracking-widest text-muted-foreground">BODY (markdown)</label>
+              <Textarea
+                value={docForm.body}
+                onChange={(e) => setDocForm((p) => ({ ...p, body: e.target.value }))}
+                className="bg-background border-border font-mono text-sm rounded-none min-h-[200px] focus-visible:ring-primary"
+                placeholder="write in markdown..."
+              />
+            </div>
+            <div className="flex gap-2 justify-end">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setDocOpen(false)}
+                className="font-mono text-xs text-muted-foreground"
+              >
+                CANCEL
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => void handleSaveDoc()}
+                disabled={!docForm.title.trim() || createDoc.isPending || updateDoc.isPending}
+                className="font-mono text-xs bg-primary text-primary-foreground hover:bg-primary/90"
+              >
+                {editDoc ? "UPDATE" : "CREATE"}
               </Button>
             </div>
           </div>

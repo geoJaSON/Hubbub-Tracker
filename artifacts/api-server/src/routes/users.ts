@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { getAuth } from "@clerk/express";
-import { eq } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { db } from "../lib/db";
 import { users } from "../lib/schema";
 import { requireAuth, requireAdmin, AuthRequest } from "../lib/auth";
@@ -81,6 +81,7 @@ router.post("/sync", async (req, res) => {
 
   const { email, displayName, avatarUrl } = req.body;
 
+  // Check for existing row by clerkId
   const existing = await db
     .select()
     .from(users)
@@ -89,6 +90,30 @@ router.post("/sync", async (req, res) => {
 
   if (existing.length > 0) {
     return res.json(existing[0]);
+  }
+
+  // Check for a pending admin-created record with a matching email (manual_ clerkId)
+  if (email) {
+    const [pending] = await db
+      .select()
+      .from(users)
+      .where(
+        and(
+          eq(users.email, email),
+          sql`${users.clerkId} LIKE 'manual_%'`,
+        ),
+      )
+      .limit(1);
+
+    if (pending) {
+      // Claim the pending record by overwriting the synthetic clerkId
+      const [claimed] = await db
+        .update(users)
+        .set({ clerkId, avatarUrl: avatarUrl ?? pending.avatarUrl })
+        .where(eq(users.id, pending.id))
+        .returning();
+      return res.json(claimed);
+    }
   }
 
   const isFirst = (await db.select().from(users).limit(1)).length === 0;
