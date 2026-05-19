@@ -4,6 +4,7 @@ import { eq, and, sql } from "drizzle-orm";
 import { db } from "../lib/db";
 import { users } from "../lib/schema";
 import { requireAuth, requireAdmin, AuthRequest } from "../lib/auth";
+import { count } from "drizzle-orm";
 
 const router = Router();
 
@@ -132,7 +133,12 @@ router.post("/sync", async (req, res) => {
     }
   }
 
-  const isFirst = (await db.select().from(users).limit(1)).length === 0;
+  // Assign admin if no admins exist yet (prevents first-user deadlock)
+  const [adminCount] = await db
+    .select({ count: count() })
+    .from(users)
+    .where(eq(users.role, "admin"));
+  const noAdmins = (adminCount?.count ?? 0) === 0;
 
   const [created] = await db
     .insert(users)
@@ -141,7 +147,7 @@ router.post("/sync", async (req, res) => {
       email: email ?? null,
       displayName: displayName ?? email ?? clerkId,
       avatarUrl: avatarUrl ?? null,
-      role: isFirst ? "admin" : "member",
+      role: noAdmins ? "admin" : "member",
     })
     .returning();
   return res.status(201).json(created);
