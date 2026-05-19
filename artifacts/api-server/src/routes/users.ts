@@ -106,6 +106,22 @@ router.post("/sync", async (req, res) => {
     .limit(1);
 
   if (existing.length > 0) {
+    // If this user exists but no admins exist at all, promote them to break
+    // the chicken-and-egg deadlock (can happen if first user was created as member)
+    if (existing[0].role !== "admin") {
+      const [adminCount] = await db
+        .select({ count: count() })
+        .from(users)
+        .where(eq(users.role, "admin"));
+      if ((adminCount?.count ?? 0) === 0) {
+        const [promoted] = await db
+          .update(users)
+          .set({ role: "admin" })
+          .where(eq(users.clerkId, clerkId))
+          .returning();
+        return res.json(promoted);
+      }
+    }
     return res.json(existing[0]);
   }
 
