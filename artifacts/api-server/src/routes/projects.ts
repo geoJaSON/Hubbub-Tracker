@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { eq, and, sql, count } from "drizzle-orm";
+import { eq, and, sql, count, gte, lte } from "drizzle-orm";
 import { db } from "../lib/db";
 import {
   projects,
@@ -8,6 +8,9 @@ import {
   scopes,
   milestones,
   items,
+  commits,
+  timeEntries,
+  costEntries,
 } from "../lib/schema";
 import { requireAuth, AuthRequest } from "../lib/auth";
 import { logActivity } from "../lib/activity";
@@ -330,5 +333,106 @@ router.delete(
     return res.status(204).send();
   },
 );
+
+// ── GET /projects/:slug/report ──────────────────────────────────────────────
+router.get("/:slug/report", requireAuth, async (req: AuthRequest, res) => {
+  const slug = String(req.params.slug);
+  const project = await getProjectBySlug(slug);
+  if (!project) return res.status(404).json({ error: "Not found" });
+
+  const membership = await getMembership(project.id, req.userId!);
+  if (!membership) return res.status(403).json({ error: "Forbidden" });
+
+  const toDate = req.query.to ? new Date(String(req.query.to)) : new Date();
+  const fromDate = req.query.from
+    ? new Date(String(req.query.from))
+    : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  const fromStr = fromDate.toISOString().slice(0, 10);
+  const toStr = toDate.toISOString().slice(0, 10);
+
+  const [allItems, memberRows, commitRows, timeRows, costRows, scopeRows] =
+    await Promise.all([
+      db.select().from(items).where(eq(items.projectId, project.id)),
+      db.select().from(projectMembers).where(eq(projectMembers.projectId, project.id)),
+      db
+        .select()
+        .from(commits)
+        .where(
+          and(
+            eq(commits.projectId, project.id),
+            gte(commits.committedAt, fromDate),
+            lte(commits.committedAt, toDate),
+          ),
+        )
+        .orderBy(sql`${commits.committedAt} DESC`),
+      db
+        .select()
+        .from(timeEntries)
+        .where(
+          and(
+            eq(timeEntries.projectId, project.id),
+            gte(timeEntries.spentOn, fromStr),
+            lte(timeEntries.spentOn, toStr),
+          ),
+        ),
+      db.select().from(costEntries).where(eq(costEntries.projectId, project.id)),
+      db.select().from(scopes).where(eq(scopes.projectId, project.id)),
+    ]);
+
+  const userIds = [...new Set(memberRows.map((m) => m.userId))];
+  const userRows =
+    userIds.length > 0
+      ? await db
+          .select()
+          .from(users)
+          .where(
+            sql`${users.clerkId} = ANY(ARRAY[${sql.join(
+              userIds.map((id) => sql`${id}`),
+              sql`, `,
+            )}]::text[])`,
+          )
+      : [];
+  const userMap = Object.fromEntries(userRows.map((u) => [u.clerkId, u]));
+
+  const itemsByStatus = allItems.reduce(
+    (acc, item) => {
+      (acc[item.status] ??= []).push(item);
+      return acc;
+    },
+    {} as Record<string, typeof allItems>,
+  );
+
+  const timeByUser = timeRows.reduce(
+    (acc, t) => {
+      acc[t.userId] = (acc[t.userId] ?? 0) + t.minutes;
+      return acc;
+    },
+    {} as Record<string, number>,
+  );
+
+  return res.json({
+    project: sanitizeProject(project),
+    reportPeriod: { from: fromDate.toISOString(), to: toDate.toISOString() },
+    members: memberRows.map((m) => ({ ...m, user: userMap[m.userId] ?? null })),
+    items: {
+      total: allItems.length,
+      byStatus: itemsByStatus,
+    },
+    commits: commitRows,
+    time: {
+      totalMinutes: timeRows.reduce((s, t) => s + t.minutes, 0),
+      byUser: Object.entries(timeByUser).map(([userId, minutes]) => ({
+        userId,
+        displayName: userMap[userId]?.displayName ?? userId,
+        minutes,
+      })),
+    },
+    costs: {
+      totalCents: costRows.reduce((s, c) => s + c.amountCents, 0),
+      entries: costRows,
+    },
+    scopes: scopeRows,
+  });
+});
 
 export default router;

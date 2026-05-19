@@ -9,7 +9,8 @@ import {
   useGetBurnDown, useListCostEntries, useCreateCostEntry,
   useCreateScope, useCreateMilestone,
   useListCommits, useListProjectTimeEntries, useCreateTimeEntry,
-  useListPresence,
+  useListPresence, useListUsers, useAddProjectMember, useRemoveProjectMember,
+  useListProjectMembers,
 } from "@workspace/api-client-react";
 import type {
   Item, Doc, ItemInput, ItemInputType, ItemInputPriority,
@@ -25,6 +26,7 @@ import {
   getListItemsQueryKey, getListMessagesQueryKey, getListActivityQueryKey,
   getListDocsQueryKey, getGetProjectQueryKey, getListCostEntriesQueryKey,
   getListCommitsQueryKey, getListPresenceQueryKey, getListProjectTimeEntriesQueryKey,
+  getListProjectMembersQueryKey,
 } from "@workspace/api-client-react";
 import { Layout } from "../components/layout";
 import { Button } from "@/components/ui/button";
@@ -146,7 +148,7 @@ export default function ProjectPage() {
   const [activeTab, setActiveTab] = useState(tab ?? "items");
   const qc = useQueryClient();
   const { toast } = useToast();
-  const { getToken } = useAuth();
+  const { getToken, userId: clerkId } = useAuth();
 
   const { data: project, isLoading: projLoading } = useGetProject(slug!);
   const { data: itemsData = [] } = useListItems(slug!);
@@ -179,6 +181,10 @@ export default function ProjectPage() {
       refetchInterval: 30_000,
     },
   });
+  const { data: members = [], isLoading: membersLoading } = useListProjectMembers(slug!);
+  const { data: allUsers = [] } = useListUsers();
+  const addMember = useAddProjectMember();
+  const removeMember = useRemoveProjectMember();
 
   // Filter to users seen within the last 60 seconds
   const onlineUsers = useMemo<Presence[]>(() => {
@@ -201,6 +207,8 @@ export default function ProjectPage() {
   const [dragOverDocSlug, setDragOverDocSlug] = useState<string | null>(null);
   const [localDocs, setLocalDocs] = useState<Doc[]>([]);
   const isDraggingDocRef = useRef(false);
+  const [addMemberUserId, setAddMemberUserId] = useState("");
+  const [addMemberRole, setAddMemberRole] = useState<"member" | "owner">("member");
   const [costOpen, setCostOpen] = useState(false);
   const [newCost, setNewCost] = useState<{
     category: CostEntryInputCategory;
@@ -510,6 +518,32 @@ export default function ProjectPage() {
       toast({ title: val ? "GitHub token saved" : "GitHub token removed" });
     } catch {
       toast({ title: "Failed to save GitHub token", variant: "destructive" });
+    }
+  };
+
+  const myRole = members.find((m) => m.userId === clerkId)?.role;
+  const isProjectOwner = myRole === "owner";
+
+  const handleAddMember = async () => {
+    if (!addMemberUserId) return;
+    try {
+      await addMember.mutateAsync({ slug: slug!, data: { userId: addMemberUserId, role: addMemberRole } });
+      qc.invalidateQueries({ queryKey: getListProjectMembersQueryKey(slug!) });
+      setAddMemberUserId("");
+      setAddMemberRole("member");
+      toast({ title: "Member added" });
+    } catch {
+      toast({ title: "Failed to add member", variant: "destructive" });
+    }
+  };
+
+  const handleRemoveMember = async (userId: string) => {
+    try {
+      await removeMember.mutateAsync({ slug: slug!, userId });
+      qc.invalidateQueries({ queryKey: getListProjectMembersQueryKey(slug!) });
+      toast({ title: "Member removed" });
+    } catch {
+      toast({ title: "Failed to remove member", variant: "destructive" });
     }
   };
 
@@ -1560,25 +1594,95 @@ export default function ProjectPage() {
 
           {/* MEMBERS TAB */}
           <TabsContent value="members" className="mt-3">
-            <div className="border border-border bg-card divide-y divide-border">
-              {(project.members ?? []).map((m) => (
-                <div key={m.id} className="flex items-center gap-3 px-4 py-3">
-                  <span className="h-2 w-2 rounded-full bg-primary" />
-                  <span className="font-mono text-sm text-foreground">
-                    {(m.user as { displayName?: string } | null)?.displayName ?? m.userId}
-                  </span>
-                  <span
-                    className={cn(
-                      "ml-auto text-xs font-mono border px-1.5 py-0.5",
-                      m.role === "owner"
-                        ? "border-accent/50 text-accent"
-                        : "border-border text-muted-foreground",
-                    )}
-                  >
-                    {m.role.toUpperCase()}
-                  </span>
+            <div className="space-y-3">
+              {/* Add member — owners only */}
+              {isProjectOwner && (
+                <div className="border border-border bg-card p-3 flex flex-col gap-2">
+                  <span className="font-mono text-[10px] tracking-widest text-muted-foreground">// ADD MEMBER</span>
+                  <div className="flex gap-2 flex-wrap">
+                    <Select value={addMemberUserId} onValueChange={setAddMemberUserId}>
+                      <SelectTrigger className="bg-background border-border font-mono text-xs h-8 rounded-none flex-1 min-w-[180px]">
+                        <SelectValue placeholder="select user..." />
+                      </SelectTrigger>
+                      <SelectContent className="bg-card border-border">
+                        {(allUsers as Array<{ clerkId: string; displayName: string; email?: string | null }>)
+                          .filter((u) => !members.some((m) => m.userId === u.clerkId))
+                          .map((u) => (
+                            <SelectItem key={u.clerkId} value={u.clerkId} className="font-mono text-xs">
+                              {u.displayName}{u.email ? ` — ${u.email}` : ""}
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                    <Select value={addMemberRole} onValueChange={(v) => setAddMemberRole(v as "member" | "owner")}>
+                      <SelectTrigger className="bg-background border-border font-mono text-xs h-8 rounded-none w-28">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="bg-card border-border">
+                        <SelectItem value="member" className="font-mono text-xs">MEMBER</SelectItem>
+                        <SelectItem value="owner" className="font-mono text-xs">OWNER</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      size="sm"
+                      onClick={() => void handleAddMember()}
+                      disabled={!addMemberUserId || addMember.isPending}
+                      className="font-mono text-xs h-8 bg-primary text-primary-foreground hover:bg-primary/90 rounded-none"
+                    >
+                      {addMember.isPending ? "ADDING..." : "ADD"}
+                    </Button>
+                  </div>
                 </div>
-              ))}
+              )}
+
+              {/* Member list */}
+              <div className="border border-border bg-card divide-y divide-border">
+                {membersLoading && (
+                  <div className="p-4 text-muted-foreground font-mono text-xs animate-pulse">LOADING...</div>
+                )}
+                {members.map((m) => {
+                  const displayName = (m.user as { displayName?: string } | null)?.displayName ?? m.userId;
+                  const isSelf = m.userId === clerkId;
+                  return (
+                    <div key={m.id} className="flex items-center gap-3 px-4 py-3">
+                      <span className="h-2 w-2 rounded-full bg-primary shrink-0" />
+                      <span className="font-mono text-sm text-foreground flex-1 min-w-0 truncate">
+                        {displayName}{isSelf && <span className="text-muted-foreground ml-1 text-xs">(you)</span>}
+                      </span>
+                      <span
+                        className={cn(
+                          "text-xs font-mono border px-1.5 py-0.5 shrink-0",
+                          m.role === "owner"
+                            ? "border-accent/50 text-accent"
+                            : "border-border text-muted-foreground",
+                        )}
+                      >
+                        {m.role.toUpperCase()}
+                      </span>
+                      {isProjectOwner && !isSelf && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 px-2 font-mono text-[10px] text-destructive hover:text-destructive hover:bg-destructive/10 shrink-0"
+                          onClick={() => void handleRemoveMember(m.userId)}
+                          disabled={removeMember.isPending}
+                        >
+                          REMOVE
+                        </Button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Link to report */}
+              <div className="flex justify-end">
+                <Link href={`/projects/${slug}/report`}>
+                  <Button variant="ghost" size="sm" className="font-mono text-xs border border-border text-muted-foreground hover:text-primary hover:border-primary/50">
+                    VIEW PROGRESS REPORT →
+                  </Button>
+                </Link>
+              </div>
             </div>
           </TabsContent>
         </Tabs>

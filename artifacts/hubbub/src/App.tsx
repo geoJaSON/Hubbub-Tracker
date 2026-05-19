@@ -16,6 +16,7 @@ import SearchPage from "./pages/search";
 import AdminPage from "./pages/admin";
 import StandupPage from "./pages/standup";
 import LandingPage from "./pages/landing";
+import ReportPage from "./pages/report";
 import { UserSync } from "./components/user-sync";
 
 const clerkPubKey = publishableKeyFromHost(
@@ -191,6 +192,9 @@ function ClerkProviderWithRoutes() {
             </Route>
             <Route path="/projects">
               {() => <ProtectedRoute component={ProjectsPage} />}
+            </Route>
+            <Route path="/projects/:slug/report">
+              {() => <ProtectedRoute component={ReportPage} />}
             </Route>
             <Route path="/projects/:slug/:tab?">
               {() => <ProtectedRoute component={ProjectPage} />}
