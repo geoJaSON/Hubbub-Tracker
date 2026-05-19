@@ -2,7 +2,7 @@ import { Router } from "express";
 import { getAuth } from "@clerk/express";
 import { eq, and, sql } from "drizzle-orm";
 import { db } from "../lib/db";
-import { users } from "../lib/schema";
+import { users, projectMembers, timeEntries, presence, standupCache } from "../lib/schema";
 import { requireAuth, requireAdmin, AuthRequest } from "../lib/auth";
 import { count } from "drizzle-orm";
 
@@ -139,6 +139,14 @@ router.post("/sync", async (req, res) => {
       .limit(1);
 
     if (pending) {
+      const oldId = pending.clerkId;
+      // Cascade the ID rename to all tables that store userId as a Clerk ID string
+      await Promise.all([
+        db.update(projectMembers).set({ userId: clerkId }).where(eq(projectMembers.userId, oldId)),
+        db.update(timeEntries).set({ userId: clerkId }).where(eq(timeEntries.userId, oldId)),
+        db.update(presence).set({ userId: clerkId }).where(eq(presence.userId, oldId)),
+        db.update(standupCache).set({ userId: clerkId }).where(eq(standupCache.userId, oldId)),
+      ]);
       // Claim the pending record by overwriting the synthetic clerkId
       const [claimed] = await db
         .update(users)
