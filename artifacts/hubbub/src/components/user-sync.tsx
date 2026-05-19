@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState, ReactNode } from "react";
-import { useUser, useClerk } from "@clerk/react";
+import { useUser, useClerk, useAuth } from "@clerk/react";
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 export function UserSync({ children }: { children: ReactNode }) {
   const { user, isLoaded } = useUser();
   const { signOut } = useClerk();
+  const { getToken } = useAuth();
   const synced = useRef(false);
   const [blocked, setBlocked] = useState(false);
   const [blockedEmail, setBlockedEmail] = useState<string | null>(null);
@@ -14,23 +15,31 @@ export function UserSync({ children }: { children: ReactNode }) {
     if (!isLoaded || !user || synced.current) return;
     synced.current = true;
 
-    fetch(`${basePath}/api/users/sync`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        email: user.primaryEmailAddress?.emailAddress,
-        displayName: user.fullName ?? user.username ?? user.id,
-        avatarUrl: user.imageUrl,
-      }),
-    })
-      .then(async (res) => {
+    void (async () => {
+      try {
+        const token = await getToken();
+        const headers: Record<string, string> = { "Content-Type": "application/json" };
+        if (token) headers["Authorization"] = `Bearer ${token}`;
+
+        const res = await fetch(`${basePath}/api/users/sync`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            email: user.primaryEmailAddress?.emailAddress,
+            displayName: user.fullName ?? user.username ?? user.id,
+            avatarUrl: user.imageUrl,
+          }),
+        });
+
         if (res.status === 403) {
           setBlockedEmail(user.primaryEmailAddress?.emailAddress ?? null);
           setBlocked(true);
         }
-      })
-      .catch(console.error);
-  }, [isLoaded, user]);
+      } catch (err) {
+        console.error(err);
+      }
+    })();
+  }, [isLoaded, user, getToken]);
 
   if (blocked) {
     return (
