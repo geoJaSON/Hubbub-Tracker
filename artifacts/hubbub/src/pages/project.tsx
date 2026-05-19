@@ -966,6 +966,13 @@ export default function ProjectPage() {
 
           {/* ACTIVITY TAB */}
           <TabsContent value="activity" className="mt-3">
+            <div className="flex justify-end mb-2">
+              <Link href={`/projects/${slug}/report`}>
+                <Button variant="ghost" size="sm" className="font-mono text-xs border border-border text-muted-foreground hover:text-primary hover:border-primary/50">
+                  VIEW PROGRESS REPORT →
+                </Button>
+              </Link>
+            </div>
             <div className="border border-border bg-card divide-y divide-border">
               {(activity as Array<{ id: number; type: string; createdAt: string }>).length === 0 ? (
                 <div className="p-6 text-center text-muted-foreground font-mono text-sm">no activity</div>
@@ -1675,14 +1682,6 @@ export default function ProjectPage() {
                 })}
               </div>
 
-              {/* Link to report */}
-              <div className="flex justify-end">
-                <Link href={`/projects/${slug}/report`}>
-                  <Button variant="ghost" size="sm" className="font-mono text-xs border border-border text-muted-foreground hover:text-primary hover:border-primary/50">
-                    VIEW PROGRESS REPORT →
-                  </Button>
-                </Link>
-              </div>
             </div>
           </TabsContent>
         </Tabs>
