@@ -11,6 +11,7 @@ import {
 } from "../lib/schema";
 import { requireAuth, AuthRequest } from "../lib/auth";
 import { logActivity } from "../lib/activity";
+import { encrypt } from "../lib/crypto";
 
 const router = Router();
 
@@ -193,13 +194,27 @@ router.patch("/:slug", requireAuth, async (req: AuthRequest, res) => {
   if (!isOwnerOrAdmin) return res.status(403).json({ error: "Forbidden: owners only" });
 
   const { name, description, githubRepo, githubToken, archived } = req.body;
+
+  let encryptedToken: string | null | undefined;
+  if (githubToken !== undefined) {
+    if (!githubToken) {
+      encryptedToken = null;
+    } else {
+      const result = encrypt(githubToken);
+      if (result === null) {
+        return res.status(500).json({ error: "ENCRYPTION_KEY is not configured; cannot store token" });
+      }
+      encryptedToken = result;
+    }
+  }
+
   const [updated] = await db
     .update(projects)
     .set({
       ...(name !== undefined && { name }),
       ...(description !== undefined && { description }),
       ...(githubRepo !== undefined && { githubRepo }),
-      ...(githubToken !== undefined && { githubToken: githubToken || null }),
+      ...(encryptedToken !== undefined && { githubToken: encryptedToken }),
       ...(archived !== undefined && { archived }),
     })
     .where(eq(projects.slug, slug))

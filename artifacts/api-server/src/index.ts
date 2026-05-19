@@ -4,6 +4,7 @@ import { db, pool } from "./lib/db";
 import { projects, commits, commitItems, items, messages } from "./lib/schema";
 import { eq, sql, and } from "drizzle-orm";
 import { notifyProject } from "./lib/pgnotify";
+import { decrypt } from "./lib/crypto";
 
 const rawPort = process.env["PORT"];
 
@@ -51,7 +52,21 @@ async function pollGitHubCommits() {
           Accept: "application/vnd.github.v3+json",
           "User-Agent": "hubbub-poller/1.0",
         };
-        const token = project.githubToken ?? process.env.GITHUB_TOKEN;
+        // Decrypt the stored token; if decryption fails (e.g. legacy plain-text
+        // or missing key) treat the project-level token as absent and fall back
+        // to the environment-level GITHUB_TOKEN.
+        let rawStored: string | null = null;
+        if (project.githubToken) {
+          rawStored = decrypt(project.githubToken);
+          if (rawStored === null) {
+            logger.warn(
+              { project: project.slug },
+              "GitHub token for project could not be decrypted — falling back to GITHUB_TOKEN env var. " +
+              "Re-enter the token in project settings if the ENCRYPTION_KEY was rotated.",
+            );
+          }
+        }
+        const token = rawStored ?? process.env.GITHUB_TOKEN;
         if (token) {
           headers["Authorization"] = `Bearer ${token}`;
         }

@@ -26,7 +26,7 @@ _Populate as you build — short repo map plus pointers to the source-of-truth f
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- **GitHub token encryption**: Project-level GitHub tokens are encrypted at rest using AES-256-GCM before being written to `projects.github_token`. The key is read from the `ENCRYPTION_KEY` secret (never stored in source). If `ENCRYPTION_KEY` is rotated, existing encrypted tokens become unreadable — the poller will emit a `WARN` log and fall back to the global `GITHUB_TOKEN` env var. Affected project owners must re-enter their token in project settings after a key rotation.
 
 ## Product
 
