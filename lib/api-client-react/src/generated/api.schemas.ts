@@ -304,6 +304,20 @@ export const ItemType = {
   decision: 'decision',
 } as const;
 
+export type ItemCategory = typeof ItemCategory[keyof typeof ItemCategory];
+
+export const ItemCategory = {
+  infrastructure_hosting: 'infrastructure_hosting',
+  security_compliance: 'security_compliance',
+  mobile_devops: 'mobile_devops',
+  web_devops: 'web_devops',
+  database_schema: 'database_schema',
+  monitoring_observability: 'monitoring_observability',
+  deployment_release: 'deployment_release',
+  third_party_integration: 'third_party_integration',
+  support_operations: 'support_operations',
+} as const;
+
 export type ItemStatus = typeof ItemStatus[keyof typeof ItemStatus];
 
 
@@ -335,6 +349,8 @@ export interface Item {
   description?: string | null;
   status: ItemStatus;
   priority: ItemPriority;
+  /** @nullable */
+  category?: ItemCategory | null;
   /** @nullable */
   assigneeId?: string | null;
   assignee?: User | null;
@@ -436,6 +452,8 @@ export interface ItemDetail {
   status: ItemDetailStatus;
   priority: ItemDetailPriority;
   /** @nullable */
+  category?: ItemCategory | null;
+  /** @nullable */
   assigneeId?: string | null;
   assignee?: User | null;
   /** @nullable */
@@ -497,6 +515,8 @@ export interface ItemInput {
   status?: ItemInputStatus;
   priority?: ItemInputPriority;
   /** @nullable */
+  category?: ItemCategory | null;
+  /** @nullable */
   assigneeId?: string | null;
   /** @nullable */
   scopeId?: number | null;
@@ -548,6 +568,8 @@ export interface ItemUpdate {
   description?: string | null;
   status?: ItemUpdateStatus;
   priority?: ItemUpdatePriority;
+  /** @nullable */
+  category?: ItemCategory | null;
   /** @nullable */
   assigneeId?: string | null;
   /** @nullable */

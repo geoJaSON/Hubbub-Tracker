@@ -32,6 +32,17 @@ export const itemTypeEnum = pgEnum("item_type", [
   "request",
   "decision",
 ]);
+export const itemCategoryEnum = pgEnum("item_category", [
+  "infrastructure_hosting",
+  "security_compliance",
+  "mobile_devops",
+  "web_devops",
+  "database_schema",
+  "monitoring_observability",
+  "deployment_release",
+  "third_party_integration",
+  "support_operations",
+]);
 export const itemStatusEnum = pgEnum("item_status", [
   "open",
   "in_progress",
@@ -189,6 +200,7 @@ export const items = pgTable(
     estimateMinutes: integer("estimate_minutes"),
     dueDate: date("due_date"),
     decisionRationale: text("decision_rationale"),
+    category: itemCategoryEnum("category"),
     closedAt: timestamp("closed_at"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },

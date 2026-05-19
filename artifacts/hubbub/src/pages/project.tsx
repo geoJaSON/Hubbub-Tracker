@@ -66,6 +66,17 @@ const PRIORITY_COLORS: Record<string, string> = {
 const TYPE_ICONS: Record<string, typeof Bug> = {
   bug: Bug, todo: CheckSquare, decision: Lightbulb, request: ReqIcon,
 };
+const CATEGORY_LABELS: Record<string, string> = {
+  infrastructure_hosting: "Infrastructure & Hosting",
+  security_compliance: "Security & Compliance",
+  mobile_devops: "Mobile App DevOps",
+  web_devops: "Web App DevOps",
+  database_schema: "Database & Schema",
+  monitoring_observability: "Monitoring & Observability",
+  deployment_release: "Deployment & Release",
+  third_party_integration: "Third-Party Integration",
+  support_operations: "Support & Operations",
+};
 
 function TeletypeText({ text, onDone }: { text: string; onDone: () => void }) {
   const [idx, setIdx] = useState(0);
@@ -199,6 +210,7 @@ export default function ProjectPage() {
   const [draggedItemId, setDraggedItemId] = useState<number | null>(null);
   const [dragTarget, setDragTarget] = useState<string | null>(null);
   const [itemTypeFilter, setItemTypeFilter] = useState<string>("all");
+  const [itemCategoryFilter, setItemCategoryFilter] = useState<string>("all");
   const [docOpen, setDocOpen] = useState(false);
   const [editDoc, setEditDoc] = useState<Doc | null>(null);
   const [docForm, setDocForm] = useState({ title: "", body: "" });
@@ -221,7 +233,8 @@ export default function ProjectPage() {
     title: string;
     priority: ItemInputPriority;
     description: string;
-  }>({ type: "todo", title: "", priority: "medium", description: "" });
+    category: string;
+  }>({ type: "todo", title: "", priority: "medium", description: "", category: "" });
 
   const [docSearch, setDocSearch] = useState("");
   const [debouncedDocSearch, setDebouncedDocSearch] = useState("");
@@ -405,11 +418,12 @@ export default function ProjectPage() {
         title: newItem.title,
         priority: newItem.priority,
         description: newItem.description || null,
+        category: (newItem.category || null) as import("@workspace/api-client-react").ItemCategory | null,
       };
       await createItem.mutateAsync({ slug, data: payload });
       qc.invalidateQueries({ queryKey: getListItemsQueryKey(slug!) });
       setCreateOpen(false);
-      setNewItem({ type: "todo", title: "", priority: "medium", description: "" });
+      setNewItem({ type: "todo", title: "", priority: "medium", description: "", category: "" });
       toast({ title: "Item created" });
     } catch {
       toast({ title: "Failed to create item", variant: "destructive" });
@@ -753,14 +767,44 @@ export default function ProjectPage() {
                 </button>
               ))}
             </div>
+            {/* Category filter */}
+            <div className="flex gap-1 flex-wrap">
+              <button
+                onClick={() => setItemCategoryFilter("all")}
+                className={cn(
+                  "text-[10px] font-mono border px-2 py-0.5 transition-colors",
+                  itemCategoryFilter === "all"
+                    ? "border-accent text-accent bg-accent/10"
+                    : "border-border text-muted-foreground hover:text-foreground hover:border-muted-foreground",
+                )}
+              >
+                ALL CATEGORIES
+              </button>
+              {Object.entries(CATEGORY_LABELS).map(([id, label]) => (
+                <button
+                  key={id}
+                  onClick={() => setItemCategoryFilter(id)}
+                  className={cn(
+                    "text-[10px] font-mono border px-2 py-0.5 transition-colors",
+                    itemCategoryFilter === id
+                      ? "border-accent text-accent bg-accent/10"
+                      : "border-border text-muted-foreground hover:text-foreground hover:border-muted-foreground",
+                  )}
+                >
+                  {label.toUpperCase()}
+                </button>
+              ))}
+            </div>
             {(() => {
-              const filtered = itemTypeFilter === "all"
-                ? items
-                : items.filter((i) => i.type === itemTypeFilter);
+              const filtered = items
+                .filter((i) => itemTypeFilter === "all" || i.type === itemTypeFilter)
+                .filter((i) => itemCategoryFilter === "all" || i.category === itemCategoryFilter);
               return filtered.length === 0 ? (
                 <div className="border border-border bg-card p-8 text-center">
                   <p className="text-muted-foreground font-mono text-sm">
-                    {itemTypeFilter === "all" ? "no items yet" : `no ${itemTypeFilter} items`}
+                    {itemTypeFilter === "all" && itemCategoryFilter === "all"
+                      ? "no items yet"
+                      : "no matching items"}
                   </p>
                 </div>
               ) : (
@@ -777,6 +821,11 @@ export default function ProjectPage() {
                         {item.type === "decision" && item.decisionRationale && (
                           <span className="hidden md:block text-xs text-muted-foreground font-mono truncate max-w-[200px]">
                             {String(item.decisionRationale).slice(0, 60)}
+                          </span>
+                        )}
+                        {item.category && (
+                          <span className="hidden lg:block text-[10px] font-mono border border-accent/30 text-accent/70 px-1.5 py-0.5 shrink-0">
+                            {CATEGORY_LABELS[item.category] ?? item.category}
                           </span>
                         )}
                         <span className={cn("text-xs font-mono border px-1.5 py-0.5", STATUS_COLORS[item.status])}>
@@ -1912,6 +1961,23 @@ export default function ProjectPage() {
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+            <div className="space-y-1">
+              <Label className="font-mono text-xs tracking-widest text-muted-foreground">CATEGORY <span className="text-muted-foreground/50">(optional)</span></Label>
+              <Select
+                value={newItem.category || "__none__"}
+                onValueChange={(v) => setNewItem((p) => ({ ...p, category: v === "__none__" ? "" : v }))}
+              >
+                <SelectTrigger className="bg-background border-border font-mono text-xs h-8">
+                  <SelectValue placeholder="none" />
+                </SelectTrigger>
+                <SelectContent className="bg-card border-border font-mono text-xs">
+                  <SelectItem value="__none__" className="font-mono text-xs text-muted-foreground">— none —</SelectItem>
+                  {Object.entries(CATEGORY_LABELS).map(([v, label]) => (
+                    <SelectItem key={v} value={v} className="font-mono text-xs">{label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-1">
               <Label className="font-mono text-xs tracking-widest text-muted-foreground">TITLE</Label>

@@ -84,6 +84,7 @@ router.post("/", requireAuth, async (req: AuthRequest, res) => {
     estimateMinutes,
     dueDate,
     decisionRationale,
+    category,
   } = req.body;
 
   const [created] = await db
@@ -102,6 +103,7 @@ router.post("/", requireAuth, async (req: AuthRequest, res) => {
       estimateMinutes,
       dueDate,
       decisionRationale,
+      category: category ?? null,
     })
     .returning();
 
@@ -246,6 +248,7 @@ router.patch("/:itemNumber", requireAuth, async (req: AuthRequest, res) => {
     estimateMinutes,
     dueDate,
     decisionRationale,
+    category,
   } = req.body;
 
   const closedAt =
@@ -269,6 +272,7 @@ router.patch("/:itemNumber", requireAuth, async (req: AuthRequest, res) => {
       ...(estimateMinutes !== undefined && { estimateMinutes }),
       ...(dueDate !== undefined && { dueDate }),
       ...(decisionRationale !== undefined && { decisionRationale }),
+      ...(category !== undefined && { category: category ?? null }),
       ...(closedAt && { closedAt }),
     })
     .where(eq(items.id, existing.id))

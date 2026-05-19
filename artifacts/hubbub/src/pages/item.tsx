@@ -4,7 +4,7 @@ import {
   useGetItem, useUpdateItem, useCreateComment, useCreateTimeEntry,
   useGetProject, useUpsertPresence,
 } from "@workspace/api-client-react";
-import type { ItemUpdateStatus, ItemUpdatePriority, Commit } from "@workspace/api-client-react";
+import type { ItemUpdateStatus, ItemUpdatePriority, ItemCategory, Commit } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { getGetItemQueryKey } from "@workspace/api-client-react";
 import { Layout } from "../components/layout";
@@ -36,6 +36,18 @@ const PRIORITY_COLORS: Record<string, string> = {
   high: "text-accent", urgent: "text-destructive",
 };
 const PRIORITY_OPTIONS = ["low", "medium", "high", "urgent"] as const;
+const CATEGORY_LABELS: Record<string, string> = {
+  infrastructure_hosting: "Infrastructure & Hosting",
+  security_compliance: "Security & Compliance",
+  mobile_devops: "Mobile App DevOps",
+  web_devops: "Web App DevOps",
+  database_schema: "Database & Schema",
+  monitoring_observability: "Monitoring & Observability",
+  deployment_release: "Deployment & Release",
+  third_party_integration: "Third-Party Integration",
+  support_operations: "Support & Operations",
+};
+const CATEGORY_OPTIONS = Object.keys(CATEGORY_LABELS) as ItemCategory[];
 
 function parseTimeToMinutes(raw: string): number {
   const s = raw.trim().toLowerCase();
@@ -114,6 +126,9 @@ export default function ItemPage() {
 
   const handlePriorityChange = (priority: string) =>
     void handleField({ priority: priority as ItemUpdatePriority });
+
+  const handleCategoryChange = (value: string) =>
+    void handleField({ category: value === "__none__" ? null : value as ItemCategory });
 
   const handleAssigneeChange = (assigneeId: string) =>
     void handleField({ assigneeId: assigneeId === "__none__" ? null : assigneeId });
@@ -244,6 +259,25 @@ export default function ItemPage() {
                 <SelectContent className="bg-card border-border font-mono text-xs">
                   {PRIORITY_OPTIONS.map((p) => (
                     <SelectItem key={p} value={p} className={cn("font-mono text-xs", PRIORITY_COLORS[p])}>{p.toUpperCase()}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* CATEGORY */}
+            <div className="space-y-1 col-span-2 md:col-span-2">
+              <span className="text-muted-foreground tracking-wider">CATEGORY</span>
+              <Select
+                value={item.category ?? "__none__"}
+                onValueChange={(v) => void handleCategoryChange(v)}
+              >
+                <SelectTrigger className="h-7 border border-border font-mono text-xs rounded-none w-full text-accent/80">
+                  <SelectValue placeholder="uncategorized" />
+                </SelectTrigger>
+                <SelectContent className="bg-card border-border font-mono text-xs">
+                  <SelectItem value="__none__" className="font-mono text-xs text-muted-foreground">— uncategorized —</SelectItem>
+                  {CATEGORY_OPTIONS.map((c) => (
+                    <SelectItem key={c} value={c} className="font-mono text-xs">{CATEGORY_LABELS[c]}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
