@@ -223,6 +223,7 @@ export default function ProjectPage() {
   const [docOpen, setDocOpen] = useState(false);
   const [editDoc, setEditDoc] = useState<Doc | null>(null);
   const [docForm, setDocForm] = useState({ title: "", body: "" });
+  const [docViewMode, setDocViewMode] = useState<"edit" | "split" | "preview">("split");
   const [docToDelete, setDocToDelete] = useState<Doc | null>(null);
   const [draggedDocSlug, setDraggedDocSlug] = useState<string | null>(null);
   const [dragOverDocSlug, setDragOverDocSlug] = useState<string | null>(null);
@@ -2374,7 +2375,23 @@ export default function ProjectPage() {
               placeholder="doc title..."
               autoFocus={!editDoc}
             />
-            <div className="flex gap-2 ml-auto">
+            <div className="flex items-center gap-1 ml-auto">
+              {(["edit", "split", "preview"] as const).map((mode) => (
+                <Button
+                  key={mode}
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setDocViewMode(mode)}
+                  className={`font-mono text-xs h-7 px-2 rounded-none border ${
+                    docViewMode === mode
+                      ? "border-primary text-primary bg-primary/10"
+                      : "border-transparent text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {mode === "edit" ? "EDIT" : mode === "split" ? "SPLIT" : "PREVIEW"}
+                </Button>
+              ))}
+              <div className="w-px h-5 bg-border mx-1" />
               <Button
                 variant="ghost"
                 size="sm"
@@ -2394,38 +2411,42 @@ export default function ProjectPage() {
             </div>
           </div>
 
-          {/* Split editor + preview */}
+          {/* Editor + preview — visibility driven by docViewMode */}
           <div className="flex flex-1 min-h-0 divide-x divide-border">
-            {/* Editor pane */}
-            <div className="flex flex-col flex-1 min-w-0">
-              <div className="px-3 py-1.5 border-b border-border shrink-0">
-                <span className="font-mono text-[10px] tracking-widest text-muted-foreground">MARKDOWN</span>
+            {/* Editor pane — shown in edit + split */}
+            {(docViewMode === "edit" || docViewMode === "split") && (
+              <div className="flex flex-col flex-1 min-w-0">
+                <div className="px-3 py-1.5 border-b border-border shrink-0">
+                  <span className="font-mono text-[10px] tracking-widest text-muted-foreground">MARKDOWN</span>
+                </div>
+                <Textarea
+                  value={docForm.body}
+                  onChange={(e) => setDocForm((p) => ({ ...p, body: e.target.value }))}
+                  className="flex-1 resize-none bg-background border-0 font-mono text-sm rounded-none focus-visible:ring-0 focus-visible:ring-offset-0 p-4 h-full"
+                  placeholder="write in markdown..."
+                  autoFocus={!!editDoc}
+                />
               </div>
-              <Textarea
-                value={docForm.body}
-                onChange={(e) => setDocForm((p) => ({ ...p, body: e.target.value }))}
-                className="flex-1 resize-none bg-background border-0 font-mono text-sm rounded-none focus-visible:ring-0 focus-visible:ring-offset-0 p-4 h-full"
-                placeholder="write in markdown..."
-                autoFocus={!!editDoc}
-              />
-            </div>
+            )}
 
-            {/* Preview pane */}
-            <div className="flex flex-col flex-1 min-w-0">
-              <div className="px-3 py-1.5 border-b border-border shrink-0">
-                <span className="font-mono text-[10px] tracking-widest text-muted-foreground">PREVIEW</span>
+            {/* Preview pane — shown in split + preview */}
+            {(docViewMode === "split" || docViewMode === "preview") && (
+              <div className="flex flex-col flex-1 min-w-0">
+                <div className="px-3 py-1.5 border-b border-border shrink-0">
+                  <span className="font-mono text-[10px] tracking-widest text-muted-foreground">PREVIEW</span>
+                </div>
+                <div className="flex-1 overflow-y-auto p-4 prose prose-sm prose-invert max-w-none
+                  prose-headings:font-mono prose-headings:text-primary prose-headings:tracking-wider
+                  prose-a:text-primary prose-code:text-accent prose-pre:bg-background/80
+                  prose-strong:text-foreground prose-blockquote:border-primary/50 prose-blockquote:text-muted-foreground">
+                  {docForm.body.trim() ? (
+                    <ReactMarkdown>{docForm.body}</ReactMarkdown>
+                  ) : (
+                    <p className="text-muted-foreground italic text-sm font-mono">nothing to preview yet…</p>
+                  )}
+                </div>
               </div>
-              <div className="flex-1 overflow-y-auto p-4 prose prose-sm prose-invert max-w-none
-                prose-headings:font-mono prose-headings:text-primary prose-headings:tracking-wider
-                prose-a:text-primary prose-code:text-accent prose-pre:bg-background/80
-                prose-strong:text-foreground prose-blockquote:border-primary/50 prose-blockquote:text-muted-foreground">
-                {docForm.body.trim() ? (
-                  <ReactMarkdown>{docForm.body}</ReactMarkdown>
-                ) : (
-                  <p className="text-muted-foreground italic text-sm font-mono">nothing to preview yet…</p>
-                )}
-              </div>
-            </div>
+            )}
           </div>
         </DialogContent>
       </Dialog>
