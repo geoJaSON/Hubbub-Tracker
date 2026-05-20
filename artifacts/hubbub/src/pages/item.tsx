@@ -2,9 +2,9 @@ import { useState } from "react";
 import { useParams, Link } from "wouter";
 import {
   useGetItem, useUpdateItem, useCreateComment, useCreateTimeEntry,
-  useGetProject, useUpsertPresence,
+  useGetProject, useUpsertPresence, useListComponents,
 } from "@workspace/api-client-react";
-import type { ItemUpdateStatus, ItemUpdatePriority, ItemCategory, Commit } from "@workspace/api-client-react";
+import type { ItemUpdateStatus, ItemUpdatePriority, ItemCategory, Commit, ProjectComponent } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { getGetItemQueryKey } from "@workspace/api-client-react";
 import { Layout } from "../components/layout";
@@ -71,6 +71,7 @@ export default function ItemPage() {
   const { slug, number } = useParams<{ slug: string; number: string }>();
   const { data: item, isLoading } = useGetItem(slug!, Number(number));
   const { data: project } = useGetProject(slug!);
+  const { data: components = [] } = useListComponents(slug!);
   const updateItem = useUpdateItem();
   const createComment = useCreateComment();
   const createTimeEntry = useCreateTimeEntry();
@@ -132,6 +133,9 @@ export default function ItemPage() {
 
   const handleAssigneeChange = (assigneeId: string) =>
     void handleField({ assigneeId: assigneeId === "__none__" ? null : assigneeId });
+
+  const handleComponentChange = (value: string) =>
+    void handleField({ componentId: value === "__none__" ? null : Number(value) });
 
   const handleSaveEstimate = async () => {
     const mins = parseTimeToMinutes(estimateInput);
@@ -304,6 +308,29 @@ export default function ItemPage() {
                 </SelectContent>
               </Select>
             </div>
+
+            {/* COMPONENT */}
+            {components.length > 0 && (
+              <div className="space-y-1 col-span-2 md:col-span-2">
+                <span className="text-muted-foreground tracking-wider">COMPONENT</span>
+                <Select
+                  value={(item as typeof item & { componentId?: number | null }).componentId !== null && (item as typeof item & { componentId?: number | null }).componentId !== undefined
+                    ? String((item as typeof item & { componentId?: number | null }).componentId)
+                    : "__none__"}
+                  onValueChange={(v) => void handleComponentChange(v)}
+                >
+                  <SelectTrigger className="h-7 border border-border font-mono text-xs rounded-none w-full text-primary/80">
+                    <SelectValue placeholder="no component" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-card border-border font-mono text-xs">
+                    <SelectItem value="__none__" className="font-mono text-xs text-muted-foreground">— no component —</SelectItem>
+                    {(components as ProjectComponent[]).map((c) => (
+                      <SelectItem key={c.id} value={String(c.id)} className="font-mono text-xs">{c.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
             {/* ESTIMATE vs ACTUAL */}
             <div className="space-y-1">

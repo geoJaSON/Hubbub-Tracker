@@ -176,6 +176,26 @@ export const milestones = pgTable("milestones", {
   order: integer("order").notNull().default(0),
 });
 
+// ── Project Components ─────────────────────────────────────────────────────
+export const projectComponents = pgTable(
+  "project_components",
+  {
+    id: serial("id").primaryKey(),
+    projectId: integer("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    description: text("description"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => ({
+    projectNameIdx: uniqueIndex("project_components_project_name_idx").on(
+      t.projectId,
+      t.name,
+    ),
+  }),
+);
+
 // ── Items ──────────────────────────────────────────────────────────────────
 export const items = pgTable(
   "items",
@@ -201,6 +221,9 @@ export const items = pgTable(
     dueDate: date("due_date"),
     decisionRationale: text("decision_rationale"),
     category: itemCategoryEnum("category"),
+    componentId: integer("component_id").references(() => projectComponents.id, {
+      onDelete: "set null",
+    }),
     closedAt: timestamp("closed_at"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
@@ -408,6 +431,7 @@ export const usersRelations = relations(users, ({ many }) => ({
 export const projectsRelations = relations(projects, ({ many }) => ({
   members: many(projectMembers),
   scopes: many(scopes),
+  components: many(projectComponents),
   items: many(items),
   messages: many(messages),
   commits: many(commits),
@@ -416,6 +440,17 @@ export const projectsRelations = relations(projects, ({ many }) => ({
   timeEntries: many(timeEntries),
   activityEvents: many(activityEvents),
 }));
+
+export const projectComponentsRelations = relations(
+  projectComponents,
+  ({ one, many }) => ({
+    project: one(projects, {
+      fields: [projectComponents.projectId],
+      references: [projects.id],
+    }),
+    items: many(items),
+  }),
+);
 
 export const projectMembersRelations = relations(
   projectMembers,
@@ -457,6 +492,10 @@ export const itemsRelations = relations(items, ({ one, many }) => ({
   milestone: one(milestones, {
     fields: [items.milestoneId],
     references: [milestones.id],
+  }),
+  component: one(projectComponents, {
+    fields: [items.componentId],
+    references: [projectComponents.id],
   }),
   comments: many(comments),
   timeEntries: many(timeEntries),

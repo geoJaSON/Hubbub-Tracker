@@ -11,12 +11,13 @@ import {
   useListCommits, useListProjectTimeEntries, useCreateTimeEntry,
   useListPresence, useListUsers, useAddProjectMember, useRemoveProjectMember,
   useListProjectMembers,
+  useListComponents, useCreateComponent, useUpdateComponent, useDeleteComponent,
 } from "@workspace/api-client-react";
 import type {
   Item, Doc, ItemInput, ItemInputType, ItemInputPriority,
   ItemUpdateStatus, Message, DocInput, CostEntry, CostEntryInput,
   CostEntryInputCategory, Scope, Milestone, ScopeInput, MilestoneInput,
-  Commit, TimeEntry, Presence,
+  Commit, TimeEntry, Presence, ProjectComponent,
 } from "@workspace/api-client-react";
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
@@ -26,7 +27,7 @@ import {
   getListItemsQueryKey, getListMessagesQueryKey, getListActivityQueryKey,
   getListDocsQueryKey, getGetProjectQueryKey, getListCostEntriesQueryKey,
   getListCommitsQueryKey, getListPresenceQueryKey, getListProjectTimeEntriesQueryKey,
-  getListProjectMembersQueryKey,
+  getListProjectMembersQueryKey, getListComponentsQueryKey,
 } from "@workspace/api-client-react";
 import { Layout } from "../components/layout";
 import { Button } from "@/components/ui/button";
@@ -196,6 +197,10 @@ export default function ProjectPage() {
   const { data: allUsers = [] } = useListUsers();
   const addMember = useAddProjectMember();
   const removeMember = useRemoveProjectMember();
+  const { data: components = [] } = useListComponents(slug!);
+  const createComponent = useCreateComponent();
+  const updateComponent = useUpdateComponent();
+  const deleteComponent = useDeleteComponent();
 
   // Filter to users seen within the last 60 seconds
   const onlineUsers = useMemo<Presence[]>(() => {
@@ -211,6 +216,10 @@ export default function ProjectPage() {
   const [dragTarget, setDragTarget] = useState<string | null>(null);
   const [itemTypeFilter, setItemTypeFilter] = useState<string>("all");
   const [itemCategoryFilter, setItemCategoryFilter] = useState<string>("all");
+  const [itemComponentFilter, setItemComponentFilter] = useState<number | "all">("all");
+  const [componentNewName, setComponentNewName] = useState("");
+  const [componentEditId, setComponentEditId] = useState<number | null>(null);
+  const [componentEditName, setComponentEditName] = useState("");
   const [docOpen, setDocOpen] = useState(false);
   const [editDoc, setEditDoc] = useState<Doc | null>(null);
   const [docForm, setDocForm] = useState({ title: "", body: "" });
@@ -234,7 +243,8 @@ export default function ProjectPage() {
     priority: ItemInputPriority;
     description: string;
     category: string;
-  }>({ type: "todo", title: "", priority: "medium", description: "", category: "" });
+    componentId: number | null;
+  }>({ type: "todo", title: "", priority: "medium", description: "", category: "", componentId: null });
 
   const [docSearch, setDocSearch] = useState("");
   const [debouncedDocSearch, setDebouncedDocSearch] = useState("");
@@ -419,11 +429,12 @@ export default function ProjectPage() {
         priority: newItem.priority,
         description: newItem.description || null,
         category: (newItem.category || null) as import("@workspace/api-client-react").ItemCategory | null,
+        componentId: newItem.componentId ?? null,
       };
       await createItem.mutateAsync({ slug, data: payload });
       qc.invalidateQueries({ queryKey: getListItemsQueryKey(slug!) });
       setCreateOpen(false);
-      setNewItem({ type: "todo", title: "", priority: "medium", description: "", category: "" });
+      setNewItem({ type: "todo", title: "", priority: "medium", description: "", category: "", componentId: null });
       toast({ title: "Item created" });
     } catch {
       toast({ title: "Failed to create item", variant: "destructive" });
@@ -795,14 +806,45 @@ export default function ProjectPage() {
                 </button>
               ))}
             </div>
+            {/* Component filter */}
+            {components.length > 0 && (
+              <div className="flex gap-1 flex-wrap">
+                <button
+                  onClick={() => setItemComponentFilter("all")}
+                  className={cn(
+                    "text-[10px] font-mono border px-2 py-0.5 transition-colors",
+                    itemComponentFilter === "all"
+                      ? "border-primary text-primary bg-primary/10"
+                      : "border-border text-muted-foreground hover:text-foreground hover:border-muted-foreground",
+                  )}
+                >
+                  ALL COMPONENTS
+                </button>
+                {components.map((c) => (
+                  <button
+                    key={c.id}
+                    onClick={() => setItemComponentFilter(c.id)}
+                    className={cn(
+                      "text-[10px] font-mono border px-2 py-0.5 transition-colors",
+                      itemComponentFilter === c.id
+                        ? "border-primary text-primary bg-primary/10"
+                        : "border-border text-muted-foreground hover:text-foreground hover:border-muted-foreground",
+                    )}
+                  >
+                    {c.name.toUpperCase()}
+                  </button>
+                ))}
+              </div>
+            )}
             {(() => {
               const filtered = items
                 .filter((i) => itemTypeFilter === "all" || i.type === itemTypeFilter)
-                .filter((i) => itemCategoryFilter === "all" || i.category === itemCategoryFilter);
+                .filter((i) => itemCategoryFilter === "all" || i.category === itemCategoryFilter)
+                .filter((i) => itemComponentFilter === "all" || i.componentId === itemComponentFilter);
               return filtered.length === 0 ? (
                 <div className="border border-border bg-card p-8 text-center">
                   <p className="text-muted-foreground font-mono text-sm">
-                    {itemTypeFilter === "all" && itemCategoryFilter === "all"
+                    {itemTypeFilter === "all" && itemCategoryFilter === "all" && itemComponentFilter === "all"
                       ? "no items yet"
                       : "no matching items"}
                   </p>
@@ -826,6 +868,11 @@ export default function ProjectPage() {
                         {item.category && (
                           <span className="hidden lg:block text-[10px] font-mono border border-accent/30 text-accent/70 px-1.5 py-0.5 shrink-0">
                             {CATEGORY_LABELS[item.category] ?? item.category}
+                          </span>
+                        )}
+                        {(item as Item & { component?: ProjectComponent | null }).component && (
+                          <span className="hidden lg:block text-[10px] font-mono border border-primary/30 text-primary/70 px-1.5 py-0.5 shrink-0">
+                            {(item as Item & { component?: ProjectComponent | null }).component!.name}
                           </span>
                         )}
                         <span className={cn("text-xs font-mono border px-1.5 py-0.5", STATUS_COLORS[item.status])}>
@@ -1530,6 +1577,126 @@ export default function ProjectPage() {
           {/* SETTINGS TAB */}
           <TabsContent value="settings" className="mt-3">
             <div className="max-w-lg space-y-4">
+              {/* Components */}
+              <div className="border border-border bg-card p-4 space-y-3">
+                <div className="flex items-center gap-2">
+                  <div className="h-2 w-2 rounded-full bg-primary shrink-0" />
+                  <div className="font-mono text-sm text-foreground">Project Components</div>
+                </div>
+                <div className="text-xs text-muted-foreground font-mono">
+                  Tag items to specific parts of the project — e.g. "Upload Tool", "GPS Antenna", "Auth Service".
+                </div>
+                {/* Existing components */}
+                {components.length > 0 && (
+                  <div className="divide-y divide-border border border-border">
+                    {components.map((c) => (
+                      <div key={c.id} className="flex items-center gap-2 px-3 py-2">
+                        {componentEditId === c.id ? (
+                          <>
+                            <Input
+                              value={componentEditName}
+                              onChange={(e) => setComponentEditName(e.target.value)}
+                              className="bg-background border-border font-mono text-xs h-7 flex-1"
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                  if (componentEditName.trim()) {
+                                    void updateComponent.mutateAsync({ slug: slug!, componentId: c.id, data: { name: componentEditName.trim() } }).then(() => {
+                                      qc.invalidateQueries({ queryKey: getListComponentsQueryKey(slug!) });
+                                      setComponentEditId(null);
+                                    });
+                                  }
+                                } else if (e.key === "Escape") {
+                                  setComponentEditId(null);
+                                }
+                              }}
+                              autoFocus
+                            />
+                            <Button
+                              size="sm"
+                              className="font-mono text-xs h-7 bg-primary text-primary-foreground hover:bg-primary/90 shrink-0"
+                              onClick={() => {
+                                if (componentEditName.trim()) {
+                                  void updateComponent.mutateAsync({ slug: slug!, componentId: c.id, data: { name: componentEditName.trim() } }).then(() => {
+                                    qc.invalidateQueries({ queryKey: getListComponentsQueryKey(slug!) });
+                                    setComponentEditId(null);
+                                  });
+                                }
+                              }}
+                              disabled={updateComponent.isPending}
+                            >
+                              SAVE
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="font-mono text-xs h-7 border border-border text-muted-foreground shrink-0"
+                              onClick={() => setComponentEditId(null)}
+                            >
+                              CANCEL
+                            </Button>
+                          </>
+                        ) : (
+                          <>
+                            <span className="flex-1 font-mono text-xs text-foreground">{c.name}</span>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="font-mono text-xs h-7 border border-border text-muted-foreground hover:text-foreground shrink-0"
+                              onClick={() => { setComponentEditId(c.id); setComponentEditName(c.name); }}
+                            >
+                              <Pencil className="h-3 w-3" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="font-mono text-xs h-7 border border-destructive/30 text-destructive/60 hover:text-destructive shrink-0"
+                              onClick={() => {
+                                void deleteComponent.mutateAsync({ slug: slug!, componentId: c.id }).then(() => {
+                                  qc.invalidateQueries({ queryKey: getListComponentsQueryKey(slug!) });
+                                });
+                              }}
+                              disabled={deleteComponent.isPending}
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {/* Add new component */}
+                <div className="flex gap-2">
+                  <Input
+                    value={componentNewName}
+                    onChange={(e) => setComponentNewName(e.target.value)}
+                    className="bg-background border-border font-mono text-sm rounded-none flex-1"
+                    placeholder="component name..."
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && componentNewName.trim()) {
+                        void createComponent.mutateAsync({ slug: slug!, data: { name: componentNewName.trim() } }).then(() => {
+                          qc.invalidateQueries({ queryKey: getListComponentsQueryKey(slug!) });
+                          setComponentNewName("");
+                        }).catch(() => toast({ title: "Failed to create component", variant: "destructive" }));
+                      }
+                    }}
+                  />
+                  <Button
+                    size="sm"
+                    disabled={!componentNewName.trim() || createComponent.isPending}
+                    onClick={() => {
+                      void createComponent.mutateAsync({ slug: slug!, data: { name: componentNewName.trim() } }).then(() => {
+                        qc.invalidateQueries({ queryKey: getListComponentsQueryKey(slug!) });
+                        setComponentNewName("");
+                      }).catch(() => toast({ title: "Failed to create component", variant: "destructive" }));
+                    }}
+                    className="font-mono text-xs bg-primary text-primary-foreground hover:bg-primary/90 shrink-0"
+                  >
+                    {createComponent.isPending ? "ADDING..." : "ADD"}
+                  </Button>
+                </div>
+              </div>
+
               {/* GitHub Repo */}
               <div className="border border-border bg-card p-4 space-y-3">
                 <div className="flex items-center gap-2">
@@ -1979,6 +2146,25 @@ export default function ProjectPage() {
                 </SelectContent>
               </Select>
             </div>
+            {components.length > 0 && (
+              <div className="space-y-1">
+                <Label className="font-mono text-xs tracking-widest text-muted-foreground">COMPONENT <span className="text-muted-foreground/50">(optional)</span></Label>
+                <Select
+                  value={newItem.componentId !== null ? String(newItem.componentId) : "__none__"}
+                  onValueChange={(v) => setNewItem((p) => ({ ...p, componentId: v === "__none__" ? null : Number(v) }))}
+                >
+                  <SelectTrigger className="bg-background border-border font-mono text-xs h-8">
+                    <SelectValue placeholder="none" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-card border-border font-mono text-xs">
+                    <SelectItem value="__none__" className="font-mono text-xs text-muted-foreground">— none —</SelectItem>
+                    {components.map((c) => (
+                      <SelectItem key={c.id} value={String(c.id)} className="font-mono text-xs">{c.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div className="space-y-1">
               <Label className="font-mono text-xs tracking-widest text-muted-foreground">TITLE</Label>
               <Input

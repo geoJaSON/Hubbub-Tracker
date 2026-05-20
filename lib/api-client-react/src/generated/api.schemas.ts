@@ -368,6 +368,10 @@ export interface Item {
   closedAt?: string | null;
   createdAt: string;
   /** @nullable */
+  componentId?: number | null;
+  /** @nullable */
+  component?: ProjectComponent | null;
+  /** @nullable */
   totalMinutesLogged?: number | null;
 }
 
@@ -470,6 +474,10 @@ export interface ItemDetail {
   closedAt?: string | null;
   createdAt: string;
   /** @nullable */
+  componentId?: number | null;
+  /** @nullable */
+  component?: ProjectComponent | null;
+  /** @nullable */
   totalMinutesLogged?: number | null;
   comments: Comment[];
   timeEntries: TimeEntry[];
@@ -528,6 +536,8 @@ export interface ItemInput {
   dueDate?: string | null;
   /** @nullable */
   decisionRationale?: string | null;
+  /** @nullable */
+  componentId?: number | null;
 }
 
 export type ItemUpdateType = typeof ItemUpdateType[keyof typeof ItemUpdateType];
@@ -582,6 +592,29 @@ export interface ItemUpdate {
   dueDate?: string | null;
   /** @nullable */
   decisionRationale?: string | null;
+  /** @nullable */
+  componentId?: number | null;
+}
+
+export interface ProjectComponent {
+  id: number;
+  projectId: number;
+  name: string;
+  /** @nullable */
+  description?: string | null;
+  createdAt?: string;
+}
+
+export interface ProjectComponentInput {
+  name: string;
+  /** @nullable */
+  description?: string | null;
+}
+
+export interface ProjectComponentUpdate {
+  name?: string;
+  /** @nullable */
+  description?: string | null;
 }
 
 export interface CommentInput {

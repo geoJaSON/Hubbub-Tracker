@@ -9,6 +9,7 @@ import {
   comments,
   commits,
   commitItems,
+  projectComponents,
 } from "../lib/schema";
 import { requireAuth, AuthRequest } from "../lib/auth";
 import { logActivity } from "../lib/activity";
@@ -40,9 +41,20 @@ async function enrichItem(item: typeof items.$inferSelect) {
     assignee = u ?? null;
   }
 
+  let component = null;
+  if (item.componentId) {
+    const [c] = await db
+      .select()
+      .from(projectComponents)
+      .where(eq(projectComponents.id, item.componentId))
+      .limit(1);
+    component = c ?? null;
+  }
+
   return {
     ...item,
     assignee,
+    component,
     totalMinutesLogged: timeSum?.total ? Number(timeSum.total) : 0,
   };
 }
@@ -85,6 +97,7 @@ router.post("/", requireAuth, async (req: AuthRequest, res) => {
     dueDate,
     decisionRationale,
     category,
+    componentId,
   } = req.body;
 
   const [created] = await db
@@ -104,6 +117,7 @@ router.post("/", requireAuth, async (req: AuthRequest, res) => {
       dueDate,
       decisionRationale,
       category: category ?? null,
+      componentId: componentId ?? null,
     })
     .returning();
 
@@ -249,6 +263,7 @@ router.patch("/:itemNumber", requireAuth, async (req: AuthRequest, res) => {
     dueDate,
     decisionRationale,
     category,
+    componentId,
   } = req.body;
 
   const closedAt =
@@ -273,6 +288,7 @@ router.patch("/:itemNumber", requireAuth, async (req: AuthRequest, res) => {
       ...(dueDate !== undefined && { dueDate }),
       ...(decisionRationale !== undefined && { decisionRationale }),
       ...(category !== undefined && { category: category ?? null }),
+      ...(componentId !== undefined && { componentId: componentId ?? null }),
       ...(closedAt && { closedAt }),
     })
     .where(eq(items.id, existing.id))
