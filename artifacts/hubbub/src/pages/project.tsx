@@ -1588,8 +1588,9 @@ export default function ProjectPage() {
               return (
                 <div className="border border-border bg-card p-4 space-y-3 min-w-0 overflow-hidden">
                   <span className="font-mono text-xs tracking-widest text-primary">// BURN-DOWN — OPEN ITEMS OVER TIME</span>
-                  <div className="w-full min-w-0">
-                  <ResponsiveContainer width="100%" height={220}>
+                  <div style={{ position: "relative", width: "100%", height: 220 }}>
+                    <div style={{ position: "absolute", inset: 0 }}>
+                  <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={chartData} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
                       <CartesianGrid strokeDasharray="2 4" stroke="hsl(var(--border))" />
                       <XAxis
@@ -1619,6 +1620,7 @@ export default function ProjectPage() {
                       <Line type="monotone" dataKey="open" stroke="hsl(var(--primary))" strokeWidth={2} dot={false} name="open" />
                     </LineChart>
                   </ResponsiveContainer>
+                    </div>
                   </div>
                   <div className="flex gap-4 font-mono text-[10px] text-muted-foreground">
                     <span className="flex items-center gap-1"><span className="inline-block w-4 h-0.5 bg-primary" /> OPEN ITEMS</span>
