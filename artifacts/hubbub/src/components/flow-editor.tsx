@@ -14,6 +14,7 @@ import {
   type EdgeChange,
   type Connection,
   Handle,
+  MarkerType,
   Position,
   type NodeProps,
 } from "@xyflow/react";
@@ -25,7 +26,47 @@ import type { FlowData } from "@workspace/api-client-react";
 
 // ── Shared handle style ──────────────────────────────────────────────────────
 
-const H = "!bg-[#00ff41] !border-[#00ff41] !w-2 !h-2";
+const FLOW_GREEN = "#00ff41";
+const NODE_BG = "#050f05";
+const SNAP: [number, number] = [20, 20];
+
+const HANDLE_CLASS =
+  "!bg-[#00ff41] !border-[#020902] !border-2 !w-3 !h-3 !z-20";
+
+const EDGE_OPTIONS = {
+  type: "step",
+  style: { stroke: FLOW_GREEN, strokeWidth: 1.75 },
+  markerEnd: {
+    type: MarkerType.ArrowClosed,
+    color: FLOW_GREEN,
+    width: 14,
+    height: 14,
+  },
+  interactionWidth: 18,
+  labelStyle: {
+    fill: FLOW_GREEN,
+    fontFamily: "Share Tech Mono, monospace",
+    fontSize: 10,
+    fontWeight: 700,
+  },
+  labelBgStyle: { fill: NODE_BG, fillOpacity: 0.95 },
+  labelBgPadding: [6, 3] as [number, number],
+} satisfies Partial<Edge>;
+
+function edgeLabelForConnection(connection: Connection) {
+  if (connection.sourceHandle === "yes") return "YES";
+  if (connection.sourceHandle === "no") return "NO";
+  return undefined;
+}
+
+function normalizeEdge(edge: Edge): Edge {
+  return {
+    ...EDGE_OPTIONS,
+    ...edge,
+    style: { ...EDGE_OPTIONS.style, ...edge.style },
+    markerEnd: edge.markerEnd ?? EDGE_OPTIONS.markerEnd,
+  };
+}
 
 // ── Custom node types ───────────────────────────────────────────────────────
 
@@ -44,8 +85,8 @@ function NodeShell({
     <div
       style={style}
       className={cn(
-        "min-w-[110px] max-w-[180px] flex items-center justify-center px-3 py-2",
-        "font-mono text-xs border bg-[#050f05] transition-colors select-none",
+        "relative flex h-[72px] w-[180px] items-center justify-center px-4 py-3",
+        "font-mono text-[11px] uppercase tracking-[0.08em] border bg-[#050f05] transition-colors select-none shadow-[0_0_12px_rgba(0,255,65,0.08)]",
         selected ? "border-[#00ff41] text-[#00ff41]" : "border-[#00ff41]/50 text-[#00ff41]/80",
         className,
       )}
@@ -58,9 +99,9 @@ function NodeShell({
 function ProcessNode({ data, selected }: NodeProps) {
   return (
     <NodeShell selected={selected ?? false}>
-      <Handle type="target" position={Position.Top} className={H} />
+      <Handle type="target" position={Position.Top} className={HANDLE_CLASS} />
       <span className="text-center break-words leading-tight">{String(data.label)}</span>
-      <Handle type="source" position={Position.Bottom} className={H} />
+      <Handle type="source" position={Position.Bottom} className={HANDLE_CLASS} />
     </NodeShell>
   );
 }
@@ -68,30 +109,30 @@ function ProcessNode({ data, selected }: NodeProps) {
 function TerminalNode({ data, selected }: NodeProps) {
   return (
     <NodeShell selected={selected ?? false} className="rounded-full px-6">
-      <Handle type="target" position={Position.Top} className={H} />
+      <Handle type="target" position={Position.Top} className={HANDLE_CLASS} />
       <span className="text-center break-words leading-tight">{String(data.label)}</span>
-      <Handle type="source" position={Position.Bottom} className={H} />
+      <Handle type="source" position={Position.Bottom} className={HANDLE_CLASS} />
     </NodeShell>
   );
 }
 
 function DecisionNode({ data, selected }: NodeProps) {
-  const W = 160;
-  const HT = 80;
+  const W = 190;
+  const HT = 96;
   const stroke = selected ? "#00ff41" : "rgba(0,255,65,0.5)";
   const textColor = selected ? "#00ff41" : "rgba(0,255,65,0.8)";
   const pts = `${W / 2},2 ${W - 2},${HT / 2} ${W / 2},${HT - 2} 2,${HT / 2}`;
 
   return (
     <div style={{ width: W, height: HT, position: "relative" }}>
-      <Handle type="target" position={Position.Top} className={H} style={{ top: 0 }} />
+      <Handle type="target" position={Position.Top} className={HANDLE_CLASS} style={{ top: 0 }} />
 
       <svg
         width={W}
         height={HT}
         style={{ position: "absolute", inset: 0, overflow: "visible" }}
       >
-        <polygon points={pts} fill="#050f05" stroke={stroke} strokeWidth={1} />
+        <polygon points={pts} fill={NODE_BG} stroke={stroke} strokeWidth={1.25} />
       </svg>
 
       <div
@@ -101,62 +142,70 @@ function DecisionNode({ data, selected }: NodeProps) {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          padding: "0 28px",
+          padding: "0 42px",
           pointerEvents: "none",
         }}
       >
         <span
           style={{
             fontFamily: "monospace",
-            fontSize: 10,
+            fontSize: 11,
             color: textColor,
             textAlign: "center",
             wordBreak: "break-word",
             lineHeight: 1.3,
+            letterSpacing: "0.08em",
+            textTransform: "uppercase",
           }}
         >
           {String(data.label)}
         </span>
       </div>
 
-      <Handle type="source" position={Position.Bottom} id="yes" className={H} style={{ bottom: 0 }} />
-      <Handle type="source" position={Position.Right} id="no" className={H} style={{ right: 0, top: "50%" }} />
+      <Handle type="source" position={Position.Bottom} id="yes" className={HANDLE_CLASS} style={{ bottom: 0, left: "38%" }} />
+      <Handle type="source" position={Position.Bottom} id="no" className={HANDLE_CLASS} style={{ bottom: 0, left: "62%" }} />
+      <span className="pointer-events-none absolute bottom-2 left-[30%] -translate-x-1/2 font-mono text-[9px] font-bold text-[#00ff41]/65">
+        YES
+      </span>
+      <span className="pointer-events-none absolute bottom-2 left-[70%] -translate-x-1/2 font-mono text-[9px] font-bold text-[#00ff41]/65">
+        NO
+      </span>
     </div>
   );
 }
 
 function DbNode({ data, selected }: NodeProps) {
   return (
-    <div className="relative flex flex-col items-center" style={{ width: 120 }}>
-      <Handle type="target" position={Position.Top} className={H} style={{ top: 6 }} />
+    <div className="relative flex h-[82px] w-[180px] flex-col items-center justify-center">
+      <Handle type="target" position={Position.Top} className={HANDLE_CLASS} />
       <div
         className={cn(
-          "w-full font-mono text-xs bg-[#050f05] border",
+          "relative flex h-full w-full flex-col justify-center overflow-hidden rounded-[50%/16%] border bg-[#050f05] font-mono text-[11px] uppercase tracking-[0.08em] shadow-[0_0_12px_rgba(0,255,65,0.08)]",
           selected ? "border-[#00ff41] text-[#00ff41]" : "border-[#00ff41]/50 text-[#00ff41]/80",
         )}
       >
-        <div className={cn("border-b px-2 py-0.5 text-center text-[10px]", selected ? "border-[#00ff41]" : "border-[#00ff41]/50")}>
-          ╔══╗
-        </div>
-        <div className="px-2 py-1.5 text-center break-words">{String(data.label)}</div>
-        <div className={cn("border-t px-2 py-0.5 text-center text-[10px]", selected ? "border-[#00ff41]" : "border-[#00ff41]/50")}>
-          ╚══╝
-        </div>
+        <div className={cn("absolute inset-x-0 top-0 h-4 rounded-[50%] border-b", selected ? "border-[#00ff41]" : "border-[#00ff41]/50")} />
+        <span className="px-4 text-center leading-tight break-words">{String(data.label)}</span>
       </div>
-      <Handle type="source" position={Position.Bottom} className={H} style={{ bottom: 6 }} />
+      <Handle type="source" position={Position.Bottom} className={HANDLE_CLASS} />
     </div>
   );
 }
 
 function IoNode({ data, selected }: NodeProps) {
   return (
-    <NodeShell selected={selected ?? false} style={{ transform: "skewX(-12deg)" }}>
-      <Handle type="target" position={Position.Top} className={H} style={{ transform: "skewX(12deg)" }} />
-      <span style={{ transform: "skewX(12deg)" }} className="text-center break-words leading-tight">
-        {String(data.label)}
-      </span>
-      <Handle type="source" position={Position.Bottom} className={H} style={{ transform: "skewX(12deg)" }} />
-    </NodeShell>
+    <div className="relative h-[72px] w-[180px]">
+      <Handle type="target" position={Position.Top} className={HANDLE_CLASS} />
+      <div
+        className={cn(
+          "flex h-full w-full -skew-x-12 items-center justify-center border bg-[#050f05] px-5 py-3 font-mono text-[11px] uppercase tracking-[0.08em] shadow-[0_0_12px_rgba(0,255,65,0.08)]",
+          selected ? "border-[#00ff41] text-[#00ff41]" : "border-[#00ff41]/50 text-[#00ff41]/80",
+        )}
+      >
+        <span className="skew-x-12 text-center leading-tight break-words">{String(data.label)}</span>
+      </div>
+      <Handle type="source" position={Position.Bottom} className={HANDLE_CLASS} />
+    </div>
   );
 }
 
@@ -178,7 +227,70 @@ const PALETTE: { type: string; label: string; display: string; description: stri
   { type: "db",        label: "Database",         display: "╔ QUERY ╗\n╚══╝", description: "DB / query"      },
 ];
 
-const SNAP: [number, number] = [20, 20];
+type FlowTemplate = {
+  label: string;
+  description: string;
+  nodes: Node[];
+  edges: Edge[];
+};
+
+const FLOW_TEMPLATES: FlowTemplate[] = [
+  {
+    label: "DEPLOYMENT",
+    description: "Build, test, approve, release",
+    nodes: [
+      { id: "start", type: "terminal", position: { x: 80, y: 40 }, data: { label: "Commit" } },
+      { id: "build", type: "process", position: { x: 80, y: 160 }, data: { label: "Build Artifact" } },
+      { id: "test", type: "process", position: { x: 80, y: 280 }, data: { label: "Run CI Tests" } },
+      { id: "gate", type: "decision", position: { x: 70, y: 400 }, data: { label: "Release Approved?" } },
+      { id: "deploy", type: "process", position: { x: 80, y: 540 }, data: { label: "Deploy to Prod" } },
+      { id: "rollback", type: "process", position: { x: 320, y: 540 }, data: { label: "Fix / Rollback" } },
+    ],
+    edges: [
+      { id: "e-start-build", source: "start", target: "build" },
+      { id: "e-build-test", source: "build", target: "test" },
+      { id: "e-test-gate", source: "test", target: "gate" },
+      { id: "e-gate-deploy", source: "gate", sourceHandle: "yes", target: "deploy", label: "YES" },
+      { id: "e-gate-rollback", source: "gate", sourceHandle: "no", target: "rollback", label: "NO" },
+    ],
+  },
+  {
+    label: "SERVICE MAP",
+    description: "Client, API, DB, async worker",
+    nodes: [
+      { id: "client", type: "io", position: { x: 80, y: 80 }, data: { label: "Client App" } },
+      { id: "api", type: "process", position: { x: 80, y: 220 }, data: { label: "API Service" } },
+      { id: "db", type: "db", position: { x: 80, y: 360 }, data: { label: "Postgres" } },
+      { id: "queue", type: "process", position: { x: 320, y: 220 }, data: { label: "Queue Worker" } },
+      { id: "third-party", type: "io", position: { x: 320, y: 360 }, data: { label: "External API" } },
+    ],
+    edges: [
+      { id: "e-client-api", source: "client", target: "api", label: "HTTPS" },
+      { id: "e-api-db", source: "api", target: "db", label: "READ/WRITE" },
+      { id: "e-api-queue", source: "api", target: "queue", label: "ENQUEUE" },
+      { id: "e-queue-external", source: "queue", target: "third-party", label: "SYNC" },
+    ],
+  },
+  {
+    label: "INCIDENT",
+    description: "Detect, triage, mitigate",
+    nodes: [
+      { id: "alert", type: "terminal", position: { x: 80, y: 60 }, data: { label: "Alert Fires" } },
+      { id: "triage", type: "process", position: { x: 80, y: 180 }, data: { label: "Triage Impact" } },
+      { id: "sev", type: "decision", position: { x: 70, y: 300 }, data: { label: "Customer Impact?" } },
+      { id: "mitigate", type: "process", position: { x: 80, y: 440 }, data: { label: "Mitigate / Patch" } },
+      { id: "monitor", type: "process", position: { x: 320, y: 440 }, data: { label: "Monitor Only" } },
+      { id: "postmortem", type: "terminal", position: { x: 80, y: 560 }, data: { label: "Postmortem" } },
+    ],
+    edges: [
+      { id: "e-alert-triage", source: "alert", target: "triage" },
+      { id: "e-triage-sev", source: "triage", target: "sev" },
+      { id: "e-sev-mitigate", source: "sev", sourceHandle: "yes", target: "mitigate", label: "YES" },
+      { id: "e-sev-monitor", source: "sev", sourceHandle: "no", target: "monitor", label: "NO" },
+      { id: "e-mitigate-postmortem", source: "mitigate", target: "postmortem" },
+    ],
+  },
+];
 
 let idCounter = 1;
 function nextId() { return `n${idCounter++}`; }
@@ -193,7 +305,9 @@ interface FlowEditorProps {
 
 export function FlowEditor({ initialData, onSave, saving }: FlowEditorProps) {
   const [nodes, setNodes] = useState<Node[]>(initialData.nodes as Node[]);
-  const [edges, setEdges] = useState<Edge[]>(initialData.edges as Edge[]);
+  const [edges, setEdges] = useState<Edge[]>(() =>
+    (initialData.edges as Edge[]).map(normalizeEdge),
+  );
   const [selectedNode, setSelectedNode] = useState<Node | null>(null);
   const [labelInput, setLabelInput] = useState("");
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
@@ -212,9 +326,9 @@ export function FlowEditor({ initialData, onSave, saving }: FlowEditorProps) {
       setEdges((eds) =>
         addEdge(
           {
+            ...EDGE_OPTIONS,
             ...connection,
-            type: "smoothstep",
-            style: { stroke: "#00ff41", strokeWidth: 1.5 },
+            label: edgeLabelForConnection(connection),
             animated: false,
           },
           eds,
@@ -267,6 +381,30 @@ export function FlowEditor({ initialData, onSave, saving }: FlowEditorProps) {
     [rfInstance],
   );
 
+  const applyTemplate = useCallback((template: FlowTemplate) => {
+    const prefix = `tpl-${Date.now()}`;
+    const offset = nodes.length > 0 ? 120 : 0;
+    setNodes((nds) => [
+      ...nds,
+      ...template.nodes.map((node) => ({
+        ...node,
+        id: `${prefix}-${node.id}`,
+        position: { x: node.position.x + offset, y: node.position.y + offset },
+      })),
+    ]);
+    setEdges((eds) => [
+      ...eds,
+      ...template.edges.map((edge) =>
+        normalizeEdge({
+          ...edge,
+          id: `${prefix}-${edge.id}`,
+          source: `${prefix}-${edge.source}`,
+          target: `${prefix}-${edge.target}`,
+        }),
+      ),
+    ]);
+  }, [nodes.length]);
+
   const handleDeleteSelected = useCallback(() => {
     if (!selectedNode) return;
     setNodes((nds) => nds.filter((n) => n.id !== selectedNode.id));
@@ -283,6 +421,22 @@ export function FlowEditor({ initialData, onSave, saving }: FlowEditorProps) {
         <p className="font-mono text-[9px] tracking-widest text-[#00ff41]/50 mb-1 px-1">
           // DRAG TO CANVAS
         </p>
+        <div className="mb-2 space-y-1 border-b border-[#00ff41]/20 pb-2">
+          <p className="font-mono text-[9px] tracking-widest text-[#00ff41]/50 px-1">
+            // TEMPLATES
+          </p>
+          {FLOW_TEMPLATES.map((template) => (
+            <button
+              key={template.label}
+              type="button"
+              onClick={() => applyTemplate(template)}
+              className="w-full border border-[#00ff41]/25 bg-[#00ff41]/5 p-2 text-left font-mono transition-colors hover:border-[#00ff41]/70 hover:bg-[#00ff41]/10"
+            >
+              <span className="block text-[10px] font-bold text-[#00ff41]">{template.label}</span>
+              <span className="block text-[9px] leading-tight text-[#00ff41]/50">{template.description}</span>
+            </button>
+          ))}
+        </div>
         {PALETTE.map((item) => (
           <div
             key={item.type}
@@ -367,12 +521,8 @@ export function FlowEditor({ initialData, onSave, saving }: FlowEditorProps) {
           snapToGrid
           snapGrid={SNAP}
           deleteKeyCode={["Delete", "Backspace"]}
-          connectionLineType={ConnectionLineType.SmoothStep}
-          defaultEdgeOptions={{
-            type: "smoothstep",
-            style: { stroke: "#00ff41", strokeWidth: 1.5 },
-            animated: false,
-          }}
+          connectionLineType={ConnectionLineType.Step}
+          defaultEdgeOptions={EDGE_OPTIONS}
           style={{ background: "#020902" }}
         >
           <Background color="#00ff41" gap={SNAP[0]} size={0.5} style={{ opacity: 0.08 }} />

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { useParams, Link } from "wouter";
+import { useParams, Link, useLocation } from "wouter";
 import { useAuth } from "@clerk/react";
 import {
   useGetProject, useListItems, useListMessages, usePostMessage,
@@ -162,6 +162,7 @@ function ItemCard({
 export default function ProjectPage() {
   const { slug, tab } = useParams<{ slug: string; tab?: string }>();
   const [activeTab, setActiveTab] = useState(tab ?? "items");
+  const [, setLocation] = useLocation();
   const qc = useQueryClient();
   const { toast } = useToast();
   const { getToken, userId: clerkId } = useAuth();
@@ -263,7 +264,22 @@ export default function ProjectPage() {
     description: string;
     category: string;
     componentId: number | null;
-  }>({ type: "todo", title: "", priority: "medium", description: "", category: "", componentId: null });
+    scopeId: number | null;
+    milestoneId: number | null;
+    dueDate: string;
+    estimateMinutes: string;
+  }>({
+    type: "todo",
+    title: "",
+    priority: "medium",
+    description: "",
+    category: "",
+    componentId: null,
+    scopeId: null,
+    milestoneId: null,
+    dueDate: "",
+    estimateMinutes: "",
+  });
 
   const [docSearch, setDocSearch] = useState("");
   const [debouncedDocSearch, setDebouncedDocSearch] = useState("");
@@ -370,6 +386,26 @@ export default function ProjectPage() {
   }, [allMessages]);
 
   const items: RichItem[] = itemsData.map((i) => ({ ...i, projectSlug: slug! }));
+  const projectScopes = project?.scopes ?? [];
+  const scopeNameById = useMemo(
+    () => new Map(projectScopes.map((scope) => [scope.id, scope.name])),
+    [projectScopes],
+  );
+  const milestoneNameById = useMemo(
+    () => new Map((milestonesData as Milestone[]).map((milestone) => [milestone.id, milestone.name])),
+    [milestonesData],
+  );
+  const availableMilestonesForNewItem = useMemo(
+    () =>
+      (milestonesData as Milestone[]).filter(
+        (milestone) => newItem.scopeId === null || milestone.scopeId === newItem.scopeId,
+      ),
+    [milestonesData, newItem.scopeId],
+  );
+
+  useEffect(() => {
+    setActiveTab(tab ?? "items");
+  }, [tab]);
 
   useEffect(() => {
     if (!isDraggingDocRef.current) {
@@ -449,11 +485,27 @@ export default function ProjectPage() {
         description: newItem.description || null,
         category: (newItem.category || null) as import("@workspace/api-client-react").ItemCategory | null,
         componentId: newItem.componentId ?? null,
+        scopeId: newItem.scopeId,
+        milestoneId: newItem.milestoneId,
+        dueDate: newItem.dueDate || null,
+        estimateMinutes: newItem.estimateMinutes ? Number(newItem.estimateMinutes) : null,
       };
       await createItem.mutateAsync({ slug, data: payload });
       qc.invalidateQueries({ queryKey: getListItemsQueryKey(slug!) });
+      qc.invalidateQueries({ queryKey: getListMilestonesQueryKey(slug!) });
       setCreateOpen(false);
-      setNewItem({ type: "todo", title: "", priority: "medium", description: "", category: "", componentId: null });
+      setNewItem({
+        type: "todo",
+        title: "",
+        priority: "medium",
+        description: "",
+        category: "",
+        componentId: null,
+        scopeId: null,
+        milestoneId: null,
+        dueDate: "",
+        estimateMinutes: "",
+      });
       toast({ title: "Item created" });
     } catch {
       toast({ title: "Failed to create item", variant: "destructive" });
@@ -658,6 +710,7 @@ export default function ProjectPage() {
       };
       await createMilestone.mutateAsync({ slug: slug!, data: input });
       qc.invalidateQueries({ queryKey: getGetProjectQueryKey(slug!) });
+      qc.invalidateQueries({ queryKey: getListMilestonesQueryKey(slug!) });
       setMilestoneOpen(false);
       setNewMilestone({ name: "", scopeId: "", targetDate: "" });
       toast({ title: "Milestone created" });
@@ -671,6 +724,7 @@ export default function ProjectPage() {
     if (!item) return;
     await updateItem.mutateAsync({ slug, itemNumber: item.number, data: { status } });
     qc.invalidateQueries({ queryKey: getListItemsQueryKey(slug!) });
+    qc.invalidateQueries({ queryKey: getListMilestonesQueryKey(slug!) });
   };
 
   const handleLogTime = async () => {
@@ -749,7 +803,13 @@ export default function ProjectPage() {
         </div>
 
         {/* Tabs */}
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <Tabs
+          value={activeTab}
+          onValueChange={(value) => {
+            setActiveTab(value);
+            setLocation(`/projects/${slug}/${value}`);
+          }}
+        >
           <TabsList className="bg-card border border-border rounded-none h-8 p-0 gap-0">
             {[
               { value: "items", label: "ITEMS" },
@@ -900,6 +960,16 @@ export default function ProjectPage() {
                         {(item as Item & { component?: ProjectComponent | null }).component && (
                           <span className="hidden lg:block text-[10px] font-mono border border-primary/30 text-primary/70 px-1.5 py-0.5 shrink-0">
                             {(item as Item & { component?: ProjectComponent | null }).component!.name}
+                          </span>
+                        )}
+                        {item.scopeId && (
+                          <span className="hidden xl:block text-[10px] font-mono border border-primary/20 text-primary/60 px-1.5 py-0.5 shrink-0">
+                            {scopeNameById.get(item.scopeId) ?? "Scope"}
+                          </span>
+                        )}
+                        {item.milestoneId && (
+                          <span className="hidden xl:block text-[10px] font-mono border border-accent/20 text-accent/70 px-1.5 py-0.5 shrink-0">
+                            {milestoneNameById.get(item.milestoneId) ?? "Milestone"}
                           </span>
                         )}
                         <span className={cn("text-xs font-mono border px-1.5 py-0.5", STATUS_COLORS[item.status])}>
@@ -1172,15 +1242,19 @@ export default function ProjectPage() {
               onCreateMilestone={async (data) => {
                 await createMilestoneM.mutateAsync({ slug: slug!, data });
                 qc.invalidateQueries({ queryKey: getListMilestonesQueryKey(slug!) });
+                qc.invalidateQueries({ queryKey: getGetProjectQueryKey(slug!) });
                 toast({ title: "Milestone created" });
               }}
               onUpdateMilestone={async (id, data) => {
                 await updateMilestoneM.mutateAsync({ slug: slug!, milestoneId: id, data });
                 qc.invalidateQueries({ queryKey: getListMilestonesQueryKey(slug!) });
+                qc.invalidateQueries({ queryKey: getGetProjectQueryKey(slug!) });
               }}
               onDeleteMilestone={async (id) => {
                 await deleteMilestoneM.mutateAsync({ slug: slug!, milestoneId: id });
                 qc.invalidateQueries({ queryKey: getListMilestonesQueryKey(slug!) });
+                qc.invalidateQueries({ queryKey: getGetProjectQueryKey(slug!) });
+                qc.invalidateQueries({ queryKey: getListItemsQueryKey(slug!) });
                 toast({ title: "Milestone deleted" });
               }}
             />
@@ -2291,6 +2365,89 @@ export default function ProjectPage() {
                 </Select>
               </div>
             )}
+            {projectScopes.length > 0 && (
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="font-mono text-xs tracking-widest text-muted-foreground">SCOPE <span className="text-muted-foreground/50">(optional)</span></Label>
+                  <Select
+                    value={newItem.scopeId !== null ? String(newItem.scopeId) : "__none__"}
+                    onValueChange={(v) => {
+                      const scopeId = v === "__none__" ? null : Number(v);
+                      setNewItem((p) => ({
+                        ...p,
+                        scopeId,
+                        milestoneId:
+                          p.milestoneId && scopeId !== null && !(milestonesData as Milestone[]).some((m) => m.id === p.milestoneId && m.scopeId === scopeId)
+                            ? null
+                            : p.milestoneId,
+                      }));
+                    }}
+                  >
+                    <SelectTrigger className="bg-background border-border font-mono text-xs h-8">
+                      <SelectValue placeholder="none" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-card border-border font-mono text-xs">
+                      <SelectItem value="__none__" className="font-mono text-xs text-muted-foreground">— none —</SelectItem>
+                      {projectScopes.map((scope) => (
+                        <SelectItem key={scope.id} value={String(scope.id)} className="font-mono text-xs">{scope.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label className="font-mono text-xs tracking-widest text-muted-foreground">MILESTONE <span className="text-muted-foreground/50">(optional)</span></Label>
+                  <Select
+                    value={newItem.milestoneId !== null ? String(newItem.milestoneId) : "__none__"}
+                    onValueChange={(v) => {
+                      const milestone = v === "__none__"
+                        ? null
+                        : (milestonesData as Milestone[]).find((m) => m.id === Number(v));
+                      setNewItem((p) => ({
+                        ...p,
+                        milestoneId: milestone?.id ?? null,
+                        scopeId: milestone?.scopeId ?? p.scopeId,
+                      }));
+                    }}
+                    disabled={availableMilestonesForNewItem.length === 0}
+                  >
+                    <SelectTrigger className="bg-background border-border font-mono text-xs h-8">
+                      <SelectValue placeholder="none" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-card border-border font-mono text-xs">
+                      <SelectItem value="__none__" className="font-mono text-xs text-muted-foreground">— none —</SelectItem>
+                      {availableMilestonesForNewItem.map((milestone) => (
+                        <SelectItem key={milestone.id} value={String(milestone.id)} className="font-mono text-xs">
+                          {milestone.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            )}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="font-mono text-xs tracking-widest text-muted-foreground">DUE DATE <span className="text-muted-foreground/50">(optional)</span></Label>
+                <Input
+                  type="date"
+                  value={newItem.dueDate}
+                  onChange={(e) => setNewItem((p) => ({ ...p, dueDate: e.target.value }))}
+                  className="bg-background border-border font-mono text-xs h-8"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="font-mono text-xs tracking-widest text-muted-foreground">ESTIMATE MIN <span className="text-muted-foreground/50">(optional)</span></Label>
+                <Input
+                  type="number"
+                  min="0"
+                  step="15"
+                  value={newItem.estimateMinutes}
+                  onChange={(e) => setNewItem((p) => ({ ...p, estimateMinutes: e.target.value }))}
+                  className="bg-background border-border font-mono text-xs h-8"
+                  placeholder="120"
+                />
+              </div>
+            </div>
             <div className="space-y-1">
               <Label className="font-mono text-xs tracking-widest text-muted-foreground">TITLE</Label>
               <Input

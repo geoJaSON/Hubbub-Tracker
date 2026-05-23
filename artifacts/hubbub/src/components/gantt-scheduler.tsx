@@ -38,7 +38,8 @@ function monthLabel(d: Date): string {
 
 const DAY_PX = 18;          // px per day cell
 const ROW_H = 36;           // px per milestone row
-const LABEL_W = 200;        // px for left label column
+const SCOPE_ROW_H = 30;      // px per scope summary row
+const LABEL_W = 240;        // px for left label column
 const ITEM_ROW_H = 28;      // px per item-due row
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -51,6 +52,10 @@ interface GanttSchedulerProps {
   onUpdateMilestone: (id: number, data: MilestoneUpdate) => Promise<void>;
   onDeleteMilestone: (id: number) => Promise<void>;
 }
+
+type TimelineRow =
+  | { kind: "scope"; scope: Scope }
+  | { kind: "milestone"; milestone: Milestone; scope: Scope | null };
 
 // ── Main component ────────────────────────────────────────────────────────────
 
@@ -88,6 +93,42 @@ export function GanttScheduler({
     () => items.filter((i) => i.dueDate && i.status !== "cancelled"),
     [items],
   );
+
+  const scopeById = useMemo(
+    () => new Map(scopes.map((scope) => [scope.id, scope])),
+    [scopes],
+  );
+
+  const milestoneById = useMemo(
+    () => new Map(milestones.map((milestone) => [milestone.id, milestone])),
+    [milestones],
+  );
+
+  const timelineRows = useMemo<TimelineRow[]>(() => {
+    const milestonesByScope = new Map<number, Milestone[]>();
+    milestones.forEach((milestone) => {
+      const list = milestonesByScope.get(milestone.scopeId) ?? [];
+      list.push(milestone);
+      milestonesByScope.set(milestone.scopeId, list);
+    });
+
+    const rows: TimelineRow[] = [];
+    [...scopes]
+      .sort((a, b) => a.order - b.order || a.name.localeCompare(b.name))
+      .forEach((scope) => {
+        rows.push({ kind: "scope", scope });
+        (milestonesByScope.get(scope.id) ?? [])
+          .sort((a, b) => a.order - b.order || a.name.localeCompare(b.name))
+          .forEach((milestone) => rows.push({ kind: "milestone", milestone, scope }));
+      });
+
+    milestones
+      .filter((milestone) => !scopeById.has(milestone.scopeId))
+      .sort((a, b) => a.order - b.order || a.name.localeCompare(b.name))
+      .forEach((milestone) => rows.push({ kind: "milestone", milestone, scope: null }));
+
+    return rows;
+  }, [milestones, scopeById, scopes]);
 
   // Month headers
   const monthHeaders = useMemo(() => {
@@ -290,14 +331,37 @@ export function GanttScheduler({
           <div className="shrink-0 sticky left-0 z-20 bg-card border-r border-border" style={{ width: LABEL_W }}>
             {/* Month header spacer */}
             <div className="h-8 border-b border-border bg-card/90 flex items-center px-2">
-              <span className="text-[9px] tracking-widest text-muted-foreground uppercase">Milestones</span>
+              <span className="text-[9px] tracking-widest text-muted-foreground uppercase">Plan</span>
             </div>
-            {milestones.length === 0 && (
+            {timelineRows.length === 0 && (
               <div className="px-3 py-4 text-[10px] text-muted-foreground">
                 No milestones yet.
               </div>
             )}
-            {milestones.map((m) => {
+            {timelineRows.map((row) => {
+              if (row.kind === "scope") {
+                const scopeItems = items.filter((item) => item.scopeId === row.scope.id && item.status !== "cancelled");
+                const doneItems = scopeItems.filter((item) => item.status === "done").length;
+                const pct = scopeItems.length > 0 ? Math.round((doneItems / scopeItems.length) * 100) : 0;
+                return (
+                  <div
+                    key={`scope-${row.scope.id}`}
+                    className="border-b border-border bg-muted/20 flex items-center gap-2 px-2"
+                    style={{ height: SCOPE_ROW_H }}
+                  >
+                    <span className="h-2 w-2 border border-primary/60 bg-primary/20" />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-[10px] font-bold uppercase tracking-widest text-primary/80">
+                        {row.scope.name}
+                      </p>
+                      <p className="truncate text-[9px] text-muted-foreground">
+                        {scopeItems.length} items · {pct}% done
+                      </p>
+                    </div>
+                  </div>
+                );
+              }
+              const m = row.milestone;
               const pct = m.itemCount > 0 ? Math.round((m.doneCount / m.itemCount) * 100) : 0;
               const done = m.status === "complete";
               return (
@@ -352,6 +416,11 @@ export function GanttScheduler({
                 <span className="text-[10px] text-muted-foreground truncate">
                   #{item.number} {item.title}
                 </span>
+                {item.milestoneId && (
+                  <span className="ml-2 max-w-20 truncate text-[9px] text-accent/70">
+                    {milestoneById.get(item.milestoneId)?.name}
+                  </span>
+                )}
               </div>
             ))}
           </div>
@@ -392,8 +461,34 @@ export function GanttScheduler({
               </div>
             )}
 
-            {/* Milestone bars */}
-            {milestones.map((m) => {
+            {/* Scope envelopes and milestone bars */}
+            {timelineRows.map((row) => {
+              if (row.kind === "scope") {
+                const startD = parseDate(row.scope.startDate);
+                const endD = parseDate(row.scope.targetDate);
+                const hasBar = !!(startD && endD && startD < endD);
+                const barStart = startD ? clampToView(startD) : null;
+                const barEnd = endD ? clampToView(endD) : null;
+
+                return (
+                  <div
+                    key={`scope-${row.scope.id}`}
+                    className="relative border-b border-border bg-muted/10"
+                    style={{ height: SCOPE_ROW_H }}
+                  >
+                    {hasBar && barStart !== null && barEnd !== null && (
+                      <div
+                        className="absolute top-1/2 h-3 -translate-y-1/2 border border-primary/30 bg-primary/10"
+                        style={{ left: barStart * DAY_PX, width: Math.max((barEnd - barStart) * DAY_PX, 6) }}
+                      >
+                        <div className="h-full bg-primary/10" />
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+
+              const m = row.milestone;
               const startD = parseDate(m.startDate);
               const endD = parseDate(m.targetDate);
               const pct = m.itemCount > 0 ? (m.doneCount / m.itemCount) : 0;
