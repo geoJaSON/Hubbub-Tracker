@@ -11,7 +11,7 @@ import {
   X,
   Terminal,
   ChevronRight,
-  Sun,
+  Palette,
   CalendarDays,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -21,7 +21,13 @@ import { CommandPalette } from "./command-palette";
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 // ── Theme ─────────────────────────────────────────────────────────────────────
-type Theme = "green" | "amber";
+type Theme = "green" | "amber" | "dark";
+
+const THEMES: { id: Theme; label: string; swatch: string; desc: string }[] = [
+  { id: "green",  label: "PHOSPHOR",  swatch: "#00ff41", desc: "Retro green terminal" },
+  { id: "amber",  label: "AMBER",     swatch: "#f59e0b", desc: "Warm amber terminal" },
+  { id: "dark",   label: "CLASSIC",   swatch: "#60a5fa", desc: "Classic dark UI" },
+];
 
 function useTheme() {
   const [theme, setTheme] = useState<Theme>(() => {
@@ -30,23 +36,28 @@ function useTheme() {
 
   useEffect(() => {
     const root = document.documentElement;
-    if (theme === "amber") {
-      root.style.setProperty("--primary", "43 96% 58%");     // amber
-      root.style.setProperty("--primary-foreground", "0 0% 5%");
-      root.style.setProperty("--accent", "38 92% 70%");
+    // Remove all inline overrides from the old system; CSS data-theme handles everything
+    root.style.removeProperty("--primary");
+    root.style.removeProperty("--primary-foreground");
+    root.style.removeProperty("--accent");
+    // Set data-theme attribute — picked up by [data-theme="..."] blocks in index.css
+    if (theme === "green") {
+      root.removeAttribute("data-theme");
     } else {
-      root.style.setProperty("--primary", "124 100% 50%");   // phosphor green
-      root.style.setProperty("--primary-foreground", "124 100% 5%");
-      root.style.setProperty("--accent", "124 80% 65%");
+      root.setAttribute("data-theme", theme);
     }
     localStorage.setItem("hubbub-theme", theme);
   }, [theme]);
 
-  const toggle = useCallback(() => {
-    setTheme((t) => (t === "green" ? "amber" : "green"));
+  // Apply on mount without waiting for state update
+  useEffect(() => {
+    const saved = (localStorage.getItem("hubbub-theme") as Theme) ?? "green";
+    const root = document.documentElement;
+    if (saved === "green") root.removeAttribute("data-theme");
+    else root.setAttribute("data-theme", saved);
   }, []);
 
-  return { theme, toggle };
+  return { theme, setTheme };
 }
 
 // ── Keyboard chords ───────────────────────────────────────────────────────────
@@ -132,7 +143,8 @@ export function Layout({ children, title, fluid }: LayoutProps) {
   const { user } = useUser();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
-  const { theme, toggle: toggleTheme } = useTheme();
+  const { theme, setTheme } = useTheme();
+  const [themePickerOpen, setThemePickerOpen] = useState(false);
 
   const handleSignOut = useCallback(() => {
     signOut({ redirectUrl: basePath || "/" });
@@ -218,15 +230,39 @@ export function Layout({ children, title, fluid }: LayoutProps) {
             <kbd className="ml-auto text-[10px] bg-muted px-1 rounded-sm">⌘K / :</kbd>
           </button>
 
-          {/* Theme toggle */}
-          <button
-            onClick={toggleTheme}
-            title={`Switch to ${theme === "green" ? "amber" : "green"} theme`}
-            className="w-full text-left text-xs text-muted-foreground hover:text-foreground border border-border px-2 py-1.5 font-mono flex items-center gap-2"
-          >
-            <Sun className="h-3 w-3 text-primary shrink-0" />
-            <span>THEME: {theme.toUpperCase()}</span>
-          </button>
+          {/* Theme picker */}
+          <div className="relative">
+            <button
+              onClick={() => setThemePickerOpen((o) => !o)}
+              className="w-full text-left text-xs text-muted-foreground hover:text-foreground border border-border px-2 py-1.5 font-mono flex items-center gap-2"
+            >
+              <Palette className="h-3 w-3 text-primary shrink-0" />
+              <span>STYLE: {THEMES.find((t) => t.id === theme)?.label}</span>
+              <span
+                className="ml-auto h-2 w-2 rounded-full shrink-0"
+                style={{ background: THEMES.find((t) => t.id === theme)?.swatch }}
+              />
+            </button>
+            {themePickerOpen && (
+              <div className="absolute bottom-full left-0 mb-1 w-full border border-border bg-popover z-50">
+                {THEMES.map((t) => (
+                  <button
+                    key={t.id}
+                    onClick={() => { setTheme(t.id); setThemePickerOpen(false); }}
+                    className={cn(
+                      "w-full text-left px-2 py-1.5 text-xs font-mono flex items-center gap-2",
+                      "hover:bg-muted transition-colors",
+                      theme === t.id ? "text-primary" : "text-muted-foreground",
+                    )}
+                  >
+                    <span className="h-2 w-2 rounded-full shrink-0" style={{ background: t.swatch }} />
+                    <span>{t.label}</span>
+                    <span className="ml-auto text-[10px] opacity-60">{t.desc}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
 
           {/* User + sign out */}
           <div className="flex items-center gap-2 px-1">
