@@ -230,6 +230,7 @@ export default function ProjectPage() {
   const [itemTypeFilter, setItemTypeFilter] = useState<string>("all");
   const [itemCategoryFilter, setItemCategoryFilter] = useState<string>("all");
   const [itemComponentFilter, setItemComponentFilter] = useState<number | "all">("all");
+  const [hideDone, setHideDone] = useState(true);
   const [componentNewName, setComponentNewName] = useState("");
   const [componentEditId, setComponentEditId] = useState<number | null>(null);
   const [componentEditName, setComponentEditName] = useState("");
@@ -821,6 +822,7 @@ export default function ProjectPage() {
               { value: "standup", label: "STANDUP" },
               { value: "members", label: "MEMBERS" },
               { value: "budget", label: "BUDGET" },
+              { value: "scope", label: "SCOPE" },
               { value: "stats", label: "STATS" },
               { value: "settings", label: "SETTINGS" },
             ].map((t) => (
@@ -887,45 +889,60 @@ export default function ProjectPage() {
                 </button>
               ))}
             </div>
-            {/* Component filter */}
-            {components.length > 0 && (
-              <div className="flex gap-1 flex-wrap">
-                <button
-                  onClick={() => setItemComponentFilter("all")}
-                  className={cn(
-                    "text-[10px] font-mono border px-2 py-0.5 transition-colors",
-                    itemComponentFilter === "all"
-                      ? "border-primary text-primary bg-primary/10"
-                      : "border-border text-muted-foreground hover:text-foreground hover:border-muted-foreground",
-                  )}
-                >
-                  ALL COMPONENTS
-                </button>
-                {components.map((c) => (
+            {/* Component filter + done toggle row */}
+            <div className="flex gap-1 flex-wrap items-center">
+              {components.length > 0 && (
+                <>
                   <button
-                    key={c.id}
-                    onClick={() => setItemComponentFilter(c.id)}
+                    onClick={() => setItemComponentFilter("all")}
                     className={cn(
                       "text-[10px] font-mono border px-2 py-0.5 transition-colors",
-                      itemComponentFilter === c.id
+                      itemComponentFilter === "all"
                         ? "border-primary text-primary bg-primary/10"
                         : "border-border text-muted-foreground hover:text-foreground hover:border-muted-foreground",
                     )}
                   >
-                    {c.name.toUpperCase()}
+                    ALL COMPONENTS
                   </button>
-                ))}
-              </div>
-            )}
+                  {components.map((c) => (
+                    <button
+                      key={c.id}
+                      onClick={() => setItemComponentFilter(c.id)}
+                      className={cn(
+                        "text-[10px] font-mono border px-2 py-0.5 transition-colors",
+                        itemComponentFilter === c.id
+                          ? "border-primary text-primary bg-primary/10"
+                          : "border-border text-muted-foreground hover:text-foreground hover:border-muted-foreground",
+                      )}
+                    >
+                      {c.name.toUpperCase()}
+                    </button>
+                  ))}
+                  <span className="border-l border-border h-3 mx-1" />
+                </>
+              )}
+              <button
+                onClick={() => setHideDone((v) => !v)}
+                className={cn(
+                  "text-[10px] font-mono border px-2 py-0.5 transition-colors",
+                  hideDone
+                    ? "border-muted-foreground text-muted-foreground hover:text-foreground hover:border-muted-foreground"
+                    : "border-primary text-primary bg-primary/10",
+                )}
+              >
+                {hideDone ? "SHOW DONE" : "HIDE DONE"}
+              </button>
+            </div>
             {(() => {
               const filtered = items
                 .filter((i) => itemTypeFilter === "all" || i.type === itemTypeFilter)
                 .filter((i) => itemCategoryFilter === "all" || i.category === itemCategoryFilter)
-                .filter((i) => itemComponentFilter === "all" || i.componentId === itemComponentFilter);
+                .filter((i) => itemComponentFilter === "all" || i.componentId === itemComponentFilter)
+                .filter((i) => !hideDone || i.status !== "done");
               return filtered.length === 0 ? (
                 <div className="border border-border bg-card p-8 text-center">
                   <p className="text-muted-foreground font-mono text-sm">
-                    {itemTypeFilter === "all" && itemCategoryFilter === "all" && itemComponentFilter === "all"
+                    {itemTypeFilter === "all" && itemCategoryFilter === "all" && itemComponentFilter === "all" && !hideDone
                       ? "no items yet"
                       : "no matching items"}
                   </p>
@@ -1405,6 +1422,10 @@ export default function ProjectPage() {
               )}
             </div>
 
+          </TabsContent>
+
+          {/* SCOPE TAB — scopes + milestones */}
+          <TabsContent value="scope" className="mt-3 space-y-4">
             {/* Scopes */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
@@ -1565,8 +1586,9 @@ export default function ProjectPage() {
                 return { date: dateStr, open };
               });
               return (
-                <div className="border border-border bg-card p-4 space-y-3">
+                <div className="border border-border bg-card p-4 space-y-3 min-w-0 overflow-hidden">
                   <span className="font-mono text-xs tracking-widest text-primary">// BURN-DOWN — OPEN ITEMS OVER TIME</span>
+                  <div className="w-full min-w-0">
                   <ResponsiveContainer width="100%" height={220}>
                     <LineChart data={chartData} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
                       <CartesianGrid strokeDasharray="2 4" stroke="hsl(var(--border))" />
@@ -1597,6 +1619,7 @@ export default function ProjectPage() {
                       <Line type="monotone" dataKey="open" stroke="hsl(var(--primary))" strokeWidth={2} dot={false} name="open" />
                     </LineChart>
                   </ResponsiveContainer>
+                  </div>
                   <div className="flex gap-4 font-mono text-[10px] text-muted-foreground">
                     <span className="flex items-center gap-1"><span className="inline-block w-4 h-0.5 bg-primary" /> OPEN ITEMS</span>
                     {cappedAt90 && <span>(last 90 days)</span>}
