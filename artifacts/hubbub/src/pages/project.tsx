@@ -41,7 +41,7 @@ import { useToast } from "@/hooks/use-toast";
 import {
   Plus, Send, Bug, CheckSquare, Lightbulb, MessageSquare as ReqIcon,
   ArrowRight, FileText, Copy, Trash2, Pin, Pencil, Archive, Search,
-  Flag, Layers, GripVertical,
+  Flag, Layers, GripVertical, User as UserIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import ReactMarkdown from "react-markdown";
@@ -861,6 +861,12 @@ export default function ProjectPage() {
                         })()}
                         <span className="text-xs text-muted-foreground font-mono w-8">#{item.number}</span>
                         <span className="flex-1 font-mono text-sm text-foreground truncate">{item.title}</span>
+                        {(item.assignee as { displayName?: string } | null)?.displayName && (
+                          <span className="hidden sm:flex items-center gap-1 text-[10px] font-mono text-muted-foreground shrink-0">
+                            <UserIcon className="h-3 w-3" />
+                            {(item.assignee as { displayName?: string }).displayName}
+                          </span>
+                        )}
                         {item.type === "decision" && item.decisionRationale && (
                           <span className="hidden md:block text-xs text-muted-foreground font-mono truncate max-w-[200px]">
                             {String(item.decisionRationale).slice(0, 60)}
