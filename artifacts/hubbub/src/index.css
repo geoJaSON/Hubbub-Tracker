@@ -269,22 +269,47 @@ body::before {
     color: hsl(var(--primary));
   }
 
-  /* ── React Flow: strip default node wrapper chrome ────────────────────── */
-  /* The built-in stylesheet adds white background, border and padding to
-     .react-flow__node. Our custom node components supply their own styling,
-     so we reset the wrapper to a plain transparent container.              */
+  /* ── React Flow: strip default node + controls chrome ─────────────────── */
+  /* React Flow's stylesheet is injected by the component import, so it     */
+  /* loads after global CSS and wins on equal specificity. !important is    */
+  /* the correct tool here to ensure our theme overrides stick.             */
   .react-flow__node {
-    background: transparent;
-    border: none;
-    padding: 0;
-    border-radius: 0;
-    box-shadow: none;
+    background: transparent !important;
+    border: none !important;
+    padding: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
   }
-  /* Also neutralise the selected-node outline that React Flow adds */
   .react-flow__node.selected,
   .react-flow__node:focus,
   .react-flow__node:focus-visible {
-    outline: none;
-    box-shadow: none;
+    outline: none !important;
+    box-shadow: none !important;
+  }
+  /* Controls panel */
+  .react-flow__controls {
+    background: #050f05 !important;
+    border: 1px solid rgba(0,255,65,0.3) !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+  }
+  .react-flow__controls-button {
+    background: transparent !important;
+    border: none !important;
+    border-bottom: 1px solid rgba(0,255,65,0.15) !important;
+    fill: rgba(0,255,65,0.6) !important;
+  }
+  .react-flow__controls-button:hover {
+    background: rgba(0,255,65,0.08) !important;
+    fill: #00ff41 !important;
+  }
+  .react-flow__controls-button:last-child {
+    border-bottom: none !important;
+  }
+  /* MiniMap */
+  .react-flow__minimap {
+    background: #050f05 !important;
+    border: 1px solid rgba(0,255,65,0.2) !important;
+    border-radius: 0 !important;
   }
 }
