@@ -268,4 +268,23 @@ body::before {
     animation: blink 1s step-end infinite;
     color: hsl(var(--primary));
   }
+
+  /* ── React Flow: strip default node wrapper chrome ────────────────────── */
+  /* The built-in stylesheet adds white background, border and padding to
+     .react-flow__node. Our custom node components supply their own styling,
+     so we reset the wrapper to a plain transparent container.              */
+  .react-flow__node {
+    background: transparent;
+    border: none;
+    padding: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+  /* Also neutralise the selected-node outline that React Flow adds */
+  .react-flow__node.selected,
+  .react-flow__node:focus,
+  .react-flow__node:focus-visible {
+    outline: none;
+    box-shadow: none;
+  }
 }
