@@ -18,7 +18,7 @@ import {
   ArrowLeft, Clock, Bug, CheckSquare, Lightbulb, MessageSquare as ReqIcon,
   Send, GitCommit, User as UserIcon, Zap,
 } from "lucide-react";
-import ReactMarkdown from "react-markdown";
+import { MarkdownRenderer } from "@/components/markdown-renderer";
 
 const STATUS_LABELS: Record<string, string> = {
   open: "OPEN", in_progress: "IN PROGRESS", blocked: "BLOCKED",
@@ -419,7 +419,7 @@ export default function ItemPage() {
             </div>
           ) : item.description ? (
             <div className="prose prose-sm prose-invert font-mono max-w-none text-foreground [&_code]:bg-muted [&_code]:px-1 [&_pre]:bg-muted [&_a]:text-primary">
-              <ReactMarkdown>{item.description}</ReactMarkdown>
+              <MarkdownRenderer>{item.description}</MarkdownRenderer>
             </div>
           ) : (
             <p className="text-muted-foreground font-mono text-xs">no description — click [edit] to add</p>

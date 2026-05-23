@@ -3,7 +3,7 @@ import { useGetStandup } from "@workspace/api-client-react";
 import { Layout } from "../components/layout";
 import { Button } from "@/components/ui/button";
 import { Copy, Check } from "lucide-react";
-import ReactMarkdown from "react-markdown";
+import { MarkdownRenderer } from "@/components/markdown-renderer";
 
 export default function StandupPage() {
   const { data: standup, isLoading } = useGetStandup();
@@ -49,7 +49,7 @@ export default function StandupPage() {
         ) : standup ? (
           <div className="border border-border bg-card p-6">
             <div className="prose prose-sm prose-invert font-mono max-w-none text-foreground [&_h1]:text-primary [&_h1]:font-['VT323'] [&_h1]:text-2xl [&_h1]:tracking-widest [&_h2]:text-primary [&_h2]:font-['VT323'] [&_h2]:text-xl [&_h2]:tracking-wider [&_h3]:text-accent [&_h3]:font-mono [&_h3]:text-sm [&_strong]:text-accent [&_ul]:list-none [&_ul]:pl-0 [&_li]:before:content-['>_'] [&_li]:before:text-primary [&_code]:bg-muted [&_code]:px-1 [&_a]:text-primary">
-              <ReactMarkdown>{standup.content}</ReactMarkdown>
+              <MarkdownRenderer>{standup.content}</MarkdownRenderer>
             </div>
           </div>
         ) : (

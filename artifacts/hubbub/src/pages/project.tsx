@@ -44,7 +44,7 @@ import {
   Flag, Layers, GripVertical, User as UserIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import ReactMarkdown from "react-markdown";
+import { MarkdownRenderer } from "@/components/markdown-renderer";
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -1113,7 +1113,7 @@ export default function ProjectPage() {
             <div className="border border-border bg-card p-4">
               {standup ? (
                 <div className="prose prose-sm prose-invert font-mono max-w-none text-foreground [&_h2]:text-primary [&_h2]:font-['VT323'] [&_h2]:text-xl [&_strong]:text-accent">
-                  <ReactMarkdown>{standup.content}</ReactMarkdown>
+                  <MarkdownRenderer>{standup.content}</MarkdownRenderer>
                 </div>
               ) : (
                 <p className="text-muted-foreground font-mono text-sm animate-pulse">GENERATING STANDUP...</p>
@@ -2446,7 +2446,7 @@ export default function ProjectPage() {
                   prose-a:text-primary prose-code:text-accent prose-pre:bg-background/80
                   prose-strong:text-foreground prose-blockquote:border-primary/50 prose-blockquote:text-muted-foreground">
                   {docForm.body.trim() ? (
-                    <ReactMarkdown>{docForm.body}</ReactMarkdown>
+                    <MarkdownRenderer>{docForm.body}</MarkdownRenderer>
                   ) : (
                     <p className="text-muted-foreground italic text-sm font-mono">nothing to preview yet…</p>
                   )}
