@@ -31,7 +31,9 @@ const NODE_BG = "#050f05";
 const SNAP: [number, number] = [20, 20];
 
 const HANDLE_CLASS =
-  "!bg-[#00ff41] !border-[#020902] !border-2 !w-3 !h-3 !z-20";
+  "!border-[#020902] !border-2 !w-3 !h-3 !z-20";
+const SOURCE_HANDLE_CLASS = `${HANDLE_CLASS} !bg-[#00ff41]`;
+const TARGET_HANDLE_CLASS = `${HANDLE_CLASS} !bg-[#050f05] !border-[#00ff41]`;
 
 const EDGE_OPTIONS = {
   type: "step",
@@ -68,6 +70,46 @@ function normalizeEdge(edge: Edge): Edge {
   };
 }
 
+const SIDE_HANDLES = [
+  { id: "top", position: Position.Top },
+  { id: "right", position: Position.Right },
+  { id: "bottom", position: Position.Bottom },
+  { id: "left", position: Position.Left },
+] as const;
+
+function handleStyle(side: string, type: "source" | "target"): React.CSSProperties {
+  const offset = type === "target" ? "42%" : "58%";
+  if (side === "top" || side === "bottom") return { left: offset };
+  return { top: offset };
+}
+
+function AllSideHandles({ omitSources = [] }: { omitSources?: string[] }) {
+  return (
+    <>
+      {SIDE_HANDLES.map((side) => (
+        <Handle
+          key={`target-${side.id}`}
+          id={`target-${side.id}`}
+          type="target"
+          position={side.position}
+          className={TARGET_HANDLE_CLASS}
+          style={handleStyle(side.id, "target")}
+        />
+      ))}
+      {SIDE_HANDLES.filter((side) => !omitSources.includes(side.id)).map((side) => (
+        <Handle
+          key={`source-${side.id}`}
+          id={`source-${side.id}`}
+          type="source"
+          position={side.position}
+          className={SOURCE_HANDLE_CLASS}
+          style={handleStyle(side.id, "source")}
+        />
+      ))}
+    </>
+  );
+}
+
 // ── Custom node types ───────────────────────────────────────────────────────
 
 function NodeShell({
@@ -91,6 +133,7 @@ function NodeShell({
         className,
       )}
     >
+      <AllSideHandles />
       {children}
     </div>
   );
@@ -99,9 +142,7 @@ function NodeShell({
 function ProcessNode({ data, selected }: NodeProps) {
   return (
     <NodeShell selected={selected ?? false}>
-      <Handle type="target" position={Position.Top} className={HANDLE_CLASS} />
       <span className="text-center break-words leading-tight">{String(data.label)}</span>
-      <Handle type="source" position={Position.Bottom} className={HANDLE_CLASS} />
     </NodeShell>
   );
 }
@@ -109,9 +150,7 @@ function ProcessNode({ data, selected }: NodeProps) {
 function TerminalNode({ data, selected }: NodeProps) {
   return (
     <NodeShell selected={selected ?? false} className="rounded-full px-6">
-      <Handle type="target" position={Position.Top} className={HANDLE_CLASS} />
       <span className="text-center break-words leading-tight">{String(data.label)}</span>
-      <Handle type="source" position={Position.Bottom} className={HANDLE_CLASS} />
     </NodeShell>
   );
 }
@@ -125,7 +164,13 @@ function DecisionNode({ data, selected }: NodeProps) {
 
   return (
     <div style={{ width: W, height: HT, position: "relative" }}>
-      <Handle type="target" position={Position.Top} className={HANDLE_CLASS} style={{ top: 0 }} />
+      <Handle type="target" position={Position.Top} id="target-top" className={TARGET_HANDLE_CLASS} style={{ top: 0, left: "42%" }} />
+      <Handle type="source" position={Position.Top} id="source-top" className={SOURCE_HANDLE_CLASS} style={{ top: 0, left: "58%" }} />
+      <Handle type="target" position={Position.Left} id="target-left" className={TARGET_HANDLE_CLASS} style={{ top: "42%", left: 0 }} />
+      <Handle type="source" position={Position.Left} id="source-left" className={SOURCE_HANDLE_CLASS} style={{ top: "58%", left: 0 }} />
+      <Handle type="target" position={Position.Right} id="target-right" className={TARGET_HANDLE_CLASS} style={{ top: "42%", right: 0 }} />
+      <Handle type="source" position={Position.Right} id="source-right" className={SOURCE_HANDLE_CLASS} style={{ top: "58%", right: 0 }} />
+      <Handle type="target" position={Position.Bottom} id="target-bottom" className={TARGET_HANDLE_CLASS} style={{ bottom: 0, left: "50%" }} />
 
       <svg
         width={W}
@@ -162,8 +207,8 @@ function DecisionNode({ data, selected }: NodeProps) {
         </span>
       </div>
 
-      <Handle type="source" position={Position.Bottom} id="yes" className={HANDLE_CLASS} style={{ bottom: 0, left: "38%" }} />
-      <Handle type="source" position={Position.Bottom} id="no" className={HANDLE_CLASS} style={{ bottom: 0, left: "62%" }} />
+      <Handle type="source" position={Position.Bottom} id="yes" className={SOURCE_HANDLE_CLASS} style={{ bottom: 0, left: "34%" }} />
+      <Handle type="source" position={Position.Bottom} id="no" className={SOURCE_HANDLE_CLASS} style={{ bottom: 0, left: "66%" }} />
       <span className="pointer-events-none absolute bottom-2 left-[30%] -translate-x-1/2 font-mono text-[9px] font-bold text-[#00ff41]/65">
         YES
       </span>
@@ -177,7 +222,7 @@ function DecisionNode({ data, selected }: NodeProps) {
 function DbNode({ data, selected }: NodeProps) {
   return (
     <div className="relative flex h-[82px] w-[180px] flex-col items-center justify-center">
-      <Handle type="target" position={Position.Top} className={HANDLE_CLASS} />
+      <AllSideHandles />
       <div
         className={cn(
           "relative flex h-full w-full flex-col justify-center overflow-hidden rounded-[50%/16%] border bg-[#050f05] font-mono text-[11px] uppercase tracking-[0.08em] shadow-[0_0_12px_rgba(0,255,65,0.08)]",
@@ -187,32 +232,59 @@ function DbNode({ data, selected }: NodeProps) {
         <div className={cn("absolute inset-x-0 top-0 h-4 rounded-[50%] border-b", selected ? "border-[#00ff41]" : "border-[#00ff41]/50")} />
         <span className="px-4 text-center leading-tight break-words">{String(data.label)}</span>
       </div>
-      <Handle type="source" position={Position.Bottom} className={HANDLE_CLASS} />
     </div>
   );
 }
 
-function IoNode({ data, selected }: NodeProps) {
+function QueryNode({ data, selected }: NodeProps) {
+  return (
+    <NodeShell selected={selected ?? false} className="border-accent/50 text-accent/80">
+      <span className="absolute top-1 left-2 font-mono text-[8px] tracking-widest text-accent/60">
+        SQL QUERY
+      </span>
+      <span className="text-center break-words leading-tight">{String(data.label)}</span>
+    </NodeShell>
+  );
+}
+
+function DataIoNode({ data, selected, tag }: NodeProps & { tag: string }) {
   return (
     <div className="relative h-[72px] w-[180px]">
-      <Handle type="target" position={Position.Top} className={HANDLE_CLASS} />
+      <AllSideHandles />
       <div
         className={cn(
           "flex h-full w-full -skew-x-12 items-center justify-center border bg-[#050f05] px-5 py-3 font-mono text-[11px] uppercase tracking-[0.08em] shadow-[0_0_12px_rgba(0,255,65,0.08)]",
           selected ? "border-[#00ff41] text-[#00ff41]" : "border-[#00ff41]/50 text-[#00ff41]/80",
         )}
       >
+        <span className="absolute left-3 top-1 skew-x-12 text-[8px] tracking-widest text-[#00ff41]/45">
+          {tag}
+        </span>
         <span className="skew-x-12 text-center leading-tight break-words">{String(data.label)}</span>
       </div>
-      <Handle type="source" position={Position.Bottom} className={HANDLE_CLASS} />
     </div>
   );
+}
+
+function InputNode(props: NodeProps) {
+  return <DataIoNode {...props} tag="INPUT" />;
+}
+
+function OutputNode(props: NodeProps) {
+  return <DataIoNode {...props} tag="OUTPUT" />;
+}
+
+function IoNode(props: NodeProps) {
+  return <DataIoNode {...props} tag="I/O" />;
 }
 
 const NODE_TYPES = {
   process: ProcessNode,
   terminal: TerminalNode,
   decision: DecisionNode,
+  input: InputNode,
+  output: OutputNode,
+  query: QueryNode,
   db: DbNode,
   io: IoNode,
 };
@@ -223,8 +295,10 @@ const PALETTE: { type: string; label: string; display: string; description: stri
   { type: "terminal",  label: "Start / End",     display: "( START )",      description: "Terminal point"   },
   { type: "process",   label: "Process",          display: "[ PROCESS ]",    description: "Step / action"    },
   { type: "decision",  label: "Decision",         display: "◇ BRANCH",       description: "Yes / No branch"  },
-  { type: "io",        label: "Input / Output",   display: "/ INPUT /",      description: "Data in or out"   },
-  { type: "db",        label: "Database",         display: "╔ QUERY ╗\n╚══╝", description: "DB / query"      },
+  { type: "input",     label: "Input",            display: "/ INPUT /",      description: "Incoming data"    },
+  { type: "output",    label: "Output",           display: "/ OUTPUT /",     description: "Returned data"    },
+  { type: "query",     label: "Query",            display: "[ SQL QUERY ]",  description: "DB read / write"  },
+  { type: "db",        label: "Database",         display: "( DATA STORE )", description: "Database store"   },
 ];
 
 type FlowTemplate = {
@@ -258,15 +332,17 @@ const FLOW_TEMPLATES: FlowTemplate[] = [
     label: "SERVICE MAP",
     description: "Client, API, DB, async worker",
     nodes: [
-      { id: "client", type: "io", position: { x: 80, y: 80 }, data: { label: "Client App" } },
+      { id: "client", type: "input", position: { x: 80, y: 80 }, data: { label: "Client App" } },
       { id: "api", type: "process", position: { x: 80, y: 220 }, data: { label: "API Service" } },
-      { id: "db", type: "db", position: { x: 80, y: 360 }, data: { label: "Postgres" } },
+      { id: "query", type: "query", position: { x: 80, y: 360 }, data: { label: "Read / Write Data" } },
+      { id: "db", type: "db", position: { x: 80, y: 500 }, data: { label: "Postgres" } },
       { id: "queue", type: "process", position: { x: 320, y: 220 }, data: { label: "Queue Worker" } },
-      { id: "third-party", type: "io", position: { x: 320, y: 360 }, data: { label: "External API" } },
+      { id: "third-party", type: "output", position: { x: 320, y: 360 }, data: { label: "External API" } },
     ],
     edges: [
       { id: "e-client-api", source: "client", target: "api", label: "HTTPS" },
-      { id: "e-api-db", source: "api", target: "db", label: "READ/WRITE" },
+      { id: "e-api-query", source: "api", target: "query", label: "CALLS" },
+      { id: "e-query-db", source: "query", target: "db", label: "READ/WRITE" },
       { id: "e-api-queue", source: "api", target: "queue", label: "ENQUEUE" },
       { id: "e-queue-external", source: "queue", target: "third-party", label: "SYNC" },
     ],
