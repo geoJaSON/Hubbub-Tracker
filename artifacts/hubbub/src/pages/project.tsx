@@ -12,12 +12,13 @@ import {
   useListPresence, useListUsers, useAddProjectMember, useRemoveProjectMember,
   useListProjectMembers,
   useListComponents, useCreateComponent, useUpdateComponent, useDeleteComponent,
+  useListFlows, useCreateFlow, useUpdateFlow, useDeleteFlow,
 } from "@workspace/api-client-react";
 import type {
   Item, Doc, ItemInput, ItemInputType, ItemInputPriority,
   ItemUpdateStatus, Message, DocInput, CostEntry, CostEntryInput,
   CostEntryInputCategory, Scope, Milestone, ScopeInput, MilestoneInput,
-  Commit, TimeEntry, Presence, ProjectComponent,
+  Commit, TimeEntry, Presence, ProjectComponent, Flow, FlowUpdate,
 } from "@workspace/api-client-react";
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
@@ -27,7 +28,7 @@ import {
   getListItemsQueryKey, getListMessagesQueryKey, getListActivityQueryKey,
   getListDocsQueryKey, getGetProjectQueryKey, getListCostEntriesQueryKey,
   getListCommitsQueryKey, getListPresenceQueryKey, getListProjectTimeEntriesQueryKey,
-  getListProjectMembersQueryKey, getListComponentsQueryKey,
+  getListProjectMembersQueryKey, getListComponentsQueryKey, getListFlowsQueryKey,
 } from "@workspace/api-client-react";
 import { Layout } from "../components/layout";
 import { Button } from "@/components/ui/button";
@@ -45,6 +46,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { MarkdownRenderer } from "@/components/markdown-renderer";
+import { FlowEditor } from "@/components/flow-editor";
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -201,6 +203,10 @@ export default function ProjectPage() {
   const createComponent = useCreateComponent();
   const updateComponent = useUpdateComponent();
   const deleteComponent = useDeleteComponent();
+  const { data: flows = [] } = useListFlows(slug!);
+  const createFlow = useCreateFlow();
+  const updateFlow = useUpdateFlow();
+  const deleteFlow = useDeleteFlow();
 
   // Filter to users seen within the last 60 seconds
   const onlineUsers = useMemo<Presence[]>(() => {
@@ -220,6 +226,12 @@ export default function ProjectPage() {
   const [componentNewName, setComponentNewName] = useState("");
   const [componentEditId, setComponentEditId] = useState<number | null>(null);
   const [componentEditName, setComponentEditName] = useState("");
+  const [flowOpen, setFlowOpen] = useState(false);
+  const [editFlow, setEditFlow] = useState<Flow | null>(null);
+  const [flowTitleInput, setFlowTitleInput] = useState("");
+  const [flowSaving, setFlowSaving] = useState(false);
+  const [flowToDelete, setFlowToDelete] = useState<Flow | null>(null);
+  const [newFlowTitle, setNewFlowTitle] = useState("");
   const [docOpen, setDocOpen] = useState(false);
   const [editDoc, setEditDoc] = useState<Doc | null>(null);
   const [docForm, setDocForm] = useState({ title: "", body: "" });
@@ -737,6 +749,7 @@ export default function ProjectPage() {
               { value: "items", label: "ITEMS" },
               { value: "board", label: "BOARD" },
               { value: "docs", label: "DOCS" },
+              { value: "flows", label: "FLOWS" },
               { value: "activity", label: "ACTIVITY" },
               { value: "standup", label: "STANDUP" },
               { value: "members", label: "MEMBERS" },
@@ -1063,6 +1076,82 @@ export default function ProjectPage() {
                     </div>
                   );
                 })}
+              </div>
+            )}
+          </TabsContent>
+
+          {/* FLOWS TAB */}
+          <TabsContent value="flows" className="mt-3 space-y-3">
+            <div className="flex items-center gap-2">
+              <form
+                className="flex gap-2 flex-1"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (!newFlowTitle.trim()) return;
+                  void createFlow.mutateAsync({ slug: slug!, data: { title: newFlowTitle.trim() } }).then((created) => {
+                    qc.invalidateQueries({ queryKey: getListFlowsQueryKey(slug!) });
+                    setNewFlowTitle("");
+                    setEditFlow(created as Flow);
+                    setFlowTitleInput((created as Flow).title);
+                    setFlowOpen(true);
+                    toast({ title: "Flow created" });
+                  });
+                }}
+              >
+                <Input
+                  value={newFlowTitle}
+                  onChange={(e) => setNewFlowTitle(e.target.value)}
+                  placeholder="new flow title..."
+                  className="h-8 bg-background border-border font-mono text-xs rounded-none focus-visible:ring-primary max-w-xs"
+                />
+                <Button
+                  type="submit"
+                  size="sm"
+                  disabled={!newFlowTitle.trim() || createFlow.isPending}
+                  className="h-8 font-mono text-xs bg-primary text-primary-foreground hover:bg-primary/90"
+                >
+                  <Plus className="h-3 w-3 mr-1" /> NEW FLOW
+                </Button>
+              </form>
+            </div>
+
+            {(flows as Flow[]).length === 0 ? (
+              <div className="border border-border bg-card p-8 text-center">
+                <p className="text-muted-foreground font-mono text-sm">no flows yet — create one above</p>
+              </div>
+            ) : (
+              <div className="divide-y divide-border border border-border bg-card">
+                {(flows as Flow[]).map((flow) => (
+                  <div key={flow.id} className="flex items-center gap-3 px-4 py-3 hover:bg-muted/30 group">
+                    <Layers className="h-3.5 w-3.5 text-primary/60 shrink-0" />
+                    <button
+                      className="flex-1 text-left font-mono text-sm text-foreground hover:text-primary truncate"
+                      onClick={() => { setEditFlow(flow); setFlowTitleInput(flow.title); setFlowOpen(true); }}
+                    >
+                      {flow.title}
+                    </button>
+                    <span className="text-[10px] font-mono text-muted-foreground hidden sm:block">
+                      {(flow.data as { nodes?: unknown[] }).nodes?.length ?? 0} nodes
+                    </span>
+                    <span className="text-[10px] font-mono text-muted-foreground hidden md:block">
+                      {new Date(flow.updatedAt).toLocaleDateString()}
+                    </span>
+                    <Button
+                      variant="ghost" size="sm"
+                      onClick={() => { setEditFlow(flow); setFlowTitleInput(flow.title); setFlowOpen(true); }}
+                      className="h-7 font-mono text-xs text-muted-foreground hover:text-primary opacity-0 group-hover:opacity-100"
+                    >
+                      <Pencil className="h-3 w-3" />
+                    </Button>
+                    <Button
+                      variant="ghost" size="sm"
+                      onClick={() => setFlowToDelete(flow)}
+                      className="h-7 font-mono text-xs text-destructive/60 hover:text-destructive opacity-0 group-hover:opacity-100"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  </div>
+                ))}
               </div>
             )}
           </TabsContent>
@@ -2484,6 +2573,103 @@ export default function ProjectPage() {
                 disabled={deleteDoc.isPending}
               >
                 {deleteDoc.isPending ? "DELETING..." : "DELETE"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Flow Editor Dialog — full-screen canvas */}
+      <Dialog open={flowOpen} onOpenChange={(open) => { if (!open) { setFlowOpen(false); setEditFlow(null); } }}>
+        <DialogContent className="bg-[#020902] border-[#00ff41]/30 w-[98vw] max-w-[98vw] h-[96vh] max-h-[96vh] flex flex-col p-0 gap-0">
+          {/* Header */}
+          <div className="flex items-center gap-3 px-4 py-2 border-b border-[#00ff41]/20 shrink-0 bg-[#050f05]">
+            <DialogTitle className="font-['VT323'] tracking-widest text-xl text-[#00ff41]">
+              // FLOW EDITOR
+            </DialogTitle>
+            <Input
+              value={flowTitleInput}
+              onChange={(e) => setFlowTitleInput(e.target.value)}
+              className="bg-[#020902] border-[#00ff41]/30 font-mono text-sm rounded-none focus-visible:ring-[#00ff41] h-8 flex-1 max-w-md text-[#00ff41] placeholder:text-[#00ff41]/30"
+              placeholder="flow title..."
+              onBlur={() => {
+                if (editFlow && flowTitleInput.trim() && flowTitleInput !== editFlow.title) {
+                  void updateFlow.mutateAsync({ slug: slug!, flowId: editFlow.id, data: { title: flowTitleInput.trim() } }).then(() => {
+                    qc.invalidateQueries({ queryKey: getListFlowsQueryKey(slug!) });
+                  });
+                }
+              }}
+            />
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => { setFlowOpen(false); setEditFlow(null); }}
+              className="font-mono text-xs text-[#00ff41]/50 hover:text-[#00ff41] h-8 ml-auto"
+            >
+              CLOSE
+            </Button>
+          </div>
+
+          {/* Canvas */}
+          <div className="flex-1 min-h-0">
+            {editFlow && (
+              <FlowEditor
+                key={editFlow.id}
+                initialData={editFlow.data}
+                saving={flowSaving}
+                onSave={async (data: FlowUpdate["data"]) => {
+                  setFlowSaving(true);
+                  try {
+                    await updateFlow.mutateAsync({ slug: slug!, flowId: editFlow.id, data: { data } });
+                    qc.invalidateQueries({ queryKey: getListFlowsQueryKey(slug!) });
+                    toast({ title: "Flow saved" });
+                  } catch {
+                    toast({ title: "Failed to save flow", variant: "destructive" });
+                  } finally {
+                    setFlowSaving(false);
+                  }
+                }}
+              />
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Flow Confirmation Dialog */}
+      <Dialog open={!!flowToDelete} onOpenChange={(open) => { if (!open) setFlowToDelete(null); }}>
+        <DialogContent className="bg-card border-border max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="font-['VT323'] tracking-widest text-xl text-destructive">
+              // DELETE FLOW
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="font-mono text-sm text-foreground">
+              Delete{" "}
+              <span className="text-primary font-bold">"{flowToDelete?.title}"</span>?{" "}
+              This cannot be undone.
+            </p>
+            <div className="flex gap-2 justify-end">
+              <Button
+                variant="outline"
+                className="font-mono text-xs border-border hover:bg-muted"
+                onClick={() => setFlowToDelete(null)}
+              >
+                CANCEL
+              </Button>
+              <Button
+                className="font-mono text-xs bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                disabled={deleteFlow.isPending}
+                onClick={() => {
+                  if (!flowToDelete) return;
+                  void deleteFlow.mutateAsync({ slug: slug!, flowId: flowToDelete.id }).then(() => {
+                    qc.invalidateQueries({ queryKey: getListFlowsQueryKey(slug!) });
+                    setFlowToDelete(null);
+                    toast({ title: "Flow deleted" });
+                  });
+                }}
+              >
+                {deleteFlow.isPending ? "DELETING..." : "DELETE"}
               </Button>
             </div>
           </div>

@@ -428,6 +428,18 @@ export const usersRelations = relations(users, ({ many }) => ({
   projectMembers: many(projectMembers),
 }));
 
+export const flows = pgTable("flows", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id")
+    .notNull()
+    .references(() => projects.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  slug: text("slug").notNull(),
+  data: jsonb("data").notNull().default({ nodes: [], edges: [] }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
 export const projectsRelations = relations(projects, ({ many }) => ({
   members: many(projectMembers),
   scopes: many(scopes),
@@ -436,9 +448,17 @@ export const projectsRelations = relations(projects, ({ many }) => ({
   messages: many(messages),
   commits: many(commits),
   docs: many(docs),
+  flows: many(flows),
   costEntries: many(costEntries),
   timeEntries: many(timeEntries),
   activityEvents: many(activityEvents),
+}));
+
+export const flowsRelations = relations(flows, ({ one }) => ({
+  project: one(projects, {
+    fields: [flows.projectId],
+    references: [projects.id],
+  }),
 }));
 
 export const projectComponentsRelations = relations(

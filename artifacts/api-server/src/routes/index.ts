@@ -17,6 +17,7 @@ import dashboardRouter from "./dashboard";
 import docsRouter from "./docs";
 import commitsRouter from "./commits";
 import componentsRouter from "./components";
+import flowsRouter from "./flows";
 import { requireAuth, requireProjectMember } from "../lib/auth";
 
 const router: IRouter = Router();
@@ -41,6 +42,7 @@ router.use("/projects/:slug/messages", ...memberGuard, messagesRouter);
 router.use("/projects/:slug/docs", ...memberGuard, docsRouter);
 router.use("/projects/:slug/commits", ...memberGuard, commitsRouter);
 router.use("/projects/:slug/components", ...memberGuard, componentsRouter);
+router.use("/projects/:slug/flows", ...memberGuard, flowsRouter);
 router.use("/presence", presenceRouter);
 router.use("/standup", standupRouter);
 router.use("/", activityRouter);

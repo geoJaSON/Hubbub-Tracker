@@ -849,3 +849,54 @@ export type SearchParams = {
 q: string;
 };
 
+export interface FlowNodePosition {
+  x: number;
+  y: number;
+}
+
+export interface FlowNodeData {
+  label: string;
+  [key: string]: unknown;
+}
+
+export interface FlowNode {
+  id: string;
+  type: string;
+  position: FlowNodePosition;
+  data: FlowNodeData;
+}
+
+export interface FlowEdge {
+  id: string;
+  source: string;
+  target: string;
+  sourceHandle?: string | null;
+  targetHandle?: string | null;
+  label?: string | null;
+  animated?: boolean;
+}
+
+export interface FlowData {
+  nodes: FlowNode[];
+  edges: FlowEdge[];
+}
+
+export interface Flow {
+  id: number;
+  projectId: number;
+  title: string;
+  slug: string;
+  data: FlowData;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface FlowInput {
+  title: string;
+}
+
+export interface FlowUpdate {
+  title?: string;
+  data?: FlowData;
+}
+

@@ -19,6 +19,7 @@ import type {
   UseQueryResult
 } from '@tanstack/react-query';
 import type { ProjectComponent, ProjectComponentInput, ProjectComponentUpdate } from './api.schemas';
+import type { Flow, FlowInput, FlowUpdate } from './api.schemas';
 
 import type {
   ActivityEvent,
@@ -4410,6 +4411,85 @@ export const useDeleteComponent = <TError = ErrorType<unknown>, TContext = unkno
   options?: { mutation?: UseMutationOptions<Awaited<ReturnType<typeof deleteComponent>>, TError, { slug: string; componentId: number }, TContext>, request?: SecondParameter<typeof customFetch> }
 ): UseMutationResult<Awaited<ReturnType<typeof deleteComponent>>, TError, { slug: string; componentId: number }, TContext> =>
   useMutation(getDeleteComponentMutationOptions(options));
+
+// ── Flows ──────────────────────────────────────────────────────────────────
+
+export const getListFlowsUrl = (slug: string) => `/api/projects/${slug}/flows`;
+
+export const listFlows = async (slug: string, options?: RequestInit): Promise<Flow[]> =>
+  customFetch<Flow[]>(getListFlowsUrl(slug), { ...options });
+
+export const getListFlowsQueryKey = (slug: string) =>
+  [`/api/projects/${slug}/flows`] as const;
+
+export const getListFlowsQueryOptions = <TData = Awaited<ReturnType<typeof listFlows>>, TError = ErrorType<unknown>>(
+  slug: string,
+  options?: { query?: UseQueryOptions<Awaited<ReturnType<typeof listFlows>>, TError, TData>, request?: SecondParameter<typeof customFetch> }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+  const queryKey = queryOptions?.queryKey ?? getListFlowsQueryKey(slug);
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listFlows>>> = ({ signal }) =>
+    listFlows(slug, { signal, ...requestOptions });
+  return { queryKey, queryFn, enabled: !!(slug), ...queryOptions } as UseQueryOptions<Awaited<ReturnType<typeof listFlows>>, TError, TData> & { queryKey: QueryKey };
+};
+
+export function useListFlows<TData = Awaited<ReturnType<typeof listFlows>>, TError = ErrorType<unknown>>(
+  slug: string,
+  options?: { query?: UseQueryOptions<Awaited<ReturnType<typeof listFlows>>, TError, TData>, request?: SecondParameter<typeof customFetch> }
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListFlowsQueryOptions(slug, options);
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: QueryKey };
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+export const getCreateFlowUrl = (slug: string) => `/api/projects/${slug}/flows`;
+
+export const createFlow = async (slug: string, data: FlowInput, options?: RequestInit): Promise<Flow> =>
+  customFetch<Flow>(getCreateFlowUrl(slug), {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(data),
+  });
+
+export const useCreateFlow = <TError = ErrorType<unknown>, TContext = unknown>(
+  options?: { mutation?: UseMutationOptions<Awaited<ReturnType<typeof createFlow>>, TError, { slug: string; data: FlowInput }, TContext>, request?: SecondParameter<typeof customFetch> }
+): UseMutationResult<Awaited<ReturnType<typeof createFlow>>, TError, { slug: string; data: FlowInput }, TContext> =>
+  useMutation({
+    mutationFn: ({ slug, data }) => createFlow(slug, data, options?.request as RequestInit),
+    ...options?.mutation,
+  });
+
+export const getUpdateFlowUrl = (slug: string, flowId: number) => `/api/projects/${slug}/flows/${flowId}`;
+
+export const updateFlow = async (slug: string, flowId: number, data: FlowUpdate, options?: RequestInit): Promise<Flow> =>
+  customFetch<Flow>(getUpdateFlowUrl(slug, flowId), {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(data),
+  });
+
+export const useUpdateFlow = <TError = ErrorType<unknown>, TContext = unknown>(
+  options?: { mutation?: UseMutationOptions<Awaited<ReturnType<typeof updateFlow>>, TError, { slug: string; flowId: number; data: FlowUpdate }, TContext>, request?: SecondParameter<typeof customFetch> }
+): UseMutationResult<Awaited<ReturnType<typeof updateFlow>>, TError, { slug: string; flowId: number; data: FlowUpdate }, TContext> =>
+  useMutation({
+    mutationFn: ({ slug, flowId, data }) => updateFlow(slug, flowId, data, options?.request as RequestInit),
+    ...options?.mutation,
+  });
+
+export const getDeleteFlowUrl = (slug: string, flowId: number) => `/api/projects/${slug}/flows/${flowId}`;
+
+export const deleteFlow = async (slug: string, flowId: number, options?: RequestInit): Promise<void> =>
+  customFetch<void>(getDeleteFlowUrl(slug, flowId), { ...options, method: 'DELETE' });
+
+export const useDeleteFlow = <TError = ErrorType<unknown>, TContext = unknown>(
+  options?: { mutation?: UseMutationOptions<Awaited<ReturnType<typeof deleteFlow>>, TError, { slug: string; flowId: number }, TContext>, request?: SecondParameter<typeof customFetch> }
+): UseMutationResult<Awaited<ReturnType<typeof deleteFlow>>, TError, { slug: string; flowId: number }, TContext> =>
+  useMutation({
+    mutationFn: ({ slug, flowId }) => deleteFlow(slug, flowId, options?.request as RequestInit),
+    ...options?.mutation,
+  });
 
 
 
