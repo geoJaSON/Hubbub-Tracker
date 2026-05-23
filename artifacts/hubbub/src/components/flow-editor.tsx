@@ -7,6 +7,7 @@ import {
   addEdge,
   applyNodeChanges,
   applyEdgeChanges,
+  ConnectionLineType,
   type Node,
   type Edge,
   type NodeChange,
@@ -22,21 +23,28 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import type { FlowData } from "@workspace/api-client-react";
 
+// ── Shared handle style ──────────────────────────────────────────────────────
+
+const H = "!bg-[#00ff41] !border-[#00ff41] !w-2 !h-2";
+
 // ── Custom node types ───────────────────────────────────────────────────────
 
 function NodeShell({
   children,
   selected,
   className,
+  style,
 }: {
   children: React.ReactNode;
   selected: boolean;
   className?: string;
+  style?: React.CSSProperties;
 }) {
   return (
     <div
+      style={style}
       className={cn(
-        "min-w-[120px] max-w-[200px] flex items-center justify-center px-3 py-2",
+        "min-w-[110px] max-w-[180px] flex items-center justify-center px-3 py-2",
         "font-mono text-xs border bg-[#050f05] transition-colors select-none",
         selected ? "border-[#00ff41] text-[#00ff41]" : "border-[#00ff41]/50 text-[#00ff41]/80",
         className,
@@ -50,40 +58,69 @@ function NodeShell({
 function ProcessNode({ data, selected }: NodeProps) {
   return (
     <NodeShell selected={selected ?? false}>
-      <Handle type="target" position={Position.Top} className="!bg-[#00ff41] !border-[#00ff41] !w-2 !h-2" />
-      <span className="text-center break-words">{String(data.label)}</span>
-      <Handle type="source" position={Position.Bottom} className="!bg-[#00ff41] !border-[#00ff41] !w-2 !h-2" />
+      <Handle type="target" position={Position.Top} className={H} />
+      <span className="text-center break-words leading-tight">{String(data.label)}</span>
+      <Handle type="source" position={Position.Bottom} className={H} />
     </NodeShell>
   );
 }
 
 function TerminalNode({ data, selected }: NodeProps) {
   return (
-    <NodeShell selected={selected ?? false} className="rounded-full px-5">
-      <Handle type="target" position={Position.Top} className="!bg-[#00ff41] !border-[#00ff41] !w-2 !h-2" />
-      <span className="text-center break-words">{String(data.label)}</span>
-      <Handle type="source" position={Position.Bottom} className="!bg-[#00ff41] !border-[#00ff41] !w-2 !h-2" />
+    <NodeShell selected={selected ?? false} className="rounded-full px-6">
+      <Handle type="target" position={Position.Top} className={H} />
+      <span className="text-center break-words leading-tight">{String(data.label)}</span>
+      <Handle type="source" position={Position.Bottom} className={H} />
     </NodeShell>
   );
 }
 
 function DecisionNode({ data, selected }: NodeProps) {
+  const W = 160;
+  const HT = 80;
+  const stroke = selected ? "#00ff41" : "rgba(0,255,65,0.5)";
+  const textColor = selected ? "#00ff41" : "rgba(0,255,65,0.8)";
+  const pts = `${W / 2},2 ${W - 2},${HT / 2} ${W / 2},${HT - 2} 2,${HT / 2}`;
+
   return (
-    <div className="relative flex items-center justify-center" style={{ width: 130, height: 70 }}>
-      <Handle type="target" position={Position.Top} className="!bg-[#00ff41] !border-[#00ff41] !w-2 !h-2" style={{ top: 0 }} />
+    <div style={{ width: W, height: HT, position: "relative" }}>
+      <Handle type="target" position={Position.Top} className={H} style={{ top: 0 }} />
+
+      <svg
+        width={W}
+        height={HT}
+        style={{ position: "absolute", inset: 0, overflow: "visible" }}
+      >
+        <polygon points={pts} fill="#050f05" stroke={stroke} strokeWidth={1} />
+      </svg>
+
       <div
-        className={cn(
-          "absolute inset-0 font-mono text-xs flex items-center justify-center",
-          "border bg-[#050f05]",
-          selected ? "border-[#00ff41] text-[#00ff41]" : "border-[#00ff41]/50 text-[#00ff41]/80",
-        )}
-        style={{ transform: "rotate(45deg)", borderRadius: 2 }}
-      />
-      <span className="relative z-10 text-center px-2 break-words font-mono text-xs text-[#00ff41]">
-        {String(data.label)}
-      </span>
-      <Handle type="source" position={Position.Bottom} id="yes" className="!bg-[#00ff41] !border-[#00ff41] !w-2 !h-2" style={{ bottom: 0 }} />
-      <Handle type="source" position={Position.Right} id="no" className="!bg-[#00ff41] !border-[#00ff41] !w-2 !h-2" style={{ right: 0 }} />
+        style={{
+          position: "absolute",
+          inset: 0,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "0 28px",
+          pointerEvents: "none",
+        }}
+      >
+        <span
+          style={{
+            fontFamily: "monospace",
+            fontSize: 10,
+            color: textColor,
+            textAlign: "center",
+            wordBreak: "break-word",
+            lineHeight: 1.3,
+          }}
+        >
+          {String(data.label)}
+        </span>
+      </div>
+
+      <Handle type="source" position={Position.Bottom} id="yes" className={H} style={{ bottom: 0 }} />
+      <Handle type="source" position={Position.Right} id="no" className={H} style={{ right: 0, top: "50%" }} />
     </div>
   );
 }
@@ -91,32 +128,34 @@ function DecisionNode({ data, selected }: NodeProps) {
 function DbNode({ data, selected }: NodeProps) {
   return (
     <div className="relative flex flex-col items-center" style={{ width: 120 }}>
-      <Handle type="target" position={Position.Top} className="!bg-[#00ff41] !border-[#00ff41] !w-2 !h-2" style={{ top: 6 }} />
+      <Handle type="target" position={Position.Top} className={H} style={{ top: 6 }} />
       <div
         className={cn(
           "w-full font-mono text-xs bg-[#050f05] border",
           selected ? "border-[#00ff41] text-[#00ff41]" : "border-[#00ff41]/50 text-[#00ff41]/80",
         )}
       >
-        <div className={cn("border-b px-2 py-0.5 text-center", selected ? "border-[#00ff41]" : "border-[#00ff41]/50")}>
+        <div className={cn("border-b px-2 py-0.5 text-center text-[10px]", selected ? "border-[#00ff41]" : "border-[#00ff41]/50")}>
           ╔══╗
         </div>
         <div className="px-2 py-1.5 text-center break-words">{String(data.label)}</div>
-        <div className={cn("border-t px-2 py-0.5 text-center", selected ? "border-[#00ff41]" : "border-[#00ff41]/50")}>
+        <div className={cn("border-t px-2 py-0.5 text-center text-[10px]", selected ? "border-[#00ff41]" : "border-[#00ff41]/50")}>
           ╚══╝
         </div>
       </div>
-      <Handle type="source" position={Position.Bottom} className="!bg-[#00ff41] !border-[#00ff41] !w-2 !h-2" style={{ bottom: 6 }} />
+      <Handle type="source" position={Position.Bottom} className={H} style={{ bottom: 6 }} />
     </div>
   );
 }
 
 function IoNode({ data, selected }: NodeProps) {
   return (
-    <NodeShell selected={selected ?? false} className="skew-x-[-12deg]">
-      <Handle type="target" position={Position.Top} className="!bg-[#00ff41] !border-[#00ff41] !w-2 !h-2 !skew-x-[12deg]" />
-      <span className="skew-x-[12deg] text-center break-words">{String(data.label)}</span>
-      <Handle type="source" position={Position.Bottom} className="!bg-[#00ff41] !border-[#00ff41] !w-2 !h-2 !skew-x-[12deg]" />
+    <NodeShell selected={selected ?? false} style={{ transform: "skewX(-12deg)" }}>
+      <Handle type="target" position={Position.Top} className={H} style={{ transform: "skewX(12deg)" }} />
+      <span style={{ transform: "skewX(12deg)" }} className="text-center break-words leading-tight">
+        {String(data.label)}
+      </span>
+      <Handle type="source" position={Position.Bottom} className={H} style={{ transform: "skewX(12deg)" }} />
     </NodeShell>
   );
 }
@@ -132,12 +171,14 @@ const NODE_TYPES = {
 // ── Palette ─────────────────────────────────────────────────────────────────
 
 const PALETTE: { type: string; label: string; display: string; description: string }[] = [
-  { type: "terminal", label: "Start / End", display: "( START )", description: "Terminal" },
-  { type: "process", label: "Process", display: "[ PROCESS ]", description: "Step / Action" },
-  { type: "decision", label: "Decision", display: "◇ BRANCH", description: "Yes / No branch" },
-  { type: "io", label: "Input / Output", display: "/ INPUT /", description: "Data in or out" },
-  { type: "db", label: "Database", display: "╔ QUERY ╗\n╚══════╝", description: "DB / Query" },
+  { type: "terminal",  label: "Start / End",     display: "( START )",      description: "Terminal point"   },
+  { type: "process",   label: "Process",          display: "[ PROCESS ]",    description: "Step / action"    },
+  { type: "decision",  label: "Decision",         display: "◇ BRANCH",       description: "Yes / No branch"  },
+  { type: "io",        label: "Input / Output",   display: "/ INPUT /",      description: "Data in or out"   },
+  { type: "db",        label: "Database",         display: "╔ QUERY ╗\n╚══╝", description: "DB / query"      },
 ];
+
+const SNAP: [number, number] = [20, 20];
 
 let idCounter = 1;
 function nextId() { return `n${idCounter++}`; }
@@ -170,7 +211,12 @@ export function FlowEditor({ initialData, onSave, saving }: FlowEditorProps) {
     (connection: Connection) =>
       setEdges((eds) =>
         addEdge(
-          { ...connection, style: { stroke: "#00ff41", strokeWidth: 1.5 }, animated: false },
+          {
+            ...connection,
+            type: "smoothstep",
+            style: { stroke: "#00ff41", strokeWidth: 1.5 },
+            animated: false,
+          },
           eds,
         ),
       ),
@@ -190,9 +236,13 @@ export function FlowEditor({ initialData, onSave, saving }: FlowEditorProps) {
   const handleLabelSave = () => {
     if (!selectedNode) return;
     setNodes((nds) =>
-      nds.map((n) => n.id === selectedNode.id ? { ...n, data: { ...n.data, label: labelInput } } : n),
+      nds.map((n) =>
+        n.id === selectedNode.id ? { ...n, data: { ...n.data, label: labelInput } } : n,
+      ),
     );
-    setSelectedNode((prev) => prev ? { ...prev, data: { ...prev.data, label: labelInput } } : null);
+    setSelectedNode((prev) =>
+      prev ? { ...prev, data: { ...prev.data, label: labelInput } } : null,
+    );
   };
 
   const onDragOver = useCallback((e: React.DragEvent) => {
@@ -203,34 +253,26 @@ export function FlowEditor({ initialData, onSave, saving }: FlowEditorProps) {
   const onDrop = useCallback(
     (e: React.DragEvent) => {
       e.preventDefault();
-      if (!rfInstance || !reactFlowWrapper.current) return;
+      if (!rfInstance) return;
       const type = e.dataTransfer.getData("application/reactflow-type");
       const label = e.dataTransfer.getData("application/reactflow-label");
       if (!type) return;
-      const bounds = reactFlowWrapper.current.getBoundingClientRect();
-      const position = rfInstance.screenToFlowPosition({
-        x: e.clientX - bounds.left,
-        y: e.clientY - bounds.top,
-      });
-      const newNode: Node = {
-        id: nextId(),
-        type,
-        position,
-        data: { label },
-      };
-      setNodes((nds) => [...nds, newNode]);
+      // screenToFlowPosition takes raw screen (viewport) coords
+      const position = rfInstance.screenToFlowPosition({ x: e.clientX, y: e.clientY });
+      // Snap to grid
+      position.x = Math.round(position.x / SNAP[0]) * SNAP[0];
+      position.y = Math.round(position.y / SNAP[1]) * SNAP[1];
+      setNodes((nds) => [...nds, { id: nextId(), type, position, data: { label } }]);
     },
     [rfInstance],
   );
 
-  const handleSave = async () => {
-    await onSave({ nodes: nodes as FlowData["nodes"], edges: edges as FlowData["edges"] });
-  };
-
   const handleDeleteSelected = useCallback(() => {
     if (!selectedNode) return;
     setNodes((nds) => nds.filter((n) => n.id !== selectedNode.id));
-    setEdges((eds) => eds.filter((e) => e.source !== selectedNode.id && e.target !== selectedNode.id));
+    setEdges((eds) =>
+      eds.filter((e) => e.source !== selectedNode.id && e.target !== selectedNode.id),
+    );
     setSelectedNode(null);
   }, [selectedNode]);
 
@@ -238,7 +280,9 @@ export function FlowEditor({ initialData, onSave, saving }: FlowEditorProps) {
     <div className="flex h-full min-h-0">
       {/* Left palette */}
       <div className="w-44 shrink-0 border-r border-[#00ff41]/20 bg-[#050f05] flex flex-col gap-1 p-2 overflow-y-auto">
-        <p className="font-mono text-[9px] tracking-widest text-[#00ff41]/50 mb-1 px-1">// DRAG TO CANVAS</p>
+        <p className="font-mono text-[9px] tracking-widest text-[#00ff41]/50 mb-1 px-1">
+          // DRAG TO CANVAS
+        </p>
         {PALETTE.map((item) => (
           <div
             key={item.type}
@@ -250,7 +294,9 @@ export function FlowEditor({ initialData, onSave, saving }: FlowEditorProps) {
             }}
             className="cursor-grab active:cursor-grabbing border border-[#00ff41]/30 hover:border-[#00ff41] bg-[#050f05] hover:bg-[#00ff41]/5 p-2 transition-colors"
           >
-            <p className="font-mono text-[10px] text-[#00ff41] whitespace-pre-line leading-tight">{item.display}</p>
+            <p className="font-mono text-[10px] text-[#00ff41] whitespace-pre-line leading-tight">
+              {item.display}
+            </p>
             <p className="font-mono text-[9px] text-[#00ff41]/50 mt-0.5">{item.description}</p>
           </div>
         ))}
@@ -258,11 +304,15 @@ export function FlowEditor({ initialData, onSave, saving }: FlowEditorProps) {
         {/* Selected node panel */}
         {selectedNode && (
           <div className="mt-3 border-t border-[#00ff41]/20 pt-3 flex flex-col gap-2">
-            <p className="font-mono text-[9px] tracking-widest text-[#00ff41]/50">// SELECTED NODE</p>
+            <p className="font-mono text-[9px] tracking-widest text-[#00ff41]/50">
+              // SELECTED NODE
+            </p>
             <Input
               value={labelInput}
               onChange={(e) => setLabelInput(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") handleLabelSave(); }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleLabelSave();
+              }}
               className="h-7 bg-[#050f05] border-[#00ff41]/50 focus-visible:border-[#00ff41] font-mono text-xs text-[#00ff41] rounded-none focus-visible:ring-0 focus-visible:ring-offset-0"
               placeholder="label..."
             />
@@ -287,7 +337,7 @@ export function FlowEditor({ initialData, onSave, saving }: FlowEditorProps) {
         <div className="mt-auto pt-3 border-t border-[#00ff41]/20">
           <Button
             size="sm"
-            onClick={() => void handleSave()}
+            onClick={() => void onSave({ nodes: nodes as FlowData["nodes"], edges: edges as FlowData["edges"] })}
             disabled={saving}
             className="w-full h-8 font-mono text-xs rounded-none bg-[#00ff41] text-[#050f05] hover:bg-[#00ff41]/90 font-bold"
           >
@@ -297,7 +347,12 @@ export function FlowEditor({ initialData, onSave, saving }: FlowEditorProps) {
       </div>
 
       {/* Canvas */}
-      <div ref={reactFlowWrapper} className="flex-1 min-w-0 bg-[#020902]" onDragOver={onDragOver} onDrop={onDrop}>
+      <div
+        ref={reactFlowWrapper}
+        className="flex-1 min-w-0 bg-[#020902]"
+        onDragOver={onDragOver}
+        onDrop={onDrop}
+      >
         <ReactFlow
           nodes={nodes}
           edges={edges}
@@ -309,11 +364,18 @@ export function FlowEditor({ initialData, onSave, saving }: FlowEditorProps) {
           onPaneClick={onPaneClick}
           onInit={setRfInstance}
           fitView
+          snapToGrid
+          snapGrid={SNAP}
           deleteKeyCode={["Delete", "Backspace"]}
-          defaultEdgeOptions={{ style: { stroke: "#00ff41", strokeWidth: 1.5 }, animated: false }}
+          connectionLineType={ConnectionLineType.SmoothStep}
+          defaultEdgeOptions={{
+            type: "smoothstep",
+            style: { stroke: "#00ff41", strokeWidth: 1.5 },
+            animated: false,
+          }}
           style={{ background: "#020902" }}
         >
-          <Background color="#00ff41" gap={24} size={0.5} style={{ opacity: 0.08 }} />
+          <Background color="#00ff41" gap={SNAP[0]} size={0.5} style={{ opacity: 0.08 }} />
           <Controls
             style={{
               background: "#050f05",
