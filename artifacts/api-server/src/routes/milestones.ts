@@ -1,7 +1,7 @@
 import { Router } from "express";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, sql, count } from "drizzle-orm";
 import { db } from "../lib/db";
-import { projects, scopes, milestones } from "../lib/schema";
+import { projects, scopes, milestones, items } from "../lib/schema";
 import { requireAuth } from "../lib/auth";
 
 const router = Router({ mergeParams: true });
@@ -40,18 +40,36 @@ router.get("/", requireAuth, async (req, res) => {
     .select()
     .from(milestones)
     .where(scopeIdInProject(ctx.scopeIds))
-    .orderBy(milestones.order);
+    .orderBy(milestones.order, milestones.targetDate);
 
-  return res.json(rows);
+  // Attach item progress counts for each milestone
+  const withProgress = await Promise.all(
+    rows.map(async (m) => {
+      const [total] = await db
+        .select({ n: count() })
+        .from(items)
+        .where(eq(items.milestoneId, m.id));
+      const [done] = await db
+        .select({ n: count() })
+        .from(items)
+        .where(and(eq(items.milestoneId, m.id), eq(items.status, "done")));
+      return {
+        ...m,
+        itemCount: Number(total?.n ?? 0),
+        doneCount: Number(done?.n ?? 0),
+      };
+    }),
+  );
+
+  return res.json(withProgress);
 });
 
 // POST /projects/:slug/milestones
-// Validates that the provided scopeId belongs to this project
 router.post("/", requireAuth, async (req, res) => {
   const ctx = await getProjectScopeIds(String(req.params.slug));
   if (!ctx) return res.status(404).json({ error: "Not found" });
 
-  const { scopeId, name, description, targetDate } = req.body;
+  const { scopeId, name, description, startDate, targetDate } = req.body;
 
   if (!ctx.scopeIds.includes(Number(scopeId))) {
     return res.status(403).json({ error: "Scope does not belong to this project" });
@@ -59,23 +77,23 @@ router.post("/", requireAuth, async (req, res) => {
 
   const [created] = await db
     .insert(milestones)
-    .values({ scopeId: Number(scopeId), name, description, targetDate })
+    .values({ scopeId: Number(scopeId), name, description, startDate, targetDate })
     .returning();
-  return res.status(201).json(created);
+  return res.status(201).json({ ...created, itemCount: 0, doneCount: 0 });
 });
 
 // PATCH /projects/:slug/milestones/:milestoneId
-// Constrain to milestones whose scope belongs to this project (IDOR prevention)
 router.patch("/:milestoneId", requireAuth, async (req, res) => {
   const ctx = await getProjectScopeIds(String(req.params.slug));
   if (!ctx) return res.status(404).json({ error: "Not found" });
 
-  const { name, description, targetDate, status, order } = req.body;
+  const { name, description, startDate, targetDate, status, order } = req.body;
   const [updated] = await db
     .update(milestones)
     .set({
       ...(name !== undefined && { name }),
       ...(description !== undefined && { description }),
+      ...(startDate !== undefined && { startDate }),
       ...(targetDate !== undefined && { targetDate }),
       ...(status !== undefined && { status }),
       ...(order !== undefined && { order }),
@@ -89,11 +107,15 @@ router.patch("/:milestoneId", requireAuth, async (req, res) => {
     .returning();
 
   if (!updated) return res.status(404).json({ error: "Not found" });
-  return res.json(updated);
+
+  // Re-fetch counts
+  const [total] = await db.select({ n: count() }).from(items).where(eq(items.milestoneId, updated.id));
+  const [done] = await db.select({ n: count() }).from(items).where(and(eq(items.milestoneId, updated.id), eq(items.status, "done")));
+
+  return res.json({ ...updated, itemCount: Number(total?.n ?? 0), doneCount: Number(done?.n ?? 0) });
 });
 
 // DELETE /projects/:slug/milestones/:milestoneId
-// Constrain to milestones whose scope belongs to this project (IDOR prevention)
 router.delete("/:milestoneId", requireAuth, async (req, res) => {
   const ctx = await getProjectScopeIds(String(req.params.slug));
   if (!ctx) return res.status(404).json({ error: "Not found" });

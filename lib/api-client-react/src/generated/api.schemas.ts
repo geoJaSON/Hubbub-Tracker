@@ -162,9 +162,13 @@ export interface Milestone {
   /** @nullable */
   description?: string | null;
   /** @nullable */
+  startDate?: string | null;
+  /** @nullable */
   targetDate?: string | null;
   status: MilestoneStatus;
   order: number;
+  itemCount: number;
+  doneCount: number;
 }
 
 export interface ProjectDetail {
@@ -273,6 +277,8 @@ export interface MilestoneInput {
   /** @nullable */
   description?: string | null;
   /** @nullable */
+  startDate?: string | null;
+  /** @nullable */
   targetDate?: string | null;
 }
 
@@ -288,6 +294,8 @@ export interface MilestoneUpdate {
   name?: string;
   /** @nullable */
   description?: string | null;
+  /** @nullable */
+  startDate?: string | null;
   /** @nullable */
   targetDate?: string | null;
   status?: MilestoneUpdateStatus;

@@ -171,6 +171,7 @@ export const milestones = pgTable("milestones", {
     .references(() => scopes.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   description: text("description"),
+  startDate: date("start_date"),
   targetDate: date("target_date"),
   status: milestoneStatusEnum("status").notNull().default("open"),
   order: integer("order").notNull().default(0),

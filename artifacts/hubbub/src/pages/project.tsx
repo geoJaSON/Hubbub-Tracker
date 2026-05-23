@@ -7,12 +7,13 @@ import {
   useGetStandup, useCreateDoc, useUpdateDoc, useDeleteDoc,
   useUpdateProject, useDeleteProject,
   useGetBurnDown, useListCostEntries, useCreateCostEntry,
-  useCreateScope, useCreateMilestone,
+  useCreateScope, useCreateMilestone, useUpdateMilestone, useDeleteMilestone, useListMilestones,
   useListCommits, useListProjectTimeEntries, useCreateTimeEntry,
   useListPresence, useListUsers, useAddProjectMember, useRemoveProjectMember,
   useListProjectMembers,
   useListComponents, useCreateComponent, useUpdateComponent, useDeleteComponent,
   useListFlows, useCreateFlow, useUpdateFlow, useDeleteFlow,
+  getListMilestonesQueryKey,
 } from "@workspace/api-client-react";
 import type {
   Item, Doc, ItemInput, ItemInputType, ItemInputPriority,
@@ -47,6 +48,7 @@ import {
 import { cn } from "@/lib/utils";
 import { MarkdownRenderer } from "@/components/markdown-renderer";
 import { FlowEditor } from "@/components/flow-editor";
+import { GanttScheduler } from "@/components/gantt-scheduler";
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -207,6 +209,10 @@ export default function ProjectPage() {
   const createFlow = useCreateFlow();
   const updateFlow = useUpdateFlow();
   const deleteFlow = useDeleteFlow();
+  const { data: milestonesData = [] } = useListMilestones(slug!);
+  const createMilestoneM = useCreateMilestone();
+  const updateMilestoneM = useUpdateMilestone();
+  const deleteMilestoneM = useDeleteMilestone();
 
   // Filter to users seen within the last 60 seconds
   const onlineUsers = useMemo<Presence[]>(() => {
@@ -750,6 +756,7 @@ export default function ProjectPage() {
               { value: "board", label: "BOARD" },
               { value: "docs", label: "DOCS" },
               { value: "flows", label: "FLOWS" },
+              { value: "schedule", label: "SCHEDULE" },
               { value: "activity", label: "ACTIVITY" },
               { value: "standup", label: "STANDUP" },
               { value: "members", label: "MEMBERS" },
@@ -1154,6 +1161,29 @@ export default function ProjectPage() {
                 ))}
               </div>
             )}
+          </TabsContent>
+
+          {/* SCHEDULE TAB */}
+          <TabsContent value="schedule" className="mt-3 flex flex-col" style={{ minHeight: "calc(100vh - 240px)" }}>
+            <GanttScheduler
+              scopes={project?.scopes ?? []}
+              milestones={milestonesData}
+              items={items}
+              onCreateMilestone={async (data) => {
+                await createMilestoneM.mutateAsync({ slug: slug!, data });
+                qc.invalidateQueries({ queryKey: getListMilestonesQueryKey(slug!) });
+                toast({ title: "Milestone created" });
+              }}
+              onUpdateMilestone={async (id, data) => {
+                await updateMilestoneM.mutateAsync({ slug: slug!, milestoneId: id, data });
+                qc.invalidateQueries({ queryKey: getListMilestonesQueryKey(slug!) });
+              }}
+              onDeleteMilestone={async (id) => {
+                await deleteMilestoneM.mutateAsync({ slug: slug!, milestoneId: id });
+                qc.invalidateQueries({ queryKey: getListMilestonesQueryKey(slug!) });
+                toast({ title: "Milestone deleted" });
+              }}
+            />
           </TabsContent>
 
           {/* ACTIVITY TAB */}
