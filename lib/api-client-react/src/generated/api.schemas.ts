@@ -169,6 +169,8 @@ export interface Milestone {
   order: number;
   itemCount: number;
   doneCount: number;
+  /** Sum of (billable minutes × user hourly rate) for items linked to this milestone. */
+  laborCents: number;
 }
 
 export interface ProjectDetail {
@@ -203,9 +205,9 @@ export interface ProjectUpdate {
   /** @nullable */
   githubRepo?: string | null;
   /**
-   * Write-only personal access token for private repo polling. Never returned in responses.
-   * @nullable
-   */
+     * Write-only personal access token for private repo polling. Never returned in responses.
+     * @nullable
+     */
   githubToken?: string | null;
   archived?: boolean;
 }
@@ -312,20 +314,6 @@ export const ItemType = {
   decision: 'decision',
 } as const;
 
-export type ItemCategory = typeof ItemCategory[keyof typeof ItemCategory];
-
-export const ItemCategory = {
-  infrastructure_hosting: 'infrastructure_hosting',
-  security_compliance: 'security_compliance',
-  mobile_devops: 'mobile_devops',
-  web_devops: 'web_devops',
-  database_schema: 'database_schema',
-  monitoring_observability: 'monitoring_observability',
-  deployment_release: 'deployment_release',
-  third_party_integration: 'third_party_integration',
-  support_operations: 'support_operations',
-} as const;
-
 export type ItemStatus = typeof ItemStatus[keyof typeof ItemStatus];
 
 
@@ -347,6 +335,30 @@ export const ItemPriority = {
   urgent: 'urgent',
 } as const;
 
+export type ItemCategory = typeof ItemCategory[keyof typeof ItemCategory];
+
+
+export const ItemCategory = {
+  infrastructure_hosting: 'infrastructure_hosting',
+  security_compliance: 'security_compliance',
+  mobile_devops: 'mobile_devops',
+  web_devops: 'web_devops',
+  database_schema: 'database_schema',
+  monitoring_observability: 'monitoring_observability',
+  deployment_release: 'deployment_release',
+  third_party_integration: 'third_party_integration',
+  support_operations: 'support_operations',
+} as const;
+
+export interface ProjectComponent {
+  id: number;
+  projectId: number;
+  name: string;
+  /** @nullable */
+  description?: string | null;
+  createdAt?: string;
+}
+
 export interface Item {
   id: number;
   projectId: number;
@@ -357,7 +369,6 @@ export interface Item {
   description?: string | null;
   status: ItemStatus;
   priority: ItemPriority;
-  /** @nullable */
   category?: ItemCategory | null;
   /** @nullable */
   assigneeId?: string | null;
@@ -377,7 +388,6 @@ export interface Item {
   createdAt: string;
   /** @nullable */
   componentId?: number | null;
-  /** @nullable */
   component?: ProjectComponent | null;
   /** @nullable */
   totalMinutesLogged?: number | null;
@@ -463,7 +473,6 @@ export interface ItemDetail {
   description?: string | null;
   status: ItemDetailStatus;
   priority: ItemDetailPriority;
-  /** @nullable */
   category?: ItemCategory | null;
   /** @nullable */
   assigneeId?: string | null;
@@ -483,7 +492,6 @@ export interface ItemDetail {
   createdAt: string;
   /** @nullable */
   componentId?: number | null;
-  /** @nullable */
   component?: ProjectComponent | null;
   /** @nullable */
   totalMinutesLogged?: number | null;
@@ -531,8 +539,6 @@ export interface ItemInput {
   status?: ItemInputStatus;
   priority?: ItemInputPriority;
   /** @nullable */
-  category?: ItemCategory | null;
-  /** @nullable */
   assigneeId?: string | null;
   /** @nullable */
   scopeId?: number | null;
@@ -544,6 +550,7 @@ export interface ItemInput {
   dueDate?: string | null;
   /** @nullable */
   decisionRationale?: string | null;
+  category?: ItemCategory | null;
   /** @nullable */
   componentId?: number | null;
 }
@@ -587,8 +594,6 @@ export interface ItemUpdate {
   status?: ItemUpdateStatus;
   priority?: ItemUpdatePriority;
   /** @nullable */
-  category?: ItemCategory | null;
-  /** @nullable */
   assigneeId?: string | null;
   /** @nullable */
   scopeId?: number | null;
@@ -600,17 +605,9 @@ export interface ItemUpdate {
   dueDate?: string | null;
   /** @nullable */
   decisionRationale?: string | null;
+  category?: ItemCategory | null;
   /** @nullable */
   componentId?: number | null;
-}
-
-export interface ProjectComponent {
-  id: number;
-  projectId: number;
-  name: string;
-  /** @nullable */
-  description?: string | null;
-  createdAt?: string;
 }
 
 export interface ProjectComponentInput {
@@ -623,6 +620,60 @@ export interface ProjectComponentUpdate {
   name?: string;
   /** @nullable */
   description?: string | null;
+}
+
+export interface FlowNodePosition {
+  x: number;
+  y: number;
+}
+
+export interface FlowNodeData {
+  label: string;
+  [key: string]: unknown;
+ }
+
+export interface FlowNode {
+  id: string;
+  type: string;
+  position: FlowNodePosition;
+  data: FlowNodeData;
+}
+
+export interface FlowEdge {
+  id: string;
+  source: string;
+  target: string;
+  /** @nullable */
+  sourceHandle?: string | null;
+  /** @nullable */
+  targetHandle?: string | null;
+  /** @nullable */
+  label?: string | null;
+  animated?: boolean;
+}
+
+export interface FlowData {
+  nodes: FlowNode[];
+  edges: FlowEdge[];
+}
+
+export interface Flow {
+  id: number;
+  projectId: number;
+  title: string;
+  slug: string;
+  data: FlowData;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface FlowInput {
+  title: string;
+}
+
+export interface FlowUpdate {
+  title?: string;
+  data?: FlowData;
 }
 
 export interface CommentInput {
@@ -706,6 +757,32 @@ export interface CostEntryInput {
   currency?: string;
   recurring?: boolean;
   incurredOn: string;
+}
+
+export type CostEntryUpdateCategory = typeof CostEntryUpdateCategory[keyof typeof CostEntryUpdateCategory];
+
+
+export const CostEntryUpdateCategory = {
+  labor: 'labor',
+  hosting: 'hosting',
+  saas: 'saas',
+  contractor: 'contractor',
+  ai: 'ai',
+  other: 'other',
+} as const;
+
+export interface CostEntryUpdate {
+  /** @nullable */
+  scopeId?: number | null;
+  category?: CostEntryUpdateCategory;
+  /** @nullable */
+  vendor?: string | null;
+  /** @nullable */
+  description?: string | null;
+  amountCents?: number;
+  currency?: string;
+  recurring?: boolean;
+  incurredOn?: string;
 }
 
 export interface Presence {
@@ -843,12 +920,18 @@ export interface ScopeBurnDown {
   scopeId: number;
   scopeName: string;
   budgetCents: number;
+  /** Direct cost entries assigned to this scope (does not include labor). */
   spentCents: number;
+  /** Sum of (billable minutes × user hourly rate) for items linked to this scope. */
+  laborCents?: number;
 }
 
 export interface BurnDown {
   totalBudgetCents: number;
+  /** Direct cost entries only (does not include derived labor). */
   totalSpentCents: number;
+  /** Sum of (billable minutes × user hourly rate) across the project. */
+  totalLaborCents?: number;
   points: BurnDownPoint[];
   scopes: ScopeBurnDown[];
 }
@@ -856,55 +939,4 @@ export interface BurnDown {
 export type SearchParams = {
 q: string;
 };
-
-export interface FlowNodePosition {
-  x: number;
-  y: number;
-}
-
-export interface FlowNodeData {
-  label: string;
-  [key: string]: unknown;
-}
-
-export interface FlowNode {
-  id: string;
-  type: string;
-  position: FlowNodePosition;
-  data: FlowNodeData;
-}
-
-export interface FlowEdge {
-  id: string;
-  source: string;
-  target: string;
-  sourceHandle?: string | null;
-  targetHandle?: string | null;
-  label?: string | null;
-  animated?: boolean;
-}
-
-export interface FlowData {
-  nodes: FlowNode[];
-  edges: FlowEdge[];
-}
-
-export interface Flow {
-  id: number;
-  projectId: number;
-  title: string;
-  slug: string;
-  data: FlowData;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface FlowInput {
-  title: string;
-}
-
-export interface FlowUpdate {
-  title?: string;
-  data?: FlowData;
-}
 

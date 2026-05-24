@@ -6,8 +6,9 @@ import {
   useListActivity, useListDocs, useCreateItem, useUpdateItem,
   useGetStandup, useCreateDoc, useUpdateDoc, useDeleteDoc,
   useUpdateProject, useDeleteProject,
-  useGetBurnDown, useListCostEntries, useCreateCostEntry,
-  useCreateScope, useCreateMilestone, useUpdateMilestone, useDeleteMilestone, useListMilestones,
+  useGetBurnDown, useListCostEntries, useCreateCostEntry, useUpdateCostEntry, useDeleteCostEntry,
+  useCreateScope, useUpdateScope, useDeleteScope,
+  useCreateMilestone, useUpdateMilestone, useDeleteMilestone, useListMilestones,
   useListCommits, useListProjectTimeEntries, useCreateTimeEntry,
   useListPresence, useListUsers, useAddProjectMember, useRemoveProjectMember,
   useListProjectMembers,
@@ -17,8 +18,9 @@ import {
 } from "@workspace/api-client-react";
 import type {
   Item, Doc, ItemInput, ItemInputType, ItemInputPriority,
-  ItemUpdateStatus, Message, DocInput, CostEntry, CostEntryInput,
-  CostEntryInputCategory, Scope, Milestone, ScopeInput, MilestoneInput,
+  ItemUpdateStatus, Message, DocInput, CostEntry, CostEntryInput, CostEntryUpdate,
+  CostEntryInputCategory, Scope, Milestone, ScopeInput, ScopeUpdate,
+  ScopeInputStatus, MilestoneInput, MilestoneUpdate, MilestoneUpdateStatus,
   Commit, TimeEntry, Presence, ProjectComponent, Flow, FlowUpdate,
 } from "@workspace/api-client-react";
 import {
@@ -30,6 +32,7 @@ import {
   getListDocsQueryKey, getGetProjectQueryKey, getListCostEntriesQueryKey,
   getListCommitsQueryKey, getListPresenceQueryKey, getListProjectTimeEntriesQueryKey,
   getListProjectMembersQueryKey, getListComponentsQueryKey, getListFlowsQueryKey,
+  getGetBurnDownQueryKey, getListScopesQueryKey,
 } from "@workspace/api-client-react";
 import { Layout } from "../components/layout";
 import { Button } from "@/components/ui/button";
@@ -43,7 +46,7 @@ import { useToast } from "@/hooks/use-toast";
 import {
   Plus, Send, Bug, CheckSquare, Lightbulb, MessageSquare as ReqIcon,
   ArrowRight, FileText, Copy, Trash2, Pin, Pencil, Archive, Search,
-  Flag, Layers, GripVertical, User as UserIcon,
+  Flag, Layers, GripVertical, User as UserIcon, ChevronDown, ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { MarkdownRenderer } from "@/components/markdown-renderer";
@@ -182,6 +185,8 @@ export default function ProjectPage() {
   const updateProject = useUpdateProject();
   const deleteProjectMut = useDeleteProject();
   const createCostEntry = useCreateCostEntry();
+  const updateCostEntry = useUpdateCostEntry();
+  const deleteCostEntry = useDeleteCostEntry();
   const { data: burnDown } = useGetBurnDown(slug!);
   const { data: costEntries = [] } = useListCostEntries(slug!);
   const { data: commits = [] } = useListCommits(slug!, {
@@ -230,6 +235,8 @@ export default function ProjectPage() {
   const [itemTypeFilter, setItemTypeFilter] = useState<string>("all");
   const [itemCategoryFilter, setItemCategoryFilter] = useState<string>("all");
   const [itemComponentFilter, setItemComponentFilter] = useState<number | "all">("all");
+  const [itemScopeFilter, setItemScopeFilter] = useState<number | "all">("all");
+  const [itemMilestoneFilter, setItemMilestoneFilter] = useState<number | "all">("all");
   const [hideDone, setHideDone] = useState(true);
   const [componentNewName, setComponentNewName] = useState("");
   const [componentEditId, setComponentEditId] = useState<number | null>(null);
@@ -252,12 +259,38 @@ export default function ProjectPage() {
   const [addMemberUserId, setAddMemberUserId] = useState("");
   const [addMemberRole, setAddMemberRole] = useState<"member" | "owner">("member");
   const [costOpen, setCostOpen] = useState(false);
-  const [newCost, setNewCost] = useState<{
-    category: CostEntryInputCategory;
-    vendor: string;
-    description: string;
-    amountCents: string;
-  }>({ category: "other", vendor: "", description: "", amountCents: "" });
+  const [editingCost, setEditingCost] = useState<CostEntry | null>(null);
+  const todayStr = () => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  };
+  const blankCostForm = () => ({
+    category: "other" as CostEntryInputCategory,
+    vendor: "",
+    description: "",
+    amountCents: "",
+    scopeId: null as number | null,
+    incurredOn: todayStr(),
+    recurring: false,
+  });
+  const [costForm, setCostForm] = useState(blankCostForm);
+  const resetCostForm = () => {
+    setEditingCost(null);
+    setCostForm(blankCostForm());
+  };
+  const openEditCost = (c: CostEntry) => {
+    setEditingCost(c);
+    setCostForm({
+      category: c.category as CostEntryInputCategory,
+      vendor: c.vendor ?? "",
+      description: c.description ?? "",
+      amountCents: (c.amountCents / 100).toString(),
+      scopeId: c.scopeId ?? null,
+      incurredOn: c.incurredOn,
+      recurring: c.recurring,
+    });
+    setCostOpen(true);
+  };
   const [newItem, setNewItem] = useState<{
     type: ItemInputType;
     title: string;
@@ -297,12 +330,74 @@ export default function ProjectPage() {
     return () => clearTimeout(timer);
   }, [docSearch]);
 
+  const [expandedScopeIds, setExpandedScopeIds] = useState<Set<number>>(new Set());
+  const [expandedMilestoneIds, setExpandedMilestoneIds] = useState<Set<number>>(new Set());
+  const toggleScopeExpanded = (id: number) => setExpandedScopeIds((prev) => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
+  const toggleMilestoneExpanded = (id: number) => setExpandedMilestoneIds((prev) => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
   const [scopeOpen, setScopeOpen] = useState(false);
-  const [newScope, setNewScope] = useState({ name: "", budgetCents: "", startDate: "", targetDate: "" });
+  const [editingScope, setEditingScope] = useState<Scope | null>(null);
+  const [scopeForm, setScopeForm] = useState<{
+    name: string;
+    sow: string;
+    budgetCents: string;
+    status: ScopeInputStatus;
+    startDate: string;
+    targetDate: string;
+  }>({ name: "", sow: "", budgetCents: "", status: "planned", startDate: "", targetDate: "" });
   const [milestoneOpen, setMilestoneOpen] = useState(false);
-  const [newMilestone, setNewMilestone] = useState({ name: "", scopeId: "", targetDate: "" });
+  const [editingMilestone, setEditingMilestone] = useState<Milestone | null>(null);
+  const [milestoneForm, setMilestoneForm] = useState<{
+    name: string;
+    scopeId: string;
+    description: string;
+    startDate: string;
+    targetDate: string;
+    status: MilestoneUpdateStatus;
+  }>({ name: "", scopeId: "", description: "", startDate: "", targetDate: "", status: "open" });
   const createScope = useCreateScope();
+  const updateScope = useUpdateScope();
+  const deleteScope = useDeleteScope();
   const createMilestone = useCreateMilestone();
+  const resetScopeForm = () => {
+    setEditingScope(null);
+    setScopeForm({ name: "", sow: "", budgetCents: "", status: "planned", startDate: "", targetDate: "" });
+  };
+  const openEditScope = (s: Scope) => {
+    setEditingScope(s);
+    setScopeForm({
+      name: s.name,
+      sow: s.sow ?? "",
+      budgetCents: s.budgetCents != null ? (s.budgetCents / 100).toString() : "",
+      status: s.status as ScopeInputStatus,
+      startDate: s.startDate ?? "",
+      targetDate: s.targetDate ?? "",
+    });
+    setScopeOpen(true);
+  };
+  const resetMilestoneForm = () => {
+    setEditingMilestone(null);
+    setMilestoneForm({ name: "", scopeId: "", description: "", startDate: "", targetDate: "", status: "open" });
+  };
+  const openEditMilestone = (m: Milestone) => {
+    setEditingMilestone(m);
+    setMilestoneForm({
+      name: m.name,
+      scopeId: String(m.scopeId),
+      description: m.description ?? "",
+      startDate: m.startDate ?? "",
+      targetDate: m.targetDate ?? "",
+      status: m.status as MilestoneUpdateStatus,
+    });
+    setMilestoneOpen(true);
+  };
 
   const [logTimeOpen, setLogTimeOpen] = useState(false);
   const [newTimeEntry, setNewTimeEntry] = useState({
@@ -659,64 +754,162 @@ export default function ProjectPage() {
     }
   };
 
-  const handleAddCost = async () => {
-    const amount = parseFloat(newCost.amountCents);
+  const invalidateCostQueries = () => {
+    qc.invalidateQueries({ queryKey: getListCostEntriesQueryKey(slug!) });
+    qc.invalidateQueries({ queryKey: getGetBurnDownQueryKey(slug!) });
+    qc.invalidateQueries({ queryKey: getListScopesQueryKey(slug!) });
+  };
+
+  const handleSaveCost = async () => {
+    const amount = parseFloat(costForm.amountCents);
     if (!amount || isNaN(amount)) return;
     try {
-      const input: CostEntryInput = {
-        category: newCost.category,
-        vendor: newCost.vendor || undefined,
-        description: newCost.description || undefined,
-        amountCents: Math.round(amount * 100),
-        incurredOn: new Date().toISOString().split("T")[0]!,
-      };
-      await createCostEntry.mutateAsync({ slug: slug!, data: input });
-      qc.invalidateQueries({ queryKey: getListCostEntriesQueryKey(slug!) });
+      const amountCents = Math.round(amount * 100);
+      if (editingCost) {
+        const patch: CostEntryUpdate = {
+          category: costForm.category,
+          vendor: costForm.vendor || null,
+          description: costForm.description || null,
+          amountCents,
+          incurredOn: costForm.incurredOn || todayStr(),
+          scopeId: costForm.scopeId ?? null,
+          recurring: costForm.recurring,
+        };
+        await updateCostEntry.mutateAsync({ slug: slug!, costId: editingCost.id, data: patch });
+        toast({ title: "Cost entry updated" });
+      } else {
+        const input: CostEntryInput = {
+          category: costForm.category,
+          vendor: costForm.vendor || undefined,
+          description: costForm.description || undefined,
+          amountCents,
+          incurredOn: costForm.incurredOn || todayStr(),
+          scopeId: costForm.scopeId ?? undefined,
+          recurring: costForm.recurring,
+        };
+        await createCostEntry.mutateAsync({ slug: slug!, data: input });
+        toast({ title: "Cost entry added" });
+      }
+      invalidateCostQueries();
       setCostOpen(false);
-      setNewCost({ category: "other", vendor: "", description: "", amountCents: "" });
-      toast({ title: "Cost entry added" });
+      resetCostForm();
     } catch {
-      toast({ title: "Failed to add cost entry", variant: "destructive" });
+      toast({ title: editingCost ? "Failed to update cost entry" : "Failed to add cost entry", variant: "destructive" });
     }
   };
 
-  const handleCreateScope = async () => {
-    if (!newScope.name.trim()) return;
+  const handleDeleteCost = async (c: CostEntry) => {
+    const label = c.description || c.vendor || `${c.category} entry`;
+    if (!window.confirm(`Delete cost entry "${label}"?`)) return;
     try {
-      const scopeSlug = newScope.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || `scope-${Date.now()}`;
-      const input: ScopeInput = {
-        name: newScope.name,
-        slug: scopeSlug,
-        budgetCents: newScope.budgetCents ? Math.round(parseFloat(newScope.budgetCents) * 100) : null,
-        startDate: newScope.startDate || null,
-        targetDate: newScope.targetDate || null,
-      };
-      await createScope.mutateAsync({ slug: slug!, data: input });
-      qc.invalidateQueries({ queryKey: getGetProjectQueryKey(slug!) });
+      await deleteCostEntry.mutateAsync({ slug: slug!, costId: c.id });
+      invalidateCostQueries();
+      toast({ title: "Cost entry deleted" });
+    } catch {
+      toast({ title: "Failed to delete cost entry", variant: "destructive" });
+    }
+  };
+
+  const invalidateScopeQueries = () => {
+    qc.invalidateQueries({ queryKey: getGetProjectQueryKey(slug!) });
+    qc.invalidateQueries({ queryKey: getListScopesQueryKey(slug!) });
+    qc.invalidateQueries({ queryKey: getGetBurnDownQueryKey(slug!) });
+  };
+
+  const handleSaveScope = async () => {
+    if (!scopeForm.name.trim()) return;
+    try {
+      const budgetCents = scopeForm.budgetCents ? Math.round(parseFloat(scopeForm.budgetCents) * 100) : null;
+      if (editingScope) {
+        const patch: ScopeUpdate = {
+          name: scopeForm.name,
+          sow: scopeForm.sow || null,
+          budgetCents,
+          status: scopeForm.status,
+          startDate: scopeForm.startDate || null,
+          targetDate: scopeForm.targetDate || null,
+        };
+        await updateScope.mutateAsync({ slug: slug!, scopeId: editingScope.id, data: patch });
+        toast({ title: "Scope updated" });
+      } else {
+        const scopeSlug = scopeForm.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || `scope-${Date.now()}`;
+        const input: ScopeInput = {
+          name: scopeForm.name,
+          slug: scopeSlug,
+          sow: scopeForm.sow || null,
+          budgetCents,
+          status: scopeForm.status,
+          startDate: scopeForm.startDate || null,
+          targetDate: scopeForm.targetDate || null,
+        };
+        await createScope.mutateAsync({ slug: slug!, data: input });
+        toast({ title: "Scope created" });
+      }
+      invalidateScopeQueries();
       setScopeOpen(false);
-      setNewScope({ name: "", budgetCents: "", startDate: "", targetDate: "" });
-      toast({ title: "Scope created" });
+      resetScopeForm();
     } catch {
-      toast({ title: "Failed to create scope", variant: "destructive" });
+      toast({ title: editingScope ? "Failed to update scope" : "Failed to create scope", variant: "destructive" });
     }
   };
 
-  const handleCreateMilestone = async () => {
-    if (!newMilestone.name.trim() || !newMilestone.scopeId) return;
+  const handleDeleteScope = async (s: Scope) => {
+    if (!window.confirm(`Delete scope "${s.name}"? Items and costs in this scope will be unlinked.`)) return;
     try {
-      const input: MilestoneInput = {
-        name: newMilestone.name,
-        scopeId: parseInt(newMilestone.scopeId, 10),
-        targetDate: newMilestone.targetDate || null,
-      };
-      await createMilestone.mutateAsync({ slug: slug!, data: input });
+      await deleteScope.mutateAsync({ slug: slug!, scopeId: s.id });
+      invalidateScopeQueries();
+      qc.invalidateQueries({ queryKey: getListMilestonesQueryKey(slug!) });
+      qc.invalidateQueries({ queryKey: getListItemsQueryKey(slug!) });
+      qc.invalidateQueries({ queryKey: getListCostEntriesQueryKey(slug!) });
+      toast({ title: "Scope deleted" });
+    } catch {
+      toast({ title: "Failed to delete scope", variant: "destructive" });
+    }
+  };
+
+  const handleSaveMilestone = async () => {
+    if (!milestoneForm.name.trim() || !milestoneForm.scopeId) return;
+    try {
+      if (editingMilestone) {
+        const patch: MilestoneUpdate = {
+          name: milestoneForm.name,
+          description: milestoneForm.description || null,
+          startDate: milestoneForm.startDate || null,
+          targetDate: milestoneForm.targetDate || null,
+          status: milestoneForm.status,
+        };
+        await updateMilestoneM.mutateAsync({ slug: slug!, milestoneId: editingMilestone.id, data: patch });
+        toast({ title: "Milestone updated" });
+      } else {
+        const input: MilestoneInput = {
+          name: milestoneForm.name,
+          scopeId: parseInt(milestoneForm.scopeId, 10),
+          description: milestoneForm.description || null,
+          startDate: milestoneForm.startDate || null,
+          targetDate: milestoneForm.targetDate || null,
+        };
+        await createMilestone.mutateAsync({ slug: slug!, data: input });
+        toast({ title: "Milestone created" });
+      }
       qc.invalidateQueries({ queryKey: getGetProjectQueryKey(slug!) });
       qc.invalidateQueries({ queryKey: getListMilestonesQueryKey(slug!) });
       setMilestoneOpen(false);
-      setNewMilestone({ name: "", scopeId: "", targetDate: "" });
-      toast({ title: "Milestone created" });
+      resetMilestoneForm();
     } catch {
-      toast({ title: "Failed to create milestone", variant: "destructive" });
+      toast({ title: editingMilestone ? "Failed to update milestone" : "Failed to create milestone", variant: "destructive" });
+    }
+  };
+
+  const handleDeleteMilestone = async (m: Milestone) => {
+    if (!window.confirm(`Delete milestone "${m.name}"? Items linked to it will be unlinked.`)) return;
+    try {
+      await deleteMilestoneM.mutateAsync({ slug: slug!, milestoneId: m.id });
+      qc.invalidateQueries({ queryKey: getGetProjectQueryKey(slug!) });
+      qc.invalidateQueries({ queryKey: getListMilestonesQueryKey(slug!) });
+      qc.invalidateQueries({ queryKey: getListItemsQueryKey(slug!) });
+      toast({ title: "Milestone deleted" });
+    } catch {
+      toast({ title: "Failed to delete milestone", variant: "destructive" });
     }
   };
 
@@ -933,18 +1126,91 @@ export default function ProjectPage() {
                 {hideDone ? "SHOW DONE" : "HIDE DONE"}
               </button>
             </div>
+            {/* Scope + milestone filter row */}
+            {projectScopes.length > 0 && (
+              <div className="flex gap-1 flex-wrap items-center">
+                <button
+                  onClick={() => { setItemScopeFilter("all"); setItemMilestoneFilter("all"); }}
+                  className={cn(
+                    "text-[10px] font-mono border px-2 py-0.5 transition-colors",
+                    itemScopeFilter === "all"
+                      ? "border-primary text-primary bg-primary/10"
+                      : "border-border text-muted-foreground hover:text-foreground hover:border-muted-foreground",
+                  )}
+                >
+                  ALL SCOPES
+                </button>
+                {projectScopes.map((s) => (
+                  <button
+                    key={s.id}
+                    onClick={() => { setItemScopeFilter(s.id); setItemMilestoneFilter("all"); }}
+                    className={cn(
+                      "text-[10px] font-mono border px-2 py-0.5 transition-colors",
+                      itemScopeFilter === s.id
+                        ? "border-primary text-primary bg-primary/10"
+                        : "border-border text-muted-foreground hover:text-foreground hover:border-muted-foreground",
+                    )}
+                  >
+                    {s.name.toUpperCase()}
+                  </button>
+                ))}
+                {(() => {
+                  const visibleMilestones = (milestonesData as Milestone[]).filter(
+                    (m) => itemScopeFilter === "all" || m.scopeId === itemScopeFilter,
+                  );
+                  if (visibleMilestones.length === 0) return null;
+                  return (
+                    <>
+                      <span className="border-l border-border h-3 mx-1" />
+                      <button
+                        onClick={() => setItemMilestoneFilter("all")}
+                        className={cn(
+                          "text-[10px] font-mono border px-2 py-0.5 transition-colors",
+                          itemMilestoneFilter === "all"
+                            ? "border-accent text-accent bg-accent/10"
+                            : "border-border text-muted-foreground hover:text-foreground hover:border-muted-foreground",
+                        )}
+                      >
+                        ALL MILESTONES
+                      </button>
+                      {visibleMilestones.map((m) => (
+                        <button
+                          key={m.id}
+                          onClick={() => setItemMilestoneFilter(m.id)}
+                          className={cn(
+                            "text-[10px] font-mono border px-2 py-0.5 transition-colors",
+                            itemMilestoneFilter === m.id
+                              ? "border-accent text-accent bg-accent/10"
+                              : "border-border text-muted-foreground hover:text-foreground hover:border-muted-foreground",
+                          )}
+                        >
+                          {m.name.toUpperCase()}
+                        </button>
+                      ))}
+                    </>
+                  );
+                })()}
+              </div>
+            )}
             {(() => {
               const filtered = items
                 .filter((i) => itemTypeFilter === "all" || i.type === itemTypeFilter)
                 .filter((i) => itemCategoryFilter === "all" || i.category === itemCategoryFilter)
                 .filter((i) => itemComponentFilter === "all" || i.componentId === itemComponentFilter)
+                .filter((i) => itemScopeFilter === "all" || i.scopeId === itemScopeFilter)
+                .filter((i) => itemMilestoneFilter === "all" || i.milestoneId === itemMilestoneFilter)
                 .filter((i) => !hideDone || i.status !== "done");
+              const anyFilterActive =
+                itemTypeFilter !== "all" ||
+                itemCategoryFilter !== "all" ||
+                itemComponentFilter !== "all" ||
+                itemScopeFilter !== "all" ||
+                itemMilestoneFilter !== "all" ||
+                hideDone;
               return filtered.length === 0 ? (
                 <div className="border border-border bg-card p-8 text-center">
                   <p className="text-muted-foreground font-mono text-sm">
-                    {itemTypeFilter === "all" && itemCategoryFilter === "all" && itemComponentFilter === "all" && !hideDone
-                      ? "no items yet"
-                      : "no matching items"}
+                    {anyFilterActive ? "no matching items" : "no items yet"}
                   </p>
                 </div>
               ) : (
@@ -1333,56 +1599,98 @@ export default function ProjectPage() {
 
           {/* BUDGET TAB — burn-down + cost entries */}
           <TabsContent value="budget" className="mt-3 space-y-4">
-            {/* Summary bar */}
-            {burnDown ? (
-              <div className="border border-border bg-card p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="font-mono text-xs tracking-widest text-primary">// BUDGET OVERVIEW</span>
-                  <span className="font-mono text-xs text-muted-foreground">
-                    ${((burnDown as { totalSpentCents: number }).totalSpentCents / 100).toFixed(2)} /
-                    ${((burnDown as { totalBudgetCents: number }).totalBudgetCents / 100).toFixed(2)}
-                  </span>
-                </div>
-                <div className="w-full bg-muted h-2 rounded-none">
-                  <div
-                    className="bg-primary h-2 transition-all"
-                    style={{
-                      width: `${Math.min(
-                        100,
-                        (burnDown as { totalBudgetCents: number; totalSpentCents: number }).totalBudgetCents > 0
-                          ? ((burnDown as { totalSpentCents: number }).totalSpentCents /
-                              (burnDown as { totalBudgetCents: number }).totalBudgetCents) * 100
-                          : 0,
-                      )}%`,
-                    }}
-                  />
-                </div>
-                {/* Per-scope bars */}
-                {(burnDown as { scopes: Array<{ scopeId: number; scopeName: string; budgetCents: number; spentCents: number }> }).scopes.length > 0 && (
-                  <div className="space-y-2 pt-2 border-t border-border">
-                    <span className="font-mono text-[10px] tracking-widest text-muted-foreground">SCOPES</span>
-                    {(burnDown as { scopes: Array<{ scopeId: number; scopeName: string; budgetCents: number; spentCents: number }> }).scopes.map((s) => (
-                      <div key={s.scopeId} className="space-y-1">
-                        <div className="flex justify-between font-mono text-xs">
-                          <span className="text-foreground truncate">{s.scopeName}</span>
-                          <span className="text-muted-foreground shrink-0 ml-2">
-                            ${(s.spentCents / 100).toFixed(2)} / ${(s.budgetCents / 100).toFixed(2)}
-                          </span>
-                        </div>
-                        <div className="w-full bg-muted h-1">
-                          <div
-                            className="bg-accent h-1"
-                            style={{
-                              width: `${Math.min(100, s.budgetCents > 0 ? (s.spentCents / s.budgetCents) * 100 : 0)}%`,
-                            }}
-                          />
-                        </div>
-                      </div>
-                    ))}
+            {/* Summary bar — budget vs. (direct + labor) spend */}
+            {burnDown ? (() => {
+              const bd = burnDown as {
+                totalBudgetCents: number;
+                totalSpentCents: number;
+                totalLaborCents?: number;
+                scopes: Array<{ scopeId: number; scopeName: string; budgetCents: number; spentCents: number; laborCents?: number }>;
+              };
+              const totalDirect = bd.totalSpentCents;
+              const totalLabor = bd.totalLaborCents ?? 0;
+              const totalSpent = totalDirect + totalLabor;
+              const totalBudget = bd.totalBudgetCents;
+              const remaining = totalBudget - totalSpent;
+              const burnPct = totalBudget > 0 ? Math.round((totalSpent / totalBudget) * 100) : null;
+              return (
+                <div className="border border-border bg-card p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="font-mono text-xs tracking-widest text-primary">// BUDGET VS SPEND</span>
+                    <span className="font-mono text-xs text-muted-foreground">
+                      ${(totalSpent / 100).toFixed(2)} / ${(totalBudget / 100).toFixed(2)}
+                    </span>
                   </div>
-                )}
-              </div>
-            ) : (
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <div className="space-y-1">
+                      <div className="font-mono text-[10px] tracking-widest text-muted-foreground">TOTAL BUDGET</div>
+                      <div className="font-mono text-lg text-foreground">${(totalBudget / 100).toFixed(2)}</div>
+                    </div>
+                    <div className="space-y-1">
+                      <div className="font-mono text-[10px] tracking-widest text-muted-foreground">TOTAL SPENT</div>
+                      <div className="font-mono text-lg text-accent">${(totalSpent / 100).toFixed(2)}</div>
+                      <div className="font-mono text-[10px] text-muted-foreground">
+                        ${(totalDirect / 100).toFixed(0)} direct + ${(totalLabor / 100).toFixed(0)} labor
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <div className="font-mono text-[10px] tracking-widest text-muted-foreground">REMAINING</div>
+                      <div className={cn("font-mono text-lg", remaining < 0 ? "text-destructive" : "text-primary")}>
+                        ${(remaining / 100).toFixed(2)}
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <div className="font-mono text-[10px] tracking-widest text-muted-foreground">BURN RATE</div>
+                      <div className={cn(
+                        "font-mono text-lg",
+                        burnPct != null && burnPct > 100 ? "text-destructive" : "text-foreground",
+                      )}>
+                        {burnPct != null ? `${burnPct}%` : "—"}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="w-full bg-muted h-2 rounded-none">
+                    <div
+                      className={cn("h-2 transition-all", totalBudget > 0 && totalSpent > totalBudget ? "bg-destructive" : "bg-primary")}
+                      style={{ width: `${totalBudget > 0 ? Math.min(100, (totalSpent / totalBudget) * 100) : 0}%` }}
+                    />
+                  </div>
+                  {/* Per-scope bars */}
+                  {bd.scopes.length > 0 && (
+                    <div className="space-y-2 pt-2 border-t border-border">
+                      <span className="font-mono text-[10px] tracking-widest text-muted-foreground">BY SCOPE</span>
+                      {bd.scopes.map((s) => {
+                        const direct = s.spentCents;
+                        const labor = s.laborCents ?? 0;
+                        const spent = direct + labor;
+                        const pct = s.budgetCents > 0 ? (spent / s.budgetCents) * 100 : 0;
+                        const over = s.budgetCents > 0 && spent > s.budgetCents;
+                        return (
+                          <div key={s.scopeId} className="space-y-1">
+                            <div className="flex justify-between font-mono text-xs">
+                              <span className="text-foreground truncate">{s.scopeName}</span>
+                              <span className="text-muted-foreground shrink-0 ml-2">
+                                ${(spent / 100).toFixed(2)} / ${(s.budgetCents / 100).toFixed(2)}
+                              </span>
+                            </div>
+                            <div className="flex justify-between font-mono text-[10px] text-muted-foreground">
+                              <span>{labor > 0 ? `$${(direct / 100).toFixed(0)} direct + $${(labor / 100).toFixed(0)} labor` : ""}</span>
+                              <span>{s.budgetCents > 0 ? `${Math.round(pct)}%` : ""}</span>
+                            </div>
+                            <div className="w-full bg-muted h-1">
+                              <div
+                                className={cn("h-1", over ? "bg-destructive" : "bg-accent")}
+                                style={{ width: `${Math.min(100, pct)}%` }}
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })() : (
               <div className="border border-border bg-card p-4 text-center text-muted-foreground font-mono text-sm">
                 no budget data — add scopes and assign budgets
               </div>
@@ -1396,7 +1704,7 @@ export default function ProjectPage() {
                   size="sm"
                   variant="ghost"
                   className="font-mono text-xs border border-primary/50 text-primary hover:bg-primary/10 gap-1"
-                  onClick={() => setCostOpen(true)}
+                  onClick={() => { resetCostForm(); setCostOpen(true); }}
                 >
                   <Plus className="h-3 w-3" /> ADD COST
                 </Button>
@@ -1408,14 +1716,38 @@ export default function ProjectPage() {
               ) : (
                 <div className="border border-border bg-card divide-y divide-border">
                   {(costEntries as CostEntry[]).map((c) => (
-                    <div key={c.id} className="flex items-center gap-3 px-4 py-2.5 font-mono text-xs">
+                    <div key={c.id} className="flex items-center gap-3 px-4 py-2.5 font-mono text-xs group">
                       <span className="text-accent border border-accent/40 px-1 uppercase shrink-0">{c.category}</span>
                       <span className="flex-1 text-foreground truncate">{c.description ?? c.vendor ?? "—"}</span>
                       {c.vendor && c.description && (
                         <span className="text-muted-foreground hidden md:block truncate max-w-[120px]">{c.vendor}</span>
                       )}
+                      {c.recurring && (
+                        <span className="text-[10px] font-mono border border-accent/40 text-accent/80 px-1.5 py-0.5 shrink-0">
+                          RECURRING
+                        </span>
+                      )}
+                      {c.scopeId != null && (
+                        <span className="hidden md:block text-[10px] font-mono border border-primary/30 text-primary/70 px-1.5 py-0.5 shrink-0">
+                          {scopeNameById.get(c.scopeId) ?? "Scope"}
+                        </span>
+                      )}
                       <span className="text-foreground shrink-0 font-bold">${(c.amountCents / 100).toFixed(2)}</span>
                       <span className="text-muted-foreground shrink-0">{new Date(c.incurredOn).toLocaleDateString()}</span>
+                      <button
+                        onClick={() => openEditCost(c)}
+                        className="text-muted-foreground hover:text-primary transition-colors shrink-0"
+                        aria-label="Edit cost entry"
+                      >
+                        <Pencil className="h-3 w-3" />
+                      </button>
+                      <button
+                        onClick={() => void handleDeleteCost(c)}
+                        className="text-muted-foreground hover:text-destructive transition-colors shrink-0"
+                        aria-label="Delete cost entry"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </button>
                     </div>
                   ))}
                 </div>
@@ -1432,7 +1764,7 @@ export default function ProjectPage() {
                 <span className="font-mono text-xs tracking-widest text-muted-foreground">// SCOPES</span>
                 <Button size="sm" variant="ghost"
                   className="font-mono text-xs border border-primary/50 text-primary hover:bg-primary/10 gap-1"
-                  onClick={() => setScopeOpen(true)}>
+                  onClick={() => { resetScopeForm(); setScopeOpen(true); }}>
                   <Plus className="h-3 w-3" /> NEW SCOPE
                 </Button>
               </div>
@@ -1442,24 +1774,109 @@ export default function ProjectPage() {
                 </div>
               ) : (
                 <div className="border border-border bg-card divide-y divide-border">
-                  {(project.scopes as Scope[]).map((s) => (
-                    <div key={s.id} className="flex items-center gap-3 px-4 py-3 font-mono text-xs">
-                      <Layers className="h-3.5 w-3.5 text-primary shrink-0" />
-                      <span className="flex-1 text-foreground">{s.name}</span>
-                      <span className={cn(
-                        "border px-1 text-[10px]",
-                        s.status === "active" ? "border-accent/50 text-accent" :
-                        s.status === "complete" ? "border-primary/50 text-primary" :
-                        "border-border text-muted-foreground",
-                      )}>{s.status.toUpperCase()}</span>
-                      {s.budgetCents != null && (
-                        <span className="text-muted-foreground shrink-0">
-                          ${((s.spentCents ?? 0) / 100).toFixed(0)} / ${(s.budgetCents / 100).toFixed(0)}
-                        </span>
-                      )}
-                      {s.targetDate && <span className="text-muted-foreground shrink-0">{s.targetDate}</span>}
-                    </div>
-                  ))}
+                  {(project.scopes as Scope[]).map((s) => {
+                    const expanded = expandedScopeIds.has(s.id);
+                    const scopeItems = items.filter((i) => i.scopeId === s.id);
+                    const scopeCosts = (costEntries as CostEntry[]).filter((c) => c.scopeId === s.id);
+                    return (
+                      <div key={s.id}>
+                        <div className="flex items-center gap-3 px-4 py-3 font-mono text-xs group">
+                          <button
+                            onClick={() => toggleScopeExpanded(s.id)}
+                            className="text-muted-foreground hover:text-foreground transition-colors shrink-0"
+                            aria-label={expanded ? "Collapse scope" : "Expand scope"}
+                          >
+                            {expanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                          </button>
+                          <Layers className="h-3.5 w-3.5 text-primary shrink-0" />
+                          <button
+                            onClick={() => toggleScopeExpanded(s.id)}
+                            className="flex-1 text-left text-foreground truncate hover:text-primary transition-colors"
+                          >
+                            {s.name}
+                          </button>
+                          <span className={cn(
+                            "border px-1 text-[10px]",
+                            s.status === "active" ? "border-accent/50 text-accent" :
+                            s.status === "complete" ? "border-primary/50 text-primary" :
+                            "border-border text-muted-foreground",
+                          )}>{s.status.toUpperCase()}</span>
+                          {s.budgetCents != null && (
+                            <span className="text-muted-foreground shrink-0">
+                              ${((s.spentCents ?? 0) / 100).toFixed(0)} / ${(s.budgetCents / 100).toFixed(0)}
+                            </span>
+                          )}
+                          {s.targetDate && <span className="text-muted-foreground shrink-0">{s.targetDate}</span>}
+                          <button
+                            onClick={() => openEditScope(s)}
+                            className="text-muted-foreground hover:text-primary transition-colors shrink-0"
+                            aria-label={`Edit scope ${s.name}`}
+                          >
+                            <Pencil className="h-3 w-3" />
+                          </button>
+                          <button
+                            onClick={() => void handleDeleteScope(s)}
+                            className="text-muted-foreground hover:text-destructive transition-colors shrink-0"
+                            aria-label={`Delete scope ${s.name}`}
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </button>
+                        </div>
+                        {expanded && (
+                          <div className="bg-background border-t border-border px-10 py-3 space-y-3 font-mono text-xs">
+                            {s.sow && (
+                              <div className="space-y-1">
+                                <div className="text-[10px] tracking-widest text-muted-foreground">// SOW</div>
+                                <div className="text-foreground whitespace-pre-wrap">{s.sow}</div>
+                              </div>
+                            )}
+                            <div className="space-y-1">
+                              <div className="text-[10px] tracking-widest text-muted-foreground">// ITEMS ({scopeItems.length})</div>
+                              {scopeItems.length === 0 ? (
+                                <div className="text-muted-foreground">no items linked to this scope</div>
+                              ) : (
+                                <div className="divide-y divide-border border border-border">
+                                  {scopeItems.map((it) => (
+                                    <Link key={it.id} href={`/projects/${slug}/items/${it.number}`}>
+                                      <a className="flex items-center gap-2 px-2 py-1.5 hover:bg-muted/30">
+                                        <span className="text-muted-foreground w-8 shrink-0">#{it.number}</span>
+                                        <span className="flex-1 truncate text-foreground">{it.title}</span>
+                                        {it.milestoneId && (
+                                          <span className="text-[10px] text-accent/70 shrink-0">
+                                            {milestoneNameById.get(it.milestoneId) ?? "milestone"}
+                                          </span>
+                                        )}
+                                        <span className={cn("border px-1 text-[10px] shrink-0", STATUS_COLORS[it.status])}>
+                                          {STATUS_LABELS[it.status] ?? it.status}
+                                        </span>
+                                      </a>
+                                    </Link>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                            <div className="space-y-1">
+                              <div className="text-[10px] tracking-widest text-muted-foreground">// COST ENTRIES ({scopeCosts.length})</div>
+                              {scopeCosts.length === 0 ? (
+                                <div className="text-muted-foreground">no cost entries assigned to this scope</div>
+                              ) : (
+                                <div className="divide-y divide-border border border-border">
+                                  {scopeCosts.map((c) => (
+                                    <div key={c.id} className="flex items-center gap-2 px-2 py-1.5">
+                                      <span className="text-accent border border-accent/40 px-1 uppercase shrink-0 text-[10px]">{c.category}</span>
+                                      <span className="flex-1 truncate text-foreground">{c.description ?? c.vendor ?? "—"}</span>
+                                      <span className="text-foreground shrink-0 font-bold">${(c.amountCents / 100).toFixed(2)}</span>
+                                      <span className="text-muted-foreground shrink-0">{new Date(c.incurredOn).toLocaleDateString()}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -1470,29 +1887,115 @@ export default function ProjectPage() {
                 <span className="font-mono text-xs tracking-widest text-muted-foreground">// MILESTONES</span>
                 <Button size="sm" variant="ghost"
                   className="font-mono text-xs border border-primary/50 text-primary hover:bg-primary/10 gap-1"
-                  onClick={() => setMilestoneOpen(true)}
+                  onClick={() => { resetMilestoneForm(); setMilestoneOpen(true); }}
                   disabled={(project.scopes as Scope[]).length === 0}
                 >
                   <Plus className="h-3 w-3" /> NEW MILESTONE
                 </Button>
               </div>
-              {(project.milestones as Milestone[]).length === 0 ? (
+              {(milestonesData as Milestone[]).length === 0 ? (
                 <div className="border border-border bg-card p-4 text-center text-muted-foreground font-mono text-sm">
                   no milestones — create a scope first, then add milestones
                 </div>
               ) : (
                 <div className="border border-border bg-card divide-y divide-border">
-                  {(project.milestones as Milestone[]).map((m) => (
-                    <div key={m.id} className="flex items-center gap-3 px-4 py-3 font-mono text-xs">
-                      <Flag className="h-3.5 w-3.5 text-accent shrink-0" />
-                      <span className="flex-1 text-foreground">{m.name}</span>
-                      <span className={cn(
-                        "border px-1 text-[10px]",
-                        m.status === "complete" ? "border-primary/50 text-primary" : "border-border text-muted-foreground",
-                      )}>{m.status.toUpperCase()}</span>
-                      {m.targetDate && <span className="text-muted-foreground shrink-0">{m.targetDate}</span>}
-                    </div>
-                  ))}
+                  {(milestonesData as Milestone[]).map((m) => {
+                    const itemCount = (m as Milestone & { itemCount?: number }).itemCount ?? 0;
+                    const doneCount = (m as Milestone & { doneCount?: number }).doneCount ?? 0;
+                    const laborCents = (m as Milestone & { laborCents?: number }).laborCents ?? 0;
+                    const expanded = expandedMilestoneIds.has(m.id);
+                    const milestoneItems = items.filter((i) => i.milestoneId === m.id);
+                    return (
+                      <div key={m.id}>
+                        <div className="flex items-center gap-3 px-4 py-3 font-mono text-xs group">
+                          <button
+                            onClick={() => toggleMilestoneExpanded(m.id)}
+                            className="text-muted-foreground hover:text-foreground transition-colors shrink-0"
+                            aria-label={expanded ? "Collapse milestone" : "Expand milestone"}
+                          >
+                            {expanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                          </button>
+                          <Flag className="h-3.5 w-3.5 text-accent shrink-0" />
+                          <button
+                            onClick={() => toggleMilestoneExpanded(m.id)}
+                            className="flex-1 min-w-0 text-left hover:text-primary transition-colors"
+                          >
+                            <div className="text-foreground truncate">{m.name}</div>
+                            <div className="text-[10px] text-muted-foreground truncate">
+                              {scopeNameById.get(m.scopeId) ?? "scope?"}
+                            </div>
+                          </button>
+                          {itemCount > 0 && (
+                            <span className="text-[10px] text-muted-foreground shrink-0">
+                              {doneCount}/{itemCount} done
+                            </span>
+                          )}
+                          {laborCents > 0 && (
+                            <span className="text-[10px] text-muted-foreground shrink-0" title="Billable labor (rate × hours)">
+                              ${(laborCents / 100).toFixed(0)} labor
+                            </span>
+                          )}
+                          <button
+                            onClick={() => void updateMilestoneM.mutateAsync({
+                              slug: slug!,
+                              milestoneId: m.id,
+                              data: { status: m.status === "complete" ? "open" : "complete" },
+                            }).then(() => {
+                              qc.invalidateQueries({ queryKey: getGetProjectQueryKey(slug!) });
+                              qc.invalidateQueries({ queryKey: getListMilestonesQueryKey(slug!) });
+                            })}
+                            className={cn(
+                              "border px-1 text-[10px] hover:opacity-80 transition-opacity",
+                              m.status === "complete" ? "border-primary/50 text-primary" : "border-border text-muted-foreground",
+                            )}
+                            title="Toggle status"
+                          >
+                            {m.status.toUpperCase()}
+                          </button>
+                          {m.targetDate && <span className="text-muted-foreground shrink-0">{m.targetDate}</span>}
+                          <button
+                            onClick={() => openEditMilestone(m)}
+                            className="text-muted-foreground hover:text-primary transition-colors shrink-0"
+                            aria-label={`Edit milestone ${m.name}`}
+                          >
+                            <Pencil className="h-3 w-3" />
+                          </button>
+                          <button
+                            onClick={() => void handleDeleteMilestone(m)}
+                            className="text-muted-foreground hover:text-destructive transition-colors shrink-0"
+                            aria-label={`Delete milestone ${m.name}`}
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </button>
+                        </div>
+                        {expanded && (
+                          <div className="bg-background border-t border-border px-10 py-3 space-y-2 font-mono text-xs">
+                            {m.description && (
+                              <div className="text-foreground whitespace-pre-wrap">{m.description}</div>
+                            )}
+                            <div className="text-[10px] tracking-widest text-muted-foreground">// ITEMS ({milestoneItems.length})</div>
+                            {milestoneItems.length === 0 ? (
+                              <div className="text-muted-foreground">no items linked to this milestone</div>
+                            ) : (
+                              <div className="divide-y divide-border border border-border">
+                                {milestoneItems.map((it) => (
+                                  <Link key={it.id} href={`/projects/${slug}/items/${it.number}`}>
+                                    <a className="flex items-center gap-2 px-2 py-1.5 hover:bg-muted/30">
+                                      <span className="text-muted-foreground w-8 shrink-0">#{it.number}</span>
+                                      <span className="flex-1 truncate text-foreground">{it.title}</span>
+                                      <span className={cn("border px-1 text-[10px] shrink-0", STATUS_COLORS[it.status])}>
+                                        {STATUS_LABELS[it.status] ?? it.status}
+                                      </span>
+                                    </a>
+                                  </Link>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -1500,68 +2003,7 @@ export default function ProjectPage() {
 
           {/* STATS TAB — burn-down chart, hours, commits, cost summary */}
           <TabsContent value="stats" className="mt-3 space-y-6">
-            {/* Cost / Budget summary card */}
-            <div className="border border-border bg-card p-4 space-y-3">
-              <span className="font-mono text-xs tracking-widest text-primary">// BUDGET VS SPEND</span>
-              {burnDown ? (
-                <>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    <div className="space-y-1">
-                      <div className="font-mono text-[10px] tracking-widest text-muted-foreground">TOTAL BUDGET</div>
-                      <div className="font-mono text-lg text-foreground">
-                        ${((burnDown as { totalBudgetCents: number }).totalBudgetCents / 100).toFixed(2)}
-                      </div>
-                    </div>
-                    <div className="space-y-1">
-                      <div className="font-mono text-[10px] tracking-widest text-muted-foreground">TOTAL SPENT</div>
-                      <div className="font-mono text-lg text-accent">
-                        ${((burnDown as { totalSpentCents: number }).totalSpentCents / 100).toFixed(2)}
-                      </div>
-                    </div>
-                    <div className="space-y-1">
-                      <div className="font-mono text-[10px] tracking-widest text-muted-foreground">REMAINING</div>
-                      <div className={cn("font-mono text-lg", ((burnDown as { totalBudgetCents: number; totalSpentCents: number }).totalBudgetCents - (burnDown as { totalSpentCents: number }).totalSpentCents) < 0 ? "text-destructive" : "text-primary")}>
-                        ${(((burnDown as { totalBudgetCents: number }).totalBudgetCents - (burnDown as { totalSpentCents: number }).totalSpentCents) / 100).toFixed(2)}
-                      </div>
-                    </div>
-                    <div className="space-y-1">
-                      <div className="font-mono text-[10px] tracking-widest text-muted-foreground">BURN RATE</div>
-                      <div className="font-mono text-lg text-foreground">
-                        {(burnDown as { totalBudgetCents: number }).totalBudgetCents > 0
-                          ? `${Math.round(((burnDown as { totalSpentCents: number }).totalSpentCents / (burnDown as { totalBudgetCents: number }).totalBudgetCents) * 100)}%`
-                          : "—"}
-                      </div>
-                    </div>
-                  </div>
-                  {/* Per-scope breakdown */}
-                  {(burnDown as { scopes: Array<{ scopeId: number; scopeName: string; budgetCents: number; spentCents: number }> }).scopes.length > 0 && (
-                    <div className="space-y-2 pt-2 border-t border-border">
-                      <div className="font-mono text-[10px] tracking-widest text-muted-foreground">BY SCOPE</div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                        {(burnDown as { scopes: Array<{ scopeId: number; scopeName: string; budgetCents: number; spentCents: number }> }).scopes.map((s) => (
-                          <div key={s.scopeId} className="border border-border p-2 space-y-1">
-                            <div className="flex justify-between font-mono text-xs">
-                              <span className="text-foreground truncate">{s.scopeName}</span>
-                              <span className="text-muted-foreground shrink-0 ml-2">
-                                ${(s.spentCents / 100).toFixed(2)} / ${(s.budgetCents / 100).toFixed(2)}
-                              </span>
-                            </div>
-                            <div className="w-full bg-muted h-1">
-                              <div
-                                className={cn("h-1", s.budgetCents > 0 && s.spentCents > s.budgetCents ? "bg-destructive" : "bg-accent")}
-                                style={{ width: `${Math.min(100, s.budgetCents > 0 ? (s.spentCents / s.budgetCents) * 100 : 0)}%` }}
-                              />
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </>
-              ) : (
-                <div className="text-muted-foreground font-mono text-sm">no budget data — add scopes with budgets</div>
-              )}
-            </div>
+            {/* Budget vs. spend lives in the BUDGET tab; STATS focuses on item velocity, hours, and commits. */}
 
             {/* Burn-down line chart — open items over time */}
             {items.length > 0 && (() => {
@@ -2511,20 +2953,20 @@ export default function ProjectPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Add Cost Entry Dialog */}
-      <Dialog open={costOpen} onOpenChange={setCostOpen}>
+      {/* Cost Entry Dialog — create + edit */}
+      <Dialog open={costOpen} onOpenChange={(o) => { setCostOpen(o); if (!o) resetCostForm(); }}>
         <DialogContent className="bg-card border-border max-w-sm">
           <DialogHeader>
             <DialogTitle className="font-['VT323'] tracking-widest text-xl text-primary">
-              // ADD COST ENTRY
+              {editingCost ? "// EDIT COST ENTRY" : "// ADD COST ENTRY"}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <div className="space-y-1">
               <Label className="font-mono text-xs tracking-widest text-muted-foreground">CATEGORY</Label>
               <Select
-                value={newCost.category}
-                onValueChange={(v) => setNewCost((p) => ({ ...p, category: v as CostEntryInputCategory }))}
+                value={costForm.category}
+                onValueChange={(v) => setCostForm((p) => ({ ...p, category: v as CostEntryInputCategory }))}
               >
                 <SelectTrigger className="bg-background border-border font-mono text-xs h-8 rounded-none">
                   <SelectValue />
@@ -2539,8 +2981,8 @@ export default function ProjectPage() {
             <div className="space-y-1">
               <Label className="font-mono text-xs tracking-widest text-muted-foreground">VENDOR</Label>
               <Input
-                value={newCost.vendor}
-                onChange={(e) => setNewCost((p) => ({ ...p, vendor: e.target.value }))}
+                value={costForm.vendor}
+                onChange={(e) => setCostForm((p) => ({ ...p, vendor: e.target.value }))}
                 className="bg-background border-border font-mono text-sm rounded-none"
                 placeholder="optional"
               />
@@ -2548,119 +2990,238 @@ export default function ProjectPage() {
             <div className="space-y-1">
               <Label className="font-mono text-xs tracking-widest text-muted-foreground">DESCRIPTION</Label>
               <Input
-                value={newCost.description}
-                onChange={(e) => setNewCost((p) => ({ ...p, description: e.target.value }))}
+                value={costForm.description}
+                onChange={(e) => setCostForm((p) => ({ ...p, description: e.target.value }))}
                 className="bg-background border-border font-mono text-sm rounded-none"
                 placeholder="optional"
               />
             </div>
-            <div className="space-y-1">
-              <Label className="font-mono text-xs tracking-widest text-muted-foreground">AMOUNT ($)</Label>
-              <Input
-                value={newCost.amountCents}
-                onChange={(e) => setNewCost((p) => ({ ...p, amountCents: e.target.value }))}
-                className="bg-background border-border font-mono text-sm rounded-none"
-                placeholder="0.00"
-                type="number"
-                min="0"
-                step="0.01"
-              />
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <Label className="font-mono text-xs tracking-widest text-muted-foreground">AMOUNT ($)</Label>
+                <Input
+                  value={costForm.amountCents}
+                  onChange={(e) => setCostForm((p) => ({ ...p, amountCents: e.target.value }))}
+                  className="bg-background border-border font-mono text-sm rounded-none"
+                  placeholder="0.00"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="font-mono text-xs tracking-widest text-muted-foreground">DATE</Label>
+                <Input
+                  type="date"
+                  value={costForm.incurredOn}
+                  onChange={(e) => setCostForm((p) => ({ ...p, incurredOn: e.target.value }))}
+                  className="bg-background border-border font-mono text-xs rounded-none h-8"
+                />
+              </div>
             </div>
+            {projectScopes.length > 0 && (
+              <div className="space-y-1">
+                <Label className="font-mono text-xs tracking-widest text-muted-foreground">SCOPE <span className="text-muted-foreground/50">(optional)</span></Label>
+                <Select
+                  value={costForm.scopeId !== null ? String(costForm.scopeId) : "__none__"}
+                  onValueChange={(v) => setCostForm((p) => ({ ...p, scopeId: v === "__none__" ? null : Number(v) }))}
+                >
+                  <SelectTrigger className="bg-background border-border font-mono text-xs h-8 rounded-none">
+                    <SelectValue placeholder="— none —" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-card border-border">
+                    <SelectItem value="__none__" className="font-mono text-xs text-muted-foreground">— none —</SelectItem>
+                    {projectScopes.map((s) => (
+                      <SelectItem key={s.id} value={String(s.id)} className="font-mono text-xs">{s.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            <label className="flex items-center gap-2 text-xs font-mono text-muted-foreground cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={costForm.recurring}
+                onChange={(e) => setCostForm((p) => ({ ...p, recurring: e.target.checked }))}
+                className="h-3 w-3 accent-primary"
+              />
+              <span className="tracking-widest">RECURRING</span>
+              <span className="text-muted-foreground/60 tracking-normal">(monthly subscription, hosting, etc.)</span>
+            </label>
             <div className="flex gap-2 justify-end">
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => setCostOpen(false)}
+                onClick={() => { setCostOpen(false); resetCostForm(); }}
                 className="font-mono text-xs text-muted-foreground"
               >
                 CANCEL
               </Button>
               <Button
                 size="sm"
-                onClick={() => void handleAddCost()}
-                disabled={!newCost.amountCents || createCostEntry.isPending}
+                onClick={() => void handleSaveCost()}
+                disabled={!costForm.amountCents || createCostEntry.isPending || updateCostEntry.isPending}
                 className="font-mono text-xs bg-primary text-primary-foreground hover:bg-primary/90"
               >
-                {createCostEntry.isPending ? "SAVING..." : "ADD"}
+                {(createCostEntry.isPending || updateCostEntry.isPending)
+                  ? (editingCost ? "SAVING..." : "ADDING...")
+                  : (editingCost ? "SAVE" : "ADD")}
               </Button>
             </div>
           </div>
         </DialogContent>
       </Dialog>
 
-      {/* Create Scope Dialog */}
-      <Dialog open={scopeOpen} onOpenChange={setScopeOpen}>
-        <DialogContent className="bg-card border-border max-w-sm">
+      {/* Scope Dialog — create + edit */}
+      <Dialog open={scopeOpen} onOpenChange={(o) => { setScopeOpen(o); if (!o) resetScopeForm(); }}>
+        <DialogContent className="bg-card border-border max-w-md">
           <DialogHeader>
-            <DialogTitle className="font-['VT323'] tracking-widest text-xl text-primary">// NEW SCOPE</DialogTitle>
+            <DialogTitle className="font-['VT323'] tracking-widest text-xl text-primary">
+              {editingScope ? "// EDIT SCOPE" : "// NEW SCOPE"}
+            </DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <div className="space-y-1">
               <Label className="font-mono text-xs tracking-widest text-muted-foreground">NAME</Label>
-              <Input value={newScope.name} onChange={(e) => setNewScope((p) => ({ ...p, name: e.target.value }))}
+              <Input value={scopeForm.name} onChange={(e) => setScopeForm((p) => ({ ...p, name: e.target.value }))}
                 className="bg-background border-border font-mono text-sm rounded-none" placeholder="scope name" />
             </div>
-            <div className="space-y-1">
-              <Label className="font-mono text-xs tracking-widest text-muted-foreground">BUDGET ($)</Label>
-              <Input value={newScope.budgetCents} onChange={(e) => setNewScope((p) => ({ ...p, budgetCents: e.target.value }))}
-                className="bg-background border-border font-mono text-sm rounded-none" placeholder="0.00" type="number" min="0" step="0.01" />
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <Label className="font-mono text-xs tracking-widest text-muted-foreground">BUDGET ($)</Label>
+                <Input value={scopeForm.budgetCents} onChange={(e) => setScopeForm((p) => ({ ...p, budgetCents: e.target.value }))}
+                  className="bg-background border-border font-mono text-sm rounded-none" placeholder="0.00" type="number" min="0" step="0.01" />
+              </div>
+              <div className="space-y-1">
+                <Label className="font-mono text-xs tracking-widest text-muted-foreground">STATUS</Label>
+                <Select
+                  value={scopeForm.status}
+                  onValueChange={(v) => setScopeForm((p) => ({ ...p, status: v as ScopeInputStatus }))}
+                >
+                  <SelectTrigger className="bg-background border-border font-mono text-xs h-8 rounded-none"><SelectValue /></SelectTrigger>
+                  <SelectContent className="bg-card border-border">
+                    {(["planned", "active", "on_hold", "complete"] as ScopeInputStatus[]).map((s) => (
+                      <SelectItem key={s} value={s} className="font-mono text-xs">{s.replace("_", " ").toUpperCase()}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1">
                 <Label className="font-mono text-xs tracking-widest text-muted-foreground">START DATE</Label>
-                <Input type="date" value={newScope.startDate} onChange={(e) => setNewScope((p) => ({ ...p, startDate: e.target.value }))}
+                <Input type="date" value={scopeForm.startDate} onChange={(e) => setScopeForm((p) => ({ ...p, startDate: e.target.value }))}
                   className="bg-background border-border font-mono text-xs rounded-none h-8" />
               </div>
               <div className="space-y-1">
                 <Label className="font-mono text-xs tracking-widest text-muted-foreground">TARGET DATE</Label>
-                <Input type="date" value={newScope.targetDate} onChange={(e) => setNewScope((p) => ({ ...p, targetDate: e.target.value }))}
+                <Input type="date" value={scopeForm.targetDate} onChange={(e) => setScopeForm((p) => ({ ...p, targetDate: e.target.value }))}
                   className="bg-background border-border font-mono text-xs rounded-none h-8" />
               </div>
             </div>
+            <div className="space-y-1">
+              <Label className="font-mono text-xs tracking-widest text-muted-foreground">SOW <span className="text-muted-foreground/50">(scope of work)</span></Label>
+              <Textarea
+                value={scopeForm.sow}
+                onChange={(e) => setScopeForm((p) => ({ ...p, sow: e.target.value }))}
+                className="bg-background border-border font-mono text-xs rounded-none resize-none"
+                rows={4}
+                placeholder="what does this scope cover?"
+              />
+            </div>
             <div className="flex gap-2 justify-end">
-              <Button variant="ghost" size="sm" onClick={() => setScopeOpen(false)} className="font-mono text-xs text-muted-foreground">CANCEL</Button>
-              <Button size="sm" onClick={() => void handleCreateScope()} disabled={!newScope.name.trim() || createScope.isPending}
+              <Button variant="ghost" size="sm" onClick={() => { setScopeOpen(false); resetScopeForm(); }} className="font-mono text-xs text-muted-foreground">CANCEL</Button>
+              <Button size="sm" onClick={() => void handleSaveScope()}
+                disabled={!scopeForm.name.trim() || createScope.isPending || updateScope.isPending}
                 className="font-mono text-xs bg-primary text-primary-foreground hover:bg-primary/90">
-                {createScope.isPending ? "CREATING..." : "CREATE"}
+                {(createScope.isPending || updateScope.isPending)
+                  ? (editingScope ? "SAVING..." : "CREATING...")
+                  : (editingScope ? "SAVE" : "CREATE")}
               </Button>
             </div>
           </div>
         </DialogContent>
       </Dialog>
 
-      {/* Create Milestone Dialog */}
-      <Dialog open={milestoneOpen} onOpenChange={setMilestoneOpen}>
-        <DialogContent className="bg-card border-border max-w-sm">
+      {/* Milestone Dialog — create + edit */}
+      <Dialog open={milestoneOpen} onOpenChange={(o) => { setMilestoneOpen(o); if (!o) resetMilestoneForm(); }}>
+        <DialogContent className="bg-card border-border max-w-md">
           <DialogHeader>
-            <DialogTitle className="font-['VT323'] tracking-widest text-xl text-primary">// NEW MILESTONE</DialogTitle>
+            <DialogTitle className="font-['VT323'] tracking-widest text-xl text-primary">
+              {editingMilestone ? "// EDIT MILESTONE" : "// NEW MILESTONE"}
+            </DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <div className="space-y-1">
               <Label className="font-mono text-xs tracking-widest text-muted-foreground">NAME</Label>
-              <Input value={newMilestone.name} onChange={(e) => setNewMilestone((p) => ({ ...p, name: e.target.value }))}
+              <Input value={milestoneForm.name} onChange={(e) => setMilestoneForm((p) => ({ ...p, name: e.target.value }))}
                 className="bg-background border-border font-mono text-sm rounded-none" placeholder="milestone name" />
             </div>
-            <div className="space-y-1">
-              <Label className="font-mono text-xs tracking-widest text-muted-foreground">SCOPE</Label>
-              <Select value={newMilestone.scopeId} onValueChange={(v) => setNewMilestone((p) => ({ ...p, scopeId: v }))}>
-                <SelectTrigger className="bg-background border-border font-mono text-xs h-8 rounded-none"><SelectValue placeholder="select scope" /></SelectTrigger>
-                <SelectContent className="bg-card border-border">
-                  {(project.scopes as Scope[]).map((s) => (
-                    <SelectItem key={s.id} value={String(s.id)} className="font-mono text-xs">{s.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <Label className="font-mono text-xs tracking-widest text-muted-foreground">SCOPE</Label>
+                <Select
+                  value={milestoneForm.scopeId}
+                  onValueChange={(v) => setMilestoneForm((p) => ({ ...p, scopeId: v }))}
+                  disabled={!!editingMilestone}
+                >
+                  <SelectTrigger className="bg-background border-border font-mono text-xs h-8 rounded-none">
+                    <SelectValue placeholder="select scope" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-card border-border">
+                    {(project.scopes as Scope[]).map((s) => (
+                      <SelectItem key={s.id} value={String(s.id)} className="font-mono text-xs">{s.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {editingMilestone && (
+                <div className="space-y-1">
+                  <Label className="font-mono text-xs tracking-widest text-muted-foreground">STATUS</Label>
+                  <Select
+                    value={milestoneForm.status}
+                    onValueChange={(v) => setMilestoneForm((p) => ({ ...p, status: v as MilestoneUpdateStatus }))}
+                  >
+                    <SelectTrigger className="bg-background border-border font-mono text-xs h-8 rounded-none"><SelectValue /></SelectTrigger>
+                    <SelectContent className="bg-card border-border">
+                      {(["open", "complete"] as MilestoneUpdateStatus[]).map((s) => (
+                        <SelectItem key={s} value={s} className="font-mono text-xs">{s.toUpperCase()}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <Label className="font-mono text-xs tracking-widest text-muted-foreground">START DATE</Label>
+                <Input type="date" value={milestoneForm.startDate} onChange={(e) => setMilestoneForm((p) => ({ ...p, startDate: e.target.value }))}
+                  className="bg-background border-border font-mono text-xs rounded-none h-8" />
+              </div>
+              <div className="space-y-1">
+                <Label className="font-mono text-xs tracking-widest text-muted-foreground">TARGET DATE</Label>
+                <Input type="date" value={milestoneForm.targetDate} onChange={(e) => setMilestoneForm((p) => ({ ...p, targetDate: e.target.value }))}
+                  className="bg-background border-border font-mono text-xs rounded-none h-8" />
+              </div>
             </div>
             <div className="space-y-1">
-              <Label className="font-mono text-xs tracking-widest text-muted-foreground">TARGET DATE</Label>
-              <Input type="date" value={newMilestone.targetDate} onChange={(e) => setNewMilestone((p) => ({ ...p, targetDate: e.target.value }))}
-                className="bg-background border-border font-mono text-xs rounded-none h-8" />
+              <Label className="font-mono text-xs tracking-widest text-muted-foreground">DESCRIPTION</Label>
+              <Textarea
+                value={milestoneForm.description}
+                onChange={(e) => setMilestoneForm((p) => ({ ...p, description: e.target.value }))}
+                className="bg-background border-border font-mono text-xs rounded-none resize-none"
+                rows={3}
+                placeholder="optional"
+              />
             </div>
             <div className="flex gap-2 justify-end">
-              <Button variant="ghost" size="sm" onClick={() => setMilestoneOpen(false)} className="font-mono text-xs text-muted-foreground">CANCEL</Button>
-              <Button size="sm" onClick={() => void handleCreateMilestone()} disabled={!newMilestone.name.trim() || !newMilestone.scopeId || createMilestone.isPending}
+              <Button variant="ghost" size="sm" onClick={() => { setMilestoneOpen(false); resetMilestoneForm(); }} className="font-mono text-xs text-muted-foreground">CANCEL</Button>
+              <Button size="sm" onClick={() => void handleSaveMilestone()}
+                disabled={!milestoneForm.name.trim() || !milestoneForm.scopeId || createMilestone.isPending || updateMilestoneM.isPending}
                 className="font-mono text-xs bg-primary text-primary-foreground hover:bg-primary/90">
-                {createMilestone.isPending ? "CREATING..." : "CREATE"}
+                {(createMilestone.isPending || updateMilestoneM.isPending)
+                  ? (editingMilestone ? "SAVING..." : "CREATING...")
+                  : (editingMilestone ? "SAVE" : "CREATE")}
               </Button>
             </div>
           </div>

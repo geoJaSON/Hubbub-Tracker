@@ -14,7 +14,13 @@ export interface Milestone {
   /** @nullable */
   description?: string | null;
   /** @nullable */
+  startDate?: Date | null;
+  /** @nullable */
   targetDate?: Date | null;
   status: MilestoneStatus;
   order: number;
+  itemCount: number;
+  doneCount: number;
+  /** Sum of (billable minutes × user hourly rate) for items linked to this milestone. */
+  laborCents: number;
 }

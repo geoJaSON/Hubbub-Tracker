@@ -10,5 +10,8 @@ export interface ScopeBurnDown {
   scopeId: number;
   scopeName: string;
   budgetCents: number;
+  /** Direct cost entries assigned to this scope (does not include labor). */
   spentCents: number;
+  /** Sum of (billable minutes × user hourly rate) for items linked to this scope. */
+  laborCents?: number;
 }

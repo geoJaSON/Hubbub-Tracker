@@ -58,6 +58,39 @@ router.post("/", requireAuth, async (req: AuthRequest, res) => {
   return res.status(201).json(created);
 });
 
+// PATCH /projects/:slug/costs/:costId
+// Constrain update to entries belonging to this project (IDOR prevention)
+router.patch("/:costId", requireAuth, async (req, res) => {
+  const project = await getProject(String(req.params.slug));
+  if (!project) return res.status(404).json({ error: "Not found" });
+
+  const { scopeId, category, vendor, description, amountCents, currency, recurring, incurredOn } =
+    req.body;
+
+  const [updated] = await db
+    .update(costEntries)
+    .set({
+      ...(scopeId !== undefined && { scopeId }),
+      ...(category !== undefined && { category }),
+      ...(vendor !== undefined && { vendor }),
+      ...(description !== undefined && { description }),
+      ...(amountCents !== undefined && { amountCents }),
+      ...(currency !== undefined && { currency }),
+      ...(recurring !== undefined && { recurring }),
+      ...(incurredOn !== undefined && { incurredOn }),
+    })
+    .where(
+      and(
+        eq(costEntries.id, Number(req.params.costId)),
+        eq(costEntries.projectId, project.id),
+      ),
+    )
+    .returning();
+
+  if (!updated) return res.status(404).json({ error: "Not found" });
+  return res.json(updated);
+});
+
 // DELETE /projects/:slug/costs/:costId
 // Constrain by projectId to prevent cross-project IDOR
 router.delete("/:costId", requireAuth, async (req, res) => {

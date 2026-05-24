@@ -25,6 +25,8 @@ tags:
   - name: docs
   - name: search
   - name: dashboard
+  - name: components
+  - name: flows
 
 paths:
   /healthz:
@@ -862,6 +864,34 @@ paths:
                 $ref: "#/components/schemas/CostEntry"
 
   /projects/{slug}/costs/{costId}:
+    patch:
+      operationId: updateCostEntry
+      tags: [costs]
+      summary: Update cost entry
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: costId
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CostEntryUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CostEntry"
     delete:
       operationId: deleteCostEntry
       tags: [costs]
@@ -874,6 +904,214 @@ paths:
             type: string
         - in: path
           name: costId
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  # ── Components ─────────────────────────────────────────────────────────────
+  /projects/{slug}/components:
+    get:
+      operationId: listComponents
+      tags: [components]
+      summary: List project components
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Components
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ProjectComponent"
+    post:
+      operationId: createComponent
+      tags: [components]
+      summary: Create project component
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProjectComponentInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectComponent"
+
+  /projects/{slug}/components/{componentId}:
+    patch:
+      operationId: updateComponent
+      tags: [components]
+      summary: Update project component
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: componentId
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProjectComponentUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectComponent"
+    delete:
+      operationId: deleteComponent
+      tags: [components]
+      summary: Delete project component
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: componentId
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  # ── Flows ──────────────────────────────────────────────────────────────────
+  /projects/{slug}/flows:
+    get:
+      operationId: listFlows
+      tags: [flows]
+      summary: List flows
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Flows
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Flow"
+    post:
+      operationId: createFlow
+      tags: [flows]
+      summary: Create flow
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FlowInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Flow"
+
+  /projects/{slug}/flows/{flowId}:
+    get:
+      operationId: getFlow
+      tags: [flows]
+      summary: Get flow
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: flowId
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Flow
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Flow"
+    patch:
+      operationId: updateFlow
+      tags: [flows]
+      summary: Update flow
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: flowId
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FlowUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Flow"
+    delete:
+      operationId: deleteFlow
+      tags: [flows]
+      summary: Delete flow
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: flowId
           required: true
           schema:
             type: integer
@@ -1507,7 +1745,7 @@ components:
     # ── Milestones ────────────────────────────────────────────────────────
     Milestone:
       type: object
-      required: [id, scopeId, name, status, order]
+      required: [id, scopeId, name, status, order, itemCount, doneCount, laborCents]
       properties:
         id:
           type: integer
@@ -1517,6 +1755,9 @@ components:
           type: string
         description:
           type: ["string", "null"]
+        startDate:
+          type: ["string", "null"]
+          format: date
         targetDate:
           type: ["string", "null"]
           format: date
@@ -1525,6 +1766,13 @@ components:
           enum: [open, complete]
         order:
           type: integer
+        itemCount:
+          type: integer
+        doneCount:
+          type: integer
+        laborCents:
+          type: integer
+          description: Sum of (billable minutes × user hourly rate) for items linked to this milestone.
 
     MilestoneInput:
       type: object
@@ -1536,8 +1784,12 @@ components:
           type: string
         description:
           type: ["string", "null"]
+        startDate:
+          type: ["string", "null"]
+          format: date
         targetDate:
           type: ["string", "null"]
+          format: date
 
     MilestoneUpdate:
       type: object
@@ -1546,8 +1798,12 @@ components:
           type: string
         description:
           type: ["string", "null"]
+        startDate:
+          type: ["string", "null"]
+          format: date
         targetDate:
           type: ["string", "null"]
+          format: date
         status:
           type: string
           enum: [open, complete]
@@ -1578,6 +1834,9 @@ components:
         priority:
           type: string
           enum: [low, medium, high, urgent]
+        category:
+          $ref: "#/components/schemas/ItemCategory"
+          nullable: true
         assigneeId:
           type: ["string", "null"]
         assignee:
@@ -1600,6 +1859,11 @@ components:
         createdAt:
           type: string
           format: date-time
+        componentId:
+          type: ["integer", "null"]
+        component:
+          $ref: "#/components/schemas/ProjectComponent"
+          nullable: true
         totalMinutesLogged:
           type: ["integer", "null"]
 
@@ -1626,6 +1890,9 @@ components:
         priority:
           type: string
           enum: [low, medium, high, urgent]
+        category:
+          $ref: "#/components/schemas/ItemCategory"
+          nullable: true
         assigneeId:
           type: ["string", "null"]
         assignee:
@@ -1648,6 +1915,11 @@ components:
         createdAt:
           type: string
           format: date-time
+        componentId:
+          type: ["integer", "null"]
+        component:
+          $ref: "#/components/schemas/ProjectComponent"
+          nullable: true
         totalMinutesLogged:
           type: ["integer", "null"]
         comments:
@@ -1692,6 +1964,11 @@ components:
           type: ["string", "null"]
         decisionRationale:
           type: ["string", "null"]
+        category:
+          $ref: "#/components/schemas/ItemCategory"
+          nullable: true
+        componentId:
+          type: ["integer", "null"]
 
     ItemUpdate:
       type: object
@@ -1721,6 +1998,157 @@ components:
           type: ["string", "null"]
         decisionRationale:
           type: ["string", "null"]
+        category:
+          $ref: "#/components/schemas/ItemCategory"
+          nullable: true
+        componentId:
+          type: ["integer", "null"]
+
+    ItemCategory:
+      type: string
+      enum:
+        - infrastructure_hosting
+        - security_compliance
+        - mobile_devops
+        - web_devops
+        - database_schema
+        - monitoring_observability
+        - deployment_release
+        - third_party_integration
+        - support_operations
+
+    # ── Components ────────────────────────────────────────────────────────
+    ProjectComponent:
+      type: object
+      required: [id, projectId, name]
+      properties:
+        id:
+          type: integer
+        projectId:
+          type: integer
+        name:
+          type: string
+        description:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+
+    ProjectComponentInput:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        description:
+          type: ["string", "null"]
+
+    ProjectComponentUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: ["string", "null"]
+
+    # ── Flows ─────────────────────────────────────────────────────────────
+    FlowNodePosition:
+      type: object
+      required: [x, y]
+      properties:
+        x:
+          type: number
+        y:
+          type: number
+
+    FlowNodeData:
+      type: object
+      required: [label]
+      additionalProperties: true
+      properties:
+        label:
+          type: string
+
+    FlowNode:
+      type: object
+      required: [id, type, position, data]
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+        position:
+          $ref: "#/components/schemas/FlowNodePosition"
+        data:
+          $ref: "#/components/schemas/FlowNodeData"
+
+    FlowEdge:
+      type: object
+      required: [id, source, target]
+      properties:
+        id:
+          type: string
+        source:
+          type: string
+        target:
+          type: string
+        sourceHandle:
+          type: ["string", "null"]
+        targetHandle:
+          type: ["string", "null"]
+        label:
+          type: ["string", "null"]
+        animated:
+          type: boolean
+
+    FlowData:
+      type: object
+      required: [nodes, edges]
+      properties:
+        nodes:
+          type: array
+          items:
+            $ref: "#/components/schemas/FlowNode"
+        edges:
+          type: array
+          items:
+            $ref: "#/components/schemas/FlowEdge"
+
+    Flow:
+      type: object
+      required: [id, projectId, title, slug, data, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        projectId:
+          type: integer
+        title:
+          type: string
+        slug:
+          type: string
+        data:
+          $ref: "#/components/schemas/FlowData"
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    FlowInput:
+      type: object
+      required: [title]
+      properties:
+        title:
+          type: string
+
+    FlowUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+        data:
+          $ref: "#/components/schemas/FlowData"
 
     # ── Comments ──────────────────────────────────────────────────────────
     Comment:
@@ -1880,6 +2308,28 @@ components:
     CostEntryInput:
       type: object
       required: [category, amountCents, incurredOn]
+      properties:
+        scopeId:
+          type: ["integer", "null"]
+        category:
+          type: string
+          enum: [labor, hosting, saas, contractor, ai, other]
+        vendor:
+          type: ["string", "null"]
+        description:
+          type: ["string", "null"]
+        amountCents:
+          type: integer
+        currency:
+          type: string
+        recurring:
+          type: boolean
+        incurredOn:
+          type: string
+          format: date
+
+    CostEntryUpdate:
+      type: object
       properties:
         scopeId:
           type: ["integer", "null"]
@@ -2107,6 +2557,10 @@ components:
           type: integer
         totalSpentCents:
           type: integer
+          description: Direct cost entries only (does not include derived labor).
+        totalLaborCents:
+          type: integer
+          description: Sum of (billable minutes × user hourly rate) across the project.
         points:
           type: array
           items:
@@ -2128,3 +2582,7 @@ components:
           type: integer
         spentCents:
           type: integer
+          description: Direct cost entries assigned to this scope (does not include labor).
+        laborCents:
+          type: integer
+          description: Sum of (billable minutes × user hourly rate) for items linked to this scope.

@@ -18,8 +18,6 @@ import type {
   UseQueryOptions,
   UseQueryResult
 } from '@tanstack/react-query';
-import type { ProjectComponent, ProjectComponentInput, ProjectComponentUpdate } from './api.schemas';
-import type { Flow, FlowInput, FlowUpdate } from './api.schemas';
 
 import type {
   ActivityEvent,
@@ -30,10 +28,14 @@ import type {
   Commit,
   CostEntry,
   CostEntryInput,
+  CostEntryUpdate,
   Dashboard,
   Doc,
   DocInput,
   DocUpdate,
+  Flow,
+  FlowInput,
+  FlowUpdate,
   HealthStatus,
   Item,
   ItemDetail,
@@ -47,6 +49,9 @@ import type {
   Presence,
   PresenceInput,
   Project,
+  ProjectComponent,
+  ProjectComponentInput,
+  ProjectComponentUpdate,
   ProjectDetail,
   ProjectInput,
   ProjectMember,
@@ -2916,6 +2921,80 @@ export const useCreateCostEntry = <TError = ErrorType<unknown>,
       return useMutation(getCreateCostEntryMutationOptions(options));
     }
 
+export const getUpdateCostEntryUrl = (slug: string,
+    costId: number,) => {
+
+
+
+
+  return `/api/projects/${slug}/costs/${costId}`
+}
+
+/**
+ * @summary Update cost entry
+ */
+export const updateCostEntry = async (slug: string,
+    costId: number,
+    costEntryUpdate: CostEntryUpdate, options?: RequestInit): Promise<CostEntry> => {
+
+  return customFetch<CostEntry>(getUpdateCostEntryUrl(slug,costId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      costEntryUpdate,)
+  }
+);}
+
+
+
+
+export const getUpdateCostEntryMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateCostEntry>>, TError,{slug: string;costId: number;data: BodyType<CostEntryUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateCostEntry>>, TError,{slug: string;costId: number;data: BodyType<CostEntryUpdate>}, TContext> => {
+
+const mutationKey = ['updateCostEntry'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateCostEntry>>, {slug: string;costId: number;data: BodyType<CostEntryUpdate>}> = (props) => {
+          const {slug,costId,data} = props ?? {};
+
+          return  updateCostEntry(slug,costId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateCostEntryMutationResult = NonNullable<Awaited<ReturnType<typeof updateCostEntry>>>
+    export type UpdateCostEntryMutationBody = BodyType<CostEntryUpdate>
+    export type UpdateCostEntryMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Update cost entry
+ */
+export const useUpdateCostEntry = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateCostEntry>>, TError,{slug: string;costId: number;data: BodyType<CostEntryUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateCostEntry>>,
+        TError,
+        {slug: string;costId: number;data: BodyType<CostEntryUpdate>},
+        TContext
+      > => {
+      return useMutation(getUpdateCostEntryMutationOptions(options));
+    }
+
 export const getDeleteCostEntryUrl = (slug: string,
     costId: number,) => {
 
@@ -2986,6 +3065,678 @@ export const useDeleteCostEntry = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getDeleteCostEntryMutationOptions(options));
+    }
+
+export const getListComponentsUrl = (slug: string,) => {
+
+
+
+
+  return `/api/projects/${slug}/components`
+}
+
+/**
+ * @summary List project components
+ */
+export const listComponents = async (slug: string, options?: RequestInit): Promise<ProjectComponent[]> => {
+
+  return customFetch<ProjectComponent[]>(getListComponentsUrl(slug),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListComponentsQueryKey = (slug: string,) => {
+    return [
+    `/api/projects/${slug}/components`
+    ] as const;
+    }
+
+
+export const getListComponentsQueryOptions = <TData = Awaited<ReturnType<typeof listComponents>>, TError = ErrorType<unknown>>(slug: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listComponents>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListComponentsQueryKey(slug);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listComponents>>> = ({ signal }) => listComponents(slug, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(slug), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listComponents>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListComponentsQueryResult = NonNullable<Awaited<ReturnType<typeof listComponents>>>
+export type ListComponentsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List project components
+ */
+
+export function useListComponents<TData = Awaited<ReturnType<typeof listComponents>>, TError = ErrorType<unknown>>(
+ slug: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listComponents>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListComponentsQueryOptions(slug,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getCreateComponentUrl = (slug: string,) => {
+
+
+
+
+  return `/api/projects/${slug}/components`
+}
+
+/**
+ * @summary Create project component
+ */
+export const createComponent = async (slug: string,
+    projectComponentInput: ProjectComponentInput, options?: RequestInit): Promise<ProjectComponent> => {
+
+  return customFetch<ProjectComponent>(getCreateComponentUrl(slug),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      projectComponentInput,)
+  }
+);}
+
+
+
+
+export const getCreateComponentMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createComponent>>, TError,{slug: string;data: BodyType<ProjectComponentInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createComponent>>, TError,{slug: string;data: BodyType<ProjectComponentInput>}, TContext> => {
+
+const mutationKey = ['createComponent'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createComponent>>, {slug: string;data: BodyType<ProjectComponentInput>}> = (props) => {
+          const {slug,data} = props ?? {};
+
+          return  createComponent(slug,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateComponentMutationResult = NonNullable<Awaited<ReturnType<typeof createComponent>>>
+    export type CreateComponentMutationBody = BodyType<ProjectComponentInput>
+    export type CreateComponentMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Create project component
+ */
+export const useCreateComponent = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createComponent>>, TError,{slug: string;data: BodyType<ProjectComponentInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createComponent>>,
+        TError,
+        {slug: string;data: BodyType<ProjectComponentInput>},
+        TContext
+      > => {
+      return useMutation(getCreateComponentMutationOptions(options));
+    }
+
+export const getUpdateComponentUrl = (slug: string,
+    componentId: number,) => {
+
+
+
+
+  return `/api/projects/${slug}/components/${componentId}`
+}
+
+/**
+ * @summary Update project component
+ */
+export const updateComponent = async (slug: string,
+    componentId: number,
+    projectComponentUpdate: ProjectComponentUpdate, options?: RequestInit): Promise<ProjectComponent> => {
+
+  return customFetch<ProjectComponent>(getUpdateComponentUrl(slug,componentId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      projectComponentUpdate,)
+  }
+);}
+
+
+
+
+export const getUpdateComponentMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateComponent>>, TError,{slug: string;componentId: number;data: BodyType<ProjectComponentUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateComponent>>, TError,{slug: string;componentId: number;data: BodyType<ProjectComponentUpdate>}, TContext> => {
+
+const mutationKey = ['updateComponent'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateComponent>>, {slug: string;componentId: number;data: BodyType<ProjectComponentUpdate>}> = (props) => {
+          const {slug,componentId,data} = props ?? {};
+
+          return  updateComponent(slug,componentId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateComponentMutationResult = NonNullable<Awaited<ReturnType<typeof updateComponent>>>
+    export type UpdateComponentMutationBody = BodyType<ProjectComponentUpdate>
+    export type UpdateComponentMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Update project component
+ */
+export const useUpdateComponent = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateComponent>>, TError,{slug: string;componentId: number;data: BodyType<ProjectComponentUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateComponent>>,
+        TError,
+        {slug: string;componentId: number;data: BodyType<ProjectComponentUpdate>},
+        TContext
+      > => {
+      return useMutation(getUpdateComponentMutationOptions(options));
+    }
+
+export const getDeleteComponentUrl = (slug: string,
+    componentId: number,) => {
+
+
+
+
+  return `/api/projects/${slug}/components/${componentId}`
+}
+
+/**
+ * @summary Delete project component
+ */
+export const deleteComponent = async (slug: string,
+    componentId: number, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getDeleteComponentUrl(slug,componentId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+export const getDeleteComponentMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteComponent>>, TError,{slug: string;componentId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteComponent>>, TError,{slug: string;componentId: number}, TContext> => {
+
+const mutationKey = ['deleteComponent'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteComponent>>, {slug: string;componentId: number}> = (props) => {
+          const {slug,componentId} = props ?? {};
+
+          return  deleteComponent(slug,componentId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteComponentMutationResult = NonNullable<Awaited<ReturnType<typeof deleteComponent>>>
+
+    export type DeleteComponentMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Delete project component
+ */
+export const useDeleteComponent = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteComponent>>, TError,{slug: string;componentId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteComponent>>,
+        TError,
+        {slug: string;componentId: number},
+        TContext
+      > => {
+      return useMutation(getDeleteComponentMutationOptions(options));
+    }
+
+export const getListFlowsUrl = (slug: string,) => {
+
+
+
+
+  return `/api/projects/${slug}/flows`
+}
+
+/**
+ * @summary List flows
+ */
+export const listFlows = async (slug: string, options?: RequestInit): Promise<Flow[]> => {
+
+  return customFetch<Flow[]>(getListFlowsUrl(slug),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListFlowsQueryKey = (slug: string,) => {
+    return [
+    `/api/projects/${slug}/flows`
+    ] as const;
+    }
+
+
+export const getListFlowsQueryOptions = <TData = Awaited<ReturnType<typeof listFlows>>, TError = ErrorType<unknown>>(slug: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listFlows>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListFlowsQueryKey(slug);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listFlows>>> = ({ signal }) => listFlows(slug, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(slug), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listFlows>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListFlowsQueryResult = NonNullable<Awaited<ReturnType<typeof listFlows>>>
+export type ListFlowsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List flows
+ */
+
+export function useListFlows<TData = Awaited<ReturnType<typeof listFlows>>, TError = ErrorType<unknown>>(
+ slug: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listFlows>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListFlowsQueryOptions(slug,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getCreateFlowUrl = (slug: string,) => {
+
+
+
+
+  return `/api/projects/${slug}/flows`
+}
+
+/**
+ * @summary Create flow
+ */
+export const createFlow = async (slug: string,
+    flowInput: FlowInput, options?: RequestInit): Promise<Flow> => {
+
+  return customFetch<Flow>(getCreateFlowUrl(slug),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      flowInput,)
+  }
+);}
+
+
+
+
+export const getCreateFlowMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createFlow>>, TError,{slug: string;data: BodyType<FlowInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createFlow>>, TError,{slug: string;data: BodyType<FlowInput>}, TContext> => {
+
+const mutationKey = ['createFlow'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createFlow>>, {slug: string;data: BodyType<FlowInput>}> = (props) => {
+          const {slug,data} = props ?? {};
+
+          return  createFlow(slug,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateFlowMutationResult = NonNullable<Awaited<ReturnType<typeof createFlow>>>
+    export type CreateFlowMutationBody = BodyType<FlowInput>
+    export type CreateFlowMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Create flow
+ */
+export const useCreateFlow = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createFlow>>, TError,{slug: string;data: BodyType<FlowInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createFlow>>,
+        TError,
+        {slug: string;data: BodyType<FlowInput>},
+        TContext
+      > => {
+      return useMutation(getCreateFlowMutationOptions(options));
+    }
+
+export const getGetFlowUrl = (slug: string,
+    flowId: number,) => {
+
+
+
+
+  return `/api/projects/${slug}/flows/${flowId}`
+}
+
+/**
+ * @summary Get flow
+ */
+export const getFlow = async (slug: string,
+    flowId: number, options?: RequestInit): Promise<Flow> => {
+
+  return customFetch<Flow>(getGetFlowUrl(slug,flowId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetFlowQueryKey = (slug: string,
+    flowId: number,) => {
+    return [
+    `/api/projects/${slug}/flows/${flowId}`
+    ] as const;
+    }
+
+
+export const getGetFlowQueryOptions = <TData = Awaited<ReturnType<typeof getFlow>>, TError = ErrorType<unknown>>(slug: string,
+    flowId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getFlow>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetFlowQueryKey(slug,flowId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getFlow>>> = ({ signal }) => getFlow(slug,flowId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(slug && flowId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getFlow>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetFlowQueryResult = NonNullable<Awaited<ReturnType<typeof getFlow>>>
+export type GetFlowQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get flow
+ */
+
+export function useGetFlow<TData = Awaited<ReturnType<typeof getFlow>>, TError = ErrorType<unknown>>(
+ slug: string,
+    flowId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getFlow>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetFlowQueryOptions(slug,flowId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getUpdateFlowUrl = (slug: string,
+    flowId: number,) => {
+
+
+
+
+  return `/api/projects/${slug}/flows/${flowId}`
+}
+
+/**
+ * @summary Update flow
+ */
+export const updateFlow = async (slug: string,
+    flowId: number,
+    flowUpdate: FlowUpdate, options?: RequestInit): Promise<Flow> => {
+
+  return customFetch<Flow>(getUpdateFlowUrl(slug,flowId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      flowUpdate,)
+  }
+);}
+
+
+
+
+export const getUpdateFlowMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateFlow>>, TError,{slug: string;flowId: number;data: BodyType<FlowUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateFlow>>, TError,{slug: string;flowId: number;data: BodyType<FlowUpdate>}, TContext> => {
+
+const mutationKey = ['updateFlow'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateFlow>>, {slug: string;flowId: number;data: BodyType<FlowUpdate>}> = (props) => {
+          const {slug,flowId,data} = props ?? {};
+
+          return  updateFlow(slug,flowId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateFlowMutationResult = NonNullable<Awaited<ReturnType<typeof updateFlow>>>
+    export type UpdateFlowMutationBody = BodyType<FlowUpdate>
+    export type UpdateFlowMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Update flow
+ */
+export const useUpdateFlow = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateFlow>>, TError,{slug: string;flowId: number;data: BodyType<FlowUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateFlow>>,
+        TError,
+        {slug: string;flowId: number;data: BodyType<FlowUpdate>},
+        TContext
+      > => {
+      return useMutation(getUpdateFlowMutationOptions(options));
+    }
+
+export const getDeleteFlowUrl = (slug: string,
+    flowId: number,) => {
+
+
+
+
+  return `/api/projects/${slug}/flows/${flowId}`
+}
+
+/**
+ * @summary Delete flow
+ */
+export const deleteFlow = async (slug: string,
+    flowId: number, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getDeleteFlowUrl(slug,flowId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+export const getDeleteFlowMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteFlow>>, TError,{slug: string;flowId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteFlow>>, TError,{slug: string;flowId: number}, TContext> => {
+
+const mutationKey = ['deleteFlow'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteFlow>>, {slug: string;flowId: number}> = (props) => {
+          const {slug,flowId} = props ?? {};
+
+          return  deleteFlow(slug,flowId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteFlowMutationResult = NonNullable<Awaited<ReturnType<typeof deleteFlow>>>
+
+    export type DeleteFlowMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Delete flow
+ */
+export const useDeleteFlow = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteFlow>>, TError,{slug: string;flowId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteFlow>>,
+        TError,
+        {slug: string;flowId: number},
+        TContext
+      > => {
+      return useMutation(getDeleteFlowMutationOptions(options));
     }
 
 export const getListCommitsUrl = (slug: string,) => {
@@ -4278,218 +5029,6 @@ export function useGetBurnDown<TData = Awaited<ReturnType<typeof getBurnDown>>, 
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
-
-// ── Project Components ──────────────────────────────────────────────────────
-
-export const getListComponentsUrl = (slug: string) =>
-  `/api/projects/${slug}/components`;
-
-export const listComponents = async (slug: string, options?: RequestInit): Promise<ProjectComponent[]> =>
-  customFetch<ProjectComponent[]>(getListComponentsUrl(slug), { ...options });
-
-export const getListComponentsQueryKey = (slug: string) =>
-  [`/api/projects/${slug}/components`] as const;
-
-export const getListComponentsQueryOptions = <TData = Awaited<ReturnType<typeof listComponents>>, TError = ErrorType<unknown>>(
-  slug: string,
-  options?: { query?: UseQueryOptions<Awaited<ReturnType<typeof listComponents>>, TError, TData>, request?: SecondParameter<typeof customFetch> }
-) => {
-  const { query: queryOptions, request: requestOptions } = options ?? {};
-  const queryKey = queryOptions?.queryKey ?? getListComponentsQueryKey(slug);
-  const queryFn: QueryFunction<Awaited<ReturnType<typeof listComponents>>> = ({ signal }) =>
-    listComponents(slug, { signal, ...requestOptions });
-  return { queryKey, queryFn, enabled: !!(slug), ...queryOptions } as UseQueryOptions<Awaited<ReturnType<typeof listComponents>>, TError, TData> & { queryKey: QueryKey };
-};
-
-export type ListComponentsQueryResult = NonNullable<Awaited<ReturnType<typeof listComponents>>>;
-export type ListComponentsQueryError = ErrorType<unknown>;
-
-export function useListComponents<TData = Awaited<ReturnType<typeof listComponents>>, TError = ErrorType<unknown>>(
-  slug: string,
-  options?: { query?: UseQueryOptions<Awaited<ReturnType<typeof listComponents>>, TError, TData>, request?: SecondParameter<typeof customFetch> }
-): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
-  const queryOptions = getListComponentsQueryOptions(slug, options);
-  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: QueryKey };
-  return { ...query, queryKey: queryOptions.queryKey };
-}
-
-export const getCreateComponentUrl = (slug: string) =>
-  `/api/projects/${slug}/components`;
-
-export const createComponent = async (slug: string, data: ProjectComponentInput, options?: RequestInit): Promise<ProjectComponent> =>
-  customFetch<ProjectComponent>(getCreateComponentUrl(slug), {
-    ...options,
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(data),
-  });
-
-export const getCreateComponentMutationOptions = <TError = ErrorType<unknown>, TContext = unknown>(
-  options?: { mutation?: UseMutationOptions<Awaited<ReturnType<typeof createComponent>>, TError, { slug: string; data: BodyType<ProjectComponentInput> }, TContext>, request?: SecondParameter<typeof customFetch> }
-): UseMutationOptions<Awaited<ReturnType<typeof createComponent>>, TError, { slug: string; data: BodyType<ProjectComponentInput> }, TContext> => {
-  const mutationKey = ['createComponent'];
-  const { mutation: mutationOptions, request: requestOptions } = options ?
-    options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-  const mutationFn: MutationFunction<Awaited<ReturnType<typeof createComponent>>, { slug: string; data: BodyType<ProjectComponentInput> }> = (props) => {
-    const { slug, data } = props ?? {};
-    return createComponent(slug, data, requestOptions);
-  };
-  return { mutationFn, ...mutationOptions };
-};
-
-export type CreateComponentMutationResult = NonNullable<Awaited<ReturnType<typeof createComponent>>>;
-export type CreateComponentMutationBody = BodyType<ProjectComponentInput>;
-export type CreateComponentMutationError = ErrorType<unknown>;
-
-export const useCreateComponent = <TError = ErrorType<unknown>, TContext = unknown>(
-  options?: { mutation?: UseMutationOptions<Awaited<ReturnType<typeof createComponent>>, TError, { slug: string; data: BodyType<ProjectComponentInput> }, TContext>, request?: SecondParameter<typeof customFetch> }
-): UseMutationResult<Awaited<ReturnType<typeof createComponent>>, TError, { slug: string; data: BodyType<ProjectComponentInput> }, TContext> =>
-  useMutation(getCreateComponentMutationOptions(options));
-
-export const getUpdateComponentUrl = (slug: string, componentId: number) =>
-  `/api/projects/${slug}/components/${componentId}`;
-
-export const updateComponent = async (slug: string, componentId: number, data: ProjectComponentUpdate, options?: RequestInit): Promise<ProjectComponent> =>
-  customFetch<ProjectComponent>(getUpdateComponentUrl(slug, componentId), {
-    ...options,
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(data),
-  });
-
-export const getUpdateComponentMutationOptions = <TError = ErrorType<unknown>, TContext = unknown>(
-  options?: { mutation?: UseMutationOptions<Awaited<ReturnType<typeof updateComponent>>, TError, { slug: string; componentId: number; data: BodyType<ProjectComponentUpdate> }, TContext>, request?: SecondParameter<typeof customFetch> }
-): UseMutationOptions<Awaited<ReturnType<typeof updateComponent>>, TError, { slug: string; componentId: number; data: BodyType<ProjectComponentUpdate> }, TContext> => {
-  const mutationKey = ['updateComponent'];
-  const { mutation: mutationOptions, request: requestOptions } = options ?
-    options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-  const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateComponent>>, { slug: string; componentId: number; data: BodyType<ProjectComponentUpdate> }> = (props) => {
-    const { slug, componentId, data } = props ?? {};
-    return updateComponent(slug, componentId, data, requestOptions);
-  };
-  return { mutationFn, ...mutationOptions };
-};
-
-export type UpdateComponentMutationResult = NonNullable<Awaited<ReturnType<typeof updateComponent>>>;
-export type UpdateComponentMutationBody = BodyType<ProjectComponentUpdate>;
-export type UpdateComponentMutationError = ErrorType<unknown>;
-
-export const useUpdateComponent = <TError = ErrorType<unknown>, TContext = unknown>(
-  options?: { mutation?: UseMutationOptions<Awaited<ReturnType<typeof updateComponent>>, TError, { slug: string; componentId: number; data: BodyType<ProjectComponentUpdate> }, TContext>, request?: SecondParameter<typeof customFetch> }
-): UseMutationResult<Awaited<ReturnType<typeof updateComponent>>, TError, { slug: string; componentId: number; data: BodyType<ProjectComponentUpdate> }, TContext> =>
-  useMutation(getUpdateComponentMutationOptions(options));
-
-export const getDeleteComponentUrl = (slug: string, componentId: number) =>
-  `/api/projects/${slug}/components/${componentId}`;
-
-export const deleteComponent = async (slug: string, componentId: number, options?: RequestInit): Promise<void> =>
-  customFetch<void>(getDeleteComponentUrl(slug, componentId), { ...options, method: 'DELETE' });
-
-export const getDeleteComponentMutationOptions = <TError = ErrorType<unknown>, TContext = unknown>(
-  options?: { mutation?: UseMutationOptions<Awaited<ReturnType<typeof deleteComponent>>, TError, { slug: string; componentId: number }, TContext>, request?: SecondParameter<typeof customFetch> }
-): UseMutationOptions<Awaited<ReturnType<typeof deleteComponent>>, TError, { slug: string; componentId: number }, TContext> => {
-  const mutationKey = ['deleteComponent'];
-  const { mutation: mutationOptions, request: requestOptions } = options ?
-    options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-  const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteComponent>>, { slug: string; componentId: number }> = (props) => {
-    const { slug, componentId } = props ?? {};
-    return deleteComponent(slug, componentId, requestOptions);
-  };
-  return { mutationFn, ...mutationOptions };
-};
-
-export type DeleteComponentMutationResult = NonNullable<Awaited<ReturnType<typeof deleteComponent>>>;
-export type DeleteComponentMutationError = ErrorType<unknown>;
-
-export const useDeleteComponent = <TError = ErrorType<unknown>, TContext = unknown>(
-  options?: { mutation?: UseMutationOptions<Awaited<ReturnType<typeof deleteComponent>>, TError, { slug: string; componentId: number }, TContext>, request?: SecondParameter<typeof customFetch> }
-): UseMutationResult<Awaited<ReturnType<typeof deleteComponent>>, TError, { slug: string; componentId: number }, TContext> =>
-  useMutation(getDeleteComponentMutationOptions(options));
-
-// ── Flows ──────────────────────────────────────────────────────────────────
-
-export const getListFlowsUrl = (slug: string) => `/api/projects/${slug}/flows`;
-
-export const listFlows = async (slug: string, options?: RequestInit): Promise<Flow[]> =>
-  customFetch<Flow[]>(getListFlowsUrl(slug), { ...options });
-
-export const getListFlowsQueryKey = (slug: string) =>
-  [`/api/projects/${slug}/flows`] as const;
-
-export const getListFlowsQueryOptions = <TData = Awaited<ReturnType<typeof listFlows>>, TError = ErrorType<unknown>>(
-  slug: string,
-  options?: { query?: UseQueryOptions<Awaited<ReturnType<typeof listFlows>>, TError, TData>, request?: SecondParameter<typeof customFetch> }
-) => {
-  const { query: queryOptions, request: requestOptions } = options ?? {};
-  const queryKey = queryOptions?.queryKey ?? getListFlowsQueryKey(slug);
-  const queryFn: QueryFunction<Awaited<ReturnType<typeof listFlows>>> = ({ signal }) =>
-    listFlows(slug, { signal, ...requestOptions });
-  return { queryKey, queryFn, enabled: !!(slug), ...queryOptions } as UseQueryOptions<Awaited<ReturnType<typeof listFlows>>, TError, TData> & { queryKey: QueryKey };
-};
-
-export function useListFlows<TData = Awaited<ReturnType<typeof listFlows>>, TError = ErrorType<unknown>>(
-  slug: string,
-  options?: { query?: UseQueryOptions<Awaited<ReturnType<typeof listFlows>>, TError, TData>, request?: SecondParameter<typeof customFetch> }
-): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
-  const queryOptions = getListFlowsQueryOptions(slug, options);
-  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & { queryKey: QueryKey };
-  return { ...query, queryKey: queryOptions.queryKey };
-}
-
-export const getCreateFlowUrl = (slug: string) => `/api/projects/${slug}/flows`;
-
-export const createFlow = async (slug: string, data: FlowInput, options?: RequestInit): Promise<Flow> =>
-  customFetch<Flow>(getCreateFlowUrl(slug), {
-    ...options,
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(data),
-  });
-
-export const useCreateFlow = <TError = ErrorType<unknown>, TContext = unknown>(
-  options?: { mutation?: UseMutationOptions<Awaited<ReturnType<typeof createFlow>>, TError, { slug: string; data: FlowInput }, TContext>, request?: SecondParameter<typeof customFetch> }
-): UseMutationResult<Awaited<ReturnType<typeof createFlow>>, TError, { slug: string; data: FlowInput }, TContext> =>
-  useMutation({
-    mutationFn: ({ slug, data }) => createFlow(slug, data, options?.request as RequestInit),
-    ...options?.mutation,
-  });
-
-export const getUpdateFlowUrl = (slug: string, flowId: number) => `/api/projects/${slug}/flows/${flowId}`;
-
-export const updateFlow = async (slug: string, flowId: number, data: FlowUpdate, options?: RequestInit): Promise<Flow> =>
-  customFetch<Flow>(getUpdateFlowUrl(slug, flowId), {
-    ...options,
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(data),
-  });
-
-export const useUpdateFlow = <TError = ErrorType<unknown>, TContext = unknown>(
-  options?: { mutation?: UseMutationOptions<Awaited<ReturnType<typeof updateFlow>>, TError, { slug: string; flowId: number; data: FlowUpdate }, TContext>, request?: SecondParameter<typeof customFetch> }
-): UseMutationResult<Awaited<ReturnType<typeof updateFlow>>, TError, { slug: string; flowId: number; data: FlowUpdate }, TContext> =>
-  useMutation({
-    mutationFn: ({ slug, flowId, data }) => updateFlow(slug, flowId, data, options?.request as RequestInit),
-    ...options?.mutation,
-  });
-
-export const getDeleteFlowUrl = (slug: string, flowId: number) => `/api/projects/${slug}/flows/${flowId}`;
-
-export const deleteFlow = async (slug: string, flowId: number, options?: RequestInit): Promise<void> =>
-  customFetch<void>(getDeleteFlowUrl(slug, flowId), { ...options, method: 'DELETE' });
-
-export const useDeleteFlow = <TError = ErrorType<unknown>, TContext = unknown>(
-  options?: { mutation?: UseMutationOptions<Awaited<ReturnType<typeof deleteFlow>>, TError, { slug: string; flowId: number }, TContext>, request?: SecondParameter<typeof customFetch> }
-): UseMutationResult<Awaited<ReturnType<typeof deleteFlow>>, TError, { slug: string; flowId: number }, TContext> =>
-  useMutation({
-    mutationFn: ({ slug, flowId }) => deleteFlow(slug, flowId, options?.request as RequestInit),
-    ...options?.mutation,
-  });
 
 
 

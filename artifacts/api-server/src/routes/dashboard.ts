@@ -9,6 +9,7 @@ import {
   activityEvents,
   scopes,
   costEntries,
+  timeEntries,
   users,
 } from "../lib/schema";
 import { requireAuth, AuthRequest } from "../lib/auth";
@@ -153,6 +154,28 @@ router.get("/projects/:slug/burn-down", requireAuth, async (req, res) => {
       return { date, budgetCents: totalBudget, spentCents: running, label: null };
     });
 
+  // Labor cost = sum over billable time entries of (minutes × hourly_rate / 60).
+  // Attributed to a scope via the item's scopeId; entries on items without a
+  // scope contribute to the project total but not to any scope row.
+  const laborRows = await db
+    .select({
+      scopeId: items.scopeId,
+      cents: sql<number>`COALESCE(SUM(${timeEntries.minutes} * COALESCE(${users.hourlyRateCents}, 0) / 60.0), 0)`,
+    })
+    .from(timeEntries)
+    .innerJoin(items, eq(items.id, timeEntries.itemId))
+    .leftJoin(users, eq(users.clerkId, timeEntries.userId))
+    .where(and(eq(timeEntries.projectId, project.id), eq(timeEntries.billable, true)))
+    .groupBy(items.scopeId);
+
+  const laborByScope = new Map<number, number>();
+  let totalLabor = 0;
+  for (const row of laborRows) {
+    const cents = Math.round(Number(row.cents));
+    totalLabor += cents;
+    if (row.scopeId != null) laborByScope.set(row.scopeId, cents);
+  }
+
   const scopeBurndowns = await Promise.all(
     scopeRows.map(async (s) => {
       const [spent] = await db
@@ -164,6 +187,7 @@ router.get("/projects/:slug/burn-down", requireAuth, async (req, res) => {
         scopeName: s.name,
         budgetCents: s.budgetCents ?? 0,
         spentCents: spent?.total ? Number(spent.total) : 0,
+        laborCents: laborByScope.get(s.id) ?? 0,
       };
     }),
   );
@@ -171,6 +195,7 @@ router.get("/projects/:slug/burn-down", requireAuth, async (req, res) => {
   return res.json({
     totalBudgetCents: totalBudget,
     totalSpentCents: totalSpent,
+    totalLaborCents: totalLabor,
     points,
     scopes: scopeBurndowns,
   });

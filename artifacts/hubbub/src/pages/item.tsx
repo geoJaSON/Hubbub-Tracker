@@ -2,9 +2,9 @@ import { useState } from "react";
 import { useParams, Link } from "wouter";
 import {
   useGetItem, useUpdateItem, useCreateComment, useCreateTimeEntry,
-  useGetProject, useUpsertPresence, useListComponents,
+  useGetProject, useUpsertPresence, useListComponents, useListMilestones,
 } from "@workspace/api-client-react";
-import type { ItemUpdateStatus, ItemUpdatePriority, ItemCategory, Commit, ProjectComponent } from "@workspace/api-client-react";
+import type { ItemUpdateStatus, ItemUpdatePriority, ItemCategory, Commit, ProjectComponent, Milestone, Scope } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { getGetItemQueryKey } from "@workspace/api-client-react";
 import { Layout } from "../components/layout";
@@ -72,6 +72,7 @@ export default function ItemPage() {
   const { data: item, isLoading } = useGetItem(slug!, Number(number));
   const { data: project } = useGetProject(slug!);
   const { data: components = [] } = useListComponents(slug!);
+  const { data: milestonesData = [] } = useListMilestones(slug!);
   const updateItem = useUpdateItem();
   const createComment = useCreateComment();
   const createTimeEntry = useCreateTimeEntry();
@@ -136,6 +137,33 @@ export default function ItemPage() {
 
   const handleComponentChange = (value: string) =>
     void handleField({ componentId: value === "__none__" ? null : Number(value) });
+
+  const handleScopeChange = (value: string) => {
+    const scopeId = value === "__none__" ? null : Number(value);
+    const currentMilestoneId = (item as typeof item & { milestoneId?: number | null }).milestoneId ?? null;
+    const milestoneStillValid =
+      currentMilestoneId === null ||
+      (scopeId !== null &&
+        (milestonesData as Milestone[]).some((m) => m.id === currentMilestoneId && m.scopeId === scopeId));
+    void handleField({
+      scopeId,
+      ...(milestoneStillValid ? {} : { milestoneId: null }),
+    });
+  };
+
+  const handleMilestoneChange = (value: string) => {
+    if (value === "__none__") {
+      void handleField({ milestoneId: null });
+      return;
+    }
+    const milestone = (milestonesData as Milestone[]).find((m) => m.id === Number(value));
+    if (!milestone) return;
+    const currentScopeId = (item as typeof item & { scopeId?: number | null }).scopeId ?? null;
+    void handleField({
+      milestoneId: milestone.id,
+      ...(currentScopeId === milestone.scopeId ? {} : { scopeId: milestone.scopeId }),
+    });
+  };
 
   const handleSaveEstimate = async () => {
     const mins = parseTimeToMinutes(estimateInput);
@@ -331,6 +359,56 @@ export default function ItemPage() {
                 </Select>
               </div>
             )}
+
+            {/* SCOPE + MILESTONE */}
+            {(() => {
+              const projectScopes = ((project as { scopes?: Scope[] } | undefined)?.scopes ?? []) as Scope[];
+              if (projectScopes.length === 0) return null;
+              const currentScopeId = (item as typeof item & { scopeId?: number | null }).scopeId ?? null;
+              const currentMilestoneId = (item as typeof item & { milestoneId?: number | null }).milestoneId ?? null;
+              const availableMilestones = (milestonesData as Milestone[]).filter(
+                (m) => currentScopeId === null || m.scopeId === currentScopeId,
+              );
+              return (
+                <>
+                  <div className="space-y-1">
+                    <span className="text-muted-foreground tracking-wider">SCOPE</span>
+                    <Select
+                      value={currentScopeId !== null ? String(currentScopeId) : "__none__"}
+                      onValueChange={(v) => handleScopeChange(v)}
+                    >
+                      <SelectTrigger className="h-7 border border-border font-mono text-xs rounded-none w-full text-primary/80">
+                        <SelectValue placeholder="no scope" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-card border-border font-mono text-xs">
+                        <SelectItem value="__none__" className="font-mono text-xs text-muted-foreground">— no scope —</SelectItem>
+                        {projectScopes.map((s) => (
+                          <SelectItem key={s.id} value={String(s.id)} className="font-mono text-xs">{s.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-muted-foreground tracking-wider">MILESTONE</span>
+                    <Select
+                      value={currentMilestoneId !== null ? String(currentMilestoneId) : "__none__"}
+                      onValueChange={(v) => handleMilestoneChange(v)}
+                      disabled={availableMilestones.length === 0 && currentMilestoneId === null}
+                    >
+                      <SelectTrigger className="h-7 border border-border font-mono text-xs rounded-none w-full text-accent/80">
+                        <SelectValue placeholder="no milestone" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-card border-border font-mono text-xs">
+                        <SelectItem value="__none__" className="font-mono text-xs text-muted-foreground">— no milestone —</SelectItem>
+                        {availableMilestones.map((m) => (
+                          <SelectItem key={m.id} value={String(m.id)} className="font-mono text-xs">{m.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </>
+              );
+            })()}
 
             {/* ESTIMATE vs ACTUAL */}
             <div className="space-y-1">

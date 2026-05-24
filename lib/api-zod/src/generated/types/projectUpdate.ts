@@ -13,9 +13,9 @@ export interface ProjectUpdate {
   /** @nullable */
   githubRepo?: string | null;
   /**
-   * Write-only personal access token for private repo polling. Never returned in responses.
-   * @nullable
-   */
+     * Write-only personal access token for private repo polling. Never returned in responses.
+     * @nullable
+     */
   githubToken?: string | null;
   archived?: boolean;
 }

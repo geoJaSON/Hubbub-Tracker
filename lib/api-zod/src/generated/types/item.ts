@@ -5,9 +5,11 @@
  * Hubbub team command-center API
  * OpenAPI spec version: 0.1.0
  */
+import type { ItemCategory } from './itemCategory';
 import type { ItemPriority } from './itemPriority';
 import type { ItemStatus } from './itemStatus';
 import type { ItemType } from './itemType';
+import type { ProjectComponent } from './projectComponent';
 import type { User } from './user';
 
 export interface Item {
@@ -20,6 +22,7 @@ export interface Item {
   description?: string | null;
   status: ItemStatus;
   priority: ItemPriority;
+  category?: ItemCategory | null;
   /** @nullable */
   assigneeId?: string | null;
   assignee?: User | null;
@@ -36,6 +39,9 @@ export interface Item {
   /** @nullable */
   closedAt?: Date | null;
   createdAt: Date;
+  /** @nullable */
+  componentId?: number | null;
+  component?: ProjectComponent | null;
   /** @nullable */
   totalMinutesLogged?: number | null;
 }

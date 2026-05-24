@@ -10,7 +10,10 @@ import type { ScopeBurnDown } from './scopeBurnDown';
 
 export interface BurnDown {
   totalBudgetCents: number;
+  /** Direct cost entries only (does not include derived labor). */
   totalSpentCents: number;
+  /** Sum of (billable minutes × user hourly rate) across the project. */
+  totalLaborCents?: number;
   points: BurnDownPoint[];
   scopes: ScopeBurnDown[];
 }

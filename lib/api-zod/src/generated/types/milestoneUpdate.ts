@@ -12,7 +12,9 @@ export interface MilestoneUpdate {
   /** @nullable */
   description?: string | null;
   /** @nullable */
-  targetDate?: string | null;
+  startDate?: Date | null;
+  /** @nullable */
+  targetDate?: Date | null;
   status?: MilestoneUpdateStatus;
   order?: number;
 }

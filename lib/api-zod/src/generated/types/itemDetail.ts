@@ -7,9 +7,11 @@
  */
 import type { Comment } from './comment';
 import type { Commit } from './commit';
+import type { ItemCategory } from './itemCategory';
 import type { ItemDetailPriority } from './itemDetailPriority';
 import type { ItemDetailStatus } from './itemDetailStatus';
 import type { ItemDetailType } from './itemDetailType';
+import type { ProjectComponent } from './projectComponent';
 import type { TimeEntry } from './timeEntry';
 import type { User } from './user';
 
@@ -23,6 +25,7 @@ export interface ItemDetail {
   description?: string | null;
   status: ItemDetailStatus;
   priority: ItemDetailPriority;
+  category?: ItemCategory | null;
   /** @nullable */
   assigneeId?: string | null;
   assignee?: User | null;
@@ -39,6 +42,9 @@ export interface ItemDetail {
   /** @nullable */
   closedAt?: Date | null;
   createdAt: Date;
+  /** @nullable */
+  componentId?: number | null;
+  component?: ProjectComponent | null;
   /** @nullable */
   totalMinutesLogged?: number | null;
   comments: Comment[];

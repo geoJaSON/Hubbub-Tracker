@@ -1,8 +1,20 @@
 import { Router } from "express";
 import { eq, and, sql, count } from "drizzle-orm";
 import { db } from "../lib/db";
-import { projects, scopes, milestones, items } from "../lib/schema";
+import { projects, scopes, milestones, items, timeEntries, users } from "../lib/schema";
 import { requireAuth } from "../lib/auth";
+
+async function laborForMilestone(milestoneId: number): Promise<number> {
+  const [row] = await db
+    .select({
+      cents: sql<number>`COALESCE(SUM(${timeEntries.minutes} * COALESCE(${users.hourlyRateCents}, 0) / 60.0), 0)`,
+    })
+    .from(timeEntries)
+    .innerJoin(items, eq(items.id, timeEntries.itemId))
+    .leftJoin(users, eq(users.clerkId, timeEntries.userId))
+    .where(and(eq(items.milestoneId, milestoneId), eq(timeEntries.billable, true)));
+  return Math.round(Number(row?.cents ?? 0));
+}
 
 const router = Router({ mergeParams: true });
 
@@ -42,7 +54,7 @@ router.get("/", requireAuth, async (req, res) => {
     .where(scopeIdInProject(ctx.scopeIds))
     .orderBy(milestones.order, milestones.targetDate);
 
-  // Attach item progress counts for each milestone
+  // Attach item progress counts + labor rollup for each milestone
   const withProgress = await Promise.all(
     rows.map(async (m) => {
       const [total] = await db
@@ -53,10 +65,12 @@ router.get("/", requireAuth, async (req, res) => {
         .select({ n: count() })
         .from(items)
         .where(and(eq(items.milestoneId, m.id), eq(items.status, "done")));
+      const laborCents = await laborForMilestone(m.id);
       return {
         ...m,
         itemCount: Number(total?.n ?? 0),
         doneCount: Number(done?.n ?? 0),
+        laborCents,
       };
     }),
   );
@@ -79,7 +93,7 @@ router.post("/", requireAuth, async (req, res) => {
     .insert(milestones)
     .values({ scopeId: Number(scopeId), name, description, startDate, targetDate })
     .returning();
-  return res.status(201).json({ ...created, itemCount: 0, doneCount: 0 });
+  return res.status(201).json({ ...created, itemCount: 0, doneCount: 0, laborCents: 0 });
 });
 
 // PATCH /projects/:slug/milestones/:milestoneId
@@ -108,11 +122,12 @@ router.patch("/:milestoneId", requireAuth, async (req, res) => {
 
   if (!updated) return res.status(404).json({ error: "Not found" });
 
-  // Re-fetch counts
+  // Re-fetch counts + labor
   const [total] = await db.select({ n: count() }).from(items).where(eq(items.milestoneId, updated.id));
   const [done] = await db.select({ n: count() }).from(items).where(and(eq(items.milestoneId, updated.id), eq(items.status, "done")));
+  const laborCents = await laborForMilestone(updated.id);
 
-  return res.json({ ...updated, itemCount: Number(total?.n ?? 0), doneCount: Number(done?.n ?? 0) });
+  return res.json({ ...updated, itemCount: Number(total?.n ?? 0), doneCount: Number(done?.n ?? 0), laborCents });
 });
 
 // DELETE /projects/:slug/milestones/:milestoneId

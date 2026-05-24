@@ -6,13 +6,15 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface MilestoneInput {
-  scopeId: number;
-  name: string;
+export interface FlowEdge {
+  id: string;
+  source: string;
+  target: string;
   /** @nullable */
-  description?: string | null;
+  sourceHandle?: string | null;
   /** @nullable */
-  startDate?: Date | null;
+  targetHandle?: string | null;
   /** @nullable */
-  targetDate?: Date | null;
+  label?: string | null;
+  animated?: boolean;
 }

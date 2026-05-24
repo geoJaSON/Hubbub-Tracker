@@ -5,6 +5,7 @@
  * Hubbub team command-center API
  * OpenAPI spec version: 0.1.0
  */
+import type { ItemCategory } from './itemCategory';
 import type { ItemInputPriority } from './itemInputPriority';
 import type { ItemInputStatus } from './itemInputStatus';
 import type { ItemInputType } from './itemInputType';
@@ -28,4 +29,7 @@ export interface ItemInput {
   dueDate?: string | null;
   /** @nullable */
   decisionRationale?: string | null;
+  category?: ItemCategory | null;
+  /** @nullable */
+  componentId?: number | null;
 }

@@ -6,13 +6,8 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface MilestoneInput {
-  scopeId: number;
-  name: string;
+export interface ProjectComponentUpdate {
+  name?: string;
   /** @nullable */
   description?: string | null;
-  /** @nullable */
-  startDate?: Date | null;
-  /** @nullable */
-  targetDate?: Date | null;
 }

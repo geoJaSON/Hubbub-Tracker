@@ -154,6 +154,7 @@ export const ListProjectsResponseItem = zod.object({
   "slug": zod.string(),
   "description": zod.string().nullish(),
   "githubRepo": zod.string().nullish(),
+  "hasGithubToken": zod.boolean(),
   "archived": zod.boolean(),
   "memberCount": zod.number().optional(),
   "openItemCount": zod.number().optional(),
@@ -186,6 +187,7 @@ export const GetProjectResponse = zod.object({
   "slug": zod.string(),
   "description": zod.string().nullish(),
   "githubRepo": zod.string().nullish(),
+  "hasGithubToken": zod.boolean(),
   "archived": zod.boolean(),
   "members": zod.array(zod.object({
   "id": zod.number(),
@@ -223,9 +225,13 @@ export const GetProjectResponse = zod.object({
   "scopeId": zod.number(),
   "name": zod.string(),
   "description": zod.string().nullish(),
+  "startDate": zod.coerce.date().nullish(),
   "targetDate": zod.coerce.date().nullish(),
   "status": zod.enum(['open', 'complete']),
-  "order": zod.number()
+  "order": zod.number(),
+  "itemCount": zod.number(),
+  "doneCount": zod.number(),
+  "laborCents": zod.number().describe('Sum of (billable minutes × user hourly rate) for items linked to this milestone.')
 })),
   "createdAt": zod.coerce.date()
 })
@@ -242,7 +248,7 @@ export const UpdateProjectBody = zod.object({
   "name": zod.string().optional(),
   "description": zod.string().nullish(),
   "githubRepo": zod.string().nullish(),
-  "githubToken": zod.string().nullish(),
+  "githubToken": zod.string().nullish().describe('Write-only personal access token for private repo polling. Never returned in responses.'),
   "archived": zod.boolean().optional()
 })
 
@@ -252,6 +258,7 @@ export const UpdateProjectResponse = zod.object({
   "slug": zod.string(),
   "description": zod.string().nullish(),
   "githubRepo": zod.string().nullish(),
+  "hasGithubToken": zod.boolean(),
   "archived": zod.boolean(),
   "memberCount": zod.number().optional(),
   "openItemCount": zod.number().optional(),
@@ -412,9 +419,13 @@ export const ListMilestonesResponseItem = zod.object({
   "scopeId": zod.number(),
   "name": zod.string(),
   "description": zod.string().nullish(),
+  "startDate": zod.coerce.date().nullish(),
   "targetDate": zod.coerce.date().nullish(),
   "status": zod.enum(['open', 'complete']),
-  "order": zod.number()
+  "order": zod.number(),
+  "itemCount": zod.number(),
+  "doneCount": zod.number(),
+  "laborCents": zod.number().describe('Sum of (billable minutes × user hourly rate) for items linked to this milestone.')
 })
 export const ListMilestonesResponse = zod.array(ListMilestonesResponseItem)
 
@@ -430,7 +441,8 @@ export const CreateMilestoneBody = zod.object({
   "scopeId": zod.number(),
   "name": zod.string(),
   "description": zod.string().nullish(),
-  "targetDate": zod.string().nullish()
+  "startDate": zod.coerce.date().nullish(),
+  "targetDate": zod.coerce.date().nullish()
 })
 
 
@@ -445,7 +457,8 @@ export const UpdateMilestoneParams = zod.object({
 export const UpdateMilestoneBody = zod.object({
   "name": zod.string().optional(),
   "description": zod.string().nullish(),
-  "targetDate": zod.string().nullish(),
+  "startDate": zod.coerce.date().nullish(),
+  "targetDate": zod.coerce.date().nullish(),
   "status": zod.enum(['open', 'complete']).optional(),
   "order": zod.number().optional()
 })
@@ -455,9 +468,13 @@ export const UpdateMilestoneResponse = zod.object({
   "scopeId": zod.number(),
   "name": zod.string(),
   "description": zod.string().nullish(),
+  "startDate": zod.coerce.date().nullish(),
   "targetDate": zod.coerce.date().nullish(),
   "status": zod.enum(['open', 'complete']),
-  "order": zod.number()
+  "order": zod.number(),
+  "itemCount": zod.number(),
+  "doneCount": zod.number(),
+  "laborCents": zod.number().describe('Sum of (billable minutes × user hourly rate) for items linked to this milestone.')
 })
 
 
@@ -486,6 +503,7 @@ export const ListItemsResponseItem = zod.object({
   "description": zod.string().nullish(),
   "status": zod.enum(['open', 'in_progress', 'blocked', 'done', 'cancelled']),
   "priority": zod.enum(['low', 'medium', 'high', 'urgent']),
+  "category": zod.enum(['infrastructure_hosting', 'security_compliance', 'mobile_devops', 'web_devops', 'database_schema', 'monitoring_observability', 'deployment_release', 'third_party_integration', 'support_operations']).nullish(),
   "assigneeId": zod.string().nullish(),
   "assignee": zod.object({
   "id": zod.number(),
@@ -506,6 +524,14 @@ export const ListItemsResponseItem = zod.object({
   "decisionRationale": zod.string().nullish(),
   "closedAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date(),
+  "componentId": zod.number().nullish(),
+  "component": zod.object({
+  "id": zod.number(),
+  "projectId": zod.number(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "createdAt": zod.coerce.date().optional()
+}).nullish(),
   "totalMinutesLogged": zod.number().nullish()
 })
 export const ListItemsResponse = zod.array(ListItemsResponseItem)
@@ -529,7 +555,9 @@ export const CreateItemBody = zod.object({
   "milestoneId": zod.number().nullish(),
   "estimateMinutes": zod.number().nullish(),
   "dueDate": zod.string().nullish(),
-  "decisionRationale": zod.string().nullish()
+  "decisionRationale": zod.string().nullish(),
+  "category": zod.enum(['infrastructure_hosting', 'security_compliance', 'mobile_devops', 'web_devops', 'database_schema', 'monitoring_observability', 'deployment_release', 'third_party_integration', 'support_operations']).nullish(),
+  "componentId": zod.number().nullish()
 })
 
 
@@ -550,6 +578,7 @@ export const GetItemResponse = zod.object({
   "description": zod.string().nullish(),
   "status": zod.enum(['open', 'in_progress', 'blocked', 'done', 'cancelled']),
   "priority": zod.enum(['low', 'medium', 'high', 'urgent']),
+  "category": zod.enum(['infrastructure_hosting', 'security_compliance', 'mobile_devops', 'web_devops', 'database_schema', 'monitoring_observability', 'deployment_release', 'third_party_integration', 'support_operations']).nullish(),
   "assigneeId": zod.string().nullish(),
   "assignee": zod.object({
   "id": zod.number(),
@@ -570,6 +599,14 @@ export const GetItemResponse = zod.object({
   "decisionRationale": zod.string().nullish(),
   "closedAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date(),
+  "componentId": zod.number().nullish(),
+  "component": zod.object({
+  "id": zod.number(),
+  "projectId": zod.number(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "createdAt": zod.coerce.date().optional()
+}).nullish(),
   "totalMinutesLogged": zod.number().nullish(),
   "comments": zod.array(zod.object({
   "id": zod.number(),
@@ -646,7 +683,9 @@ export const UpdateItemBody = zod.object({
   "milestoneId": zod.number().nullish(),
   "estimateMinutes": zod.number().nullish(),
   "dueDate": zod.string().nullish(),
-  "decisionRationale": zod.string().nullish()
+  "decisionRationale": zod.string().nullish(),
+  "category": zod.enum(['infrastructure_hosting', 'security_compliance', 'mobile_devops', 'web_devops', 'database_schema', 'monitoring_observability', 'deployment_release', 'third_party_integration', 'support_operations']).nullish(),
+  "componentId": zod.number().nullish()
 })
 
 export const UpdateItemResponse = zod.object({
@@ -658,6 +697,7 @@ export const UpdateItemResponse = zod.object({
   "description": zod.string().nullish(),
   "status": zod.enum(['open', 'in_progress', 'blocked', 'done', 'cancelled']),
   "priority": zod.enum(['low', 'medium', 'high', 'urgent']),
+  "category": zod.enum(['infrastructure_hosting', 'security_compliance', 'mobile_devops', 'web_devops', 'database_schema', 'monitoring_observability', 'deployment_release', 'third_party_integration', 'support_operations']).nullish(),
   "assigneeId": zod.string().nullish(),
   "assignee": zod.object({
   "id": zod.number(),
@@ -678,6 +718,14 @@ export const UpdateItemResponse = zod.object({
   "decisionRationale": zod.string().nullish(),
   "closedAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date(),
+  "componentId": zod.number().nullish(),
+  "component": zod.object({
+  "id": zod.number(),
+  "projectId": zod.number(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "createdAt": zod.coerce.date().optional()
+}).nullish(),
   "totalMinutesLogged": zod.number().nullish()
 })
 
@@ -905,11 +953,272 @@ export const CreateCostEntryBody = zod.object({
 
 
 /**
+ * @summary Update cost entry
+ */
+export const UpdateCostEntryParams = zod.object({
+  "slug": zod.coerce.string(),
+  "costId": zod.coerce.number()
+})
+
+export const UpdateCostEntryBody = zod.object({
+  "scopeId": zod.number().nullish(),
+  "category": zod.enum(['labor', 'hosting', 'saas', 'contractor', 'ai', 'other']).optional(),
+  "vendor": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "amountCents": zod.number().optional(),
+  "currency": zod.string().optional(),
+  "recurring": zod.boolean().optional(),
+  "incurredOn": zod.coerce.date().optional()
+})
+
+export const UpdateCostEntryResponse = zod.object({
+  "id": zod.number(),
+  "projectId": zod.number(),
+  "scopeId": zod.number().nullish(),
+  "category": zod.enum(['labor', 'hosting', 'saas', 'contractor', 'ai', 'other']),
+  "vendor": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "amountCents": zod.number(),
+  "currency": zod.string(),
+  "recurring": zod.boolean(),
+  "incurredOn": zod.coerce.date()
+})
+
+
+/**
  * @summary Delete cost entry
  */
 export const DeleteCostEntryParams = zod.object({
   "slug": zod.coerce.string(),
   "costId": zod.coerce.number()
+})
+
+
+/**
+ * @summary List project components
+ */
+export const ListComponentsParams = zod.object({
+  "slug": zod.coerce.string()
+})
+
+export const ListComponentsResponseItem = zod.object({
+  "id": zod.number(),
+  "projectId": zod.number(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "createdAt": zod.coerce.date().optional()
+})
+export const ListComponentsResponse = zod.array(ListComponentsResponseItem)
+
+
+/**
+ * @summary Create project component
+ */
+export const CreateComponentParams = zod.object({
+  "slug": zod.coerce.string()
+})
+
+export const CreateComponentBody = zod.object({
+  "name": zod.string(),
+  "description": zod.string().nullish()
+})
+
+
+/**
+ * @summary Update project component
+ */
+export const UpdateComponentParams = zod.object({
+  "slug": zod.coerce.string(),
+  "componentId": zod.coerce.number()
+})
+
+export const UpdateComponentBody = zod.object({
+  "name": zod.string().optional(),
+  "description": zod.string().nullish()
+})
+
+export const UpdateComponentResponse = zod.object({
+  "id": zod.number(),
+  "projectId": zod.number(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "createdAt": zod.coerce.date().optional()
+})
+
+
+/**
+ * @summary Delete project component
+ */
+export const DeleteComponentParams = zod.object({
+  "slug": zod.coerce.string(),
+  "componentId": zod.coerce.number()
+})
+
+
+/**
+ * @summary List flows
+ */
+export const ListFlowsParams = zod.object({
+  "slug": zod.coerce.string()
+})
+
+export const ListFlowsResponseItem = zod.object({
+  "id": zod.number(),
+  "projectId": zod.number(),
+  "title": zod.string(),
+  "slug": zod.string(),
+  "data": zod.object({
+  "nodes": zod.array(zod.object({
+  "id": zod.string(),
+  "type": zod.string(),
+  "position": zod.object({
+  "x": zod.number(),
+  "y": zod.number()
+}),
+  "data": zod.object({
+  "label": zod.string()
+})
+})),
+  "edges": zod.array(zod.object({
+  "id": zod.string(),
+  "source": zod.string(),
+  "target": zod.string(),
+  "sourceHandle": zod.string().nullish(),
+  "targetHandle": zod.string().nullish(),
+  "label": zod.string().nullish(),
+  "animated": zod.boolean().optional()
+}))
+}),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+export const ListFlowsResponse = zod.array(ListFlowsResponseItem)
+
+
+/**
+ * @summary Create flow
+ */
+export const CreateFlowParams = zod.object({
+  "slug": zod.coerce.string()
+})
+
+export const CreateFlowBody = zod.object({
+  "title": zod.string()
+})
+
+
+/**
+ * @summary Get flow
+ */
+export const GetFlowParams = zod.object({
+  "slug": zod.coerce.string(),
+  "flowId": zod.coerce.number()
+})
+
+export const GetFlowResponse = zod.object({
+  "id": zod.number(),
+  "projectId": zod.number(),
+  "title": zod.string(),
+  "slug": zod.string(),
+  "data": zod.object({
+  "nodes": zod.array(zod.object({
+  "id": zod.string(),
+  "type": zod.string(),
+  "position": zod.object({
+  "x": zod.number(),
+  "y": zod.number()
+}),
+  "data": zod.object({
+  "label": zod.string()
+})
+})),
+  "edges": zod.array(zod.object({
+  "id": zod.string(),
+  "source": zod.string(),
+  "target": zod.string(),
+  "sourceHandle": zod.string().nullish(),
+  "targetHandle": zod.string().nullish(),
+  "label": zod.string().nullish(),
+  "animated": zod.boolean().optional()
+}))
+}),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Update flow
+ */
+export const UpdateFlowParams = zod.object({
+  "slug": zod.coerce.string(),
+  "flowId": zod.coerce.number()
+})
+
+export const UpdateFlowBody = zod.object({
+  "title": zod.string().optional(),
+  "data": zod.object({
+  "nodes": zod.array(zod.object({
+  "id": zod.string(),
+  "type": zod.string(),
+  "position": zod.object({
+  "x": zod.number(),
+  "y": zod.number()
+}),
+  "data": zod.object({
+  "label": zod.string()
+})
+})),
+  "edges": zod.array(zod.object({
+  "id": zod.string(),
+  "source": zod.string(),
+  "target": zod.string(),
+  "sourceHandle": zod.string().nullish(),
+  "targetHandle": zod.string().nullish(),
+  "label": zod.string().nullish(),
+  "animated": zod.boolean().optional()
+}))
+}).optional()
+})
+
+export const UpdateFlowResponse = zod.object({
+  "id": zod.number(),
+  "projectId": zod.number(),
+  "title": zod.string(),
+  "slug": zod.string(),
+  "data": zod.object({
+  "nodes": zod.array(zod.object({
+  "id": zod.string(),
+  "type": zod.string(),
+  "position": zod.object({
+  "x": zod.number(),
+  "y": zod.number()
+}),
+  "data": zod.object({
+  "label": zod.string()
+})
+})),
+  "edges": zod.array(zod.object({
+  "id": zod.string(),
+  "source": zod.string(),
+  "target": zod.string(),
+  "sourceHandle": zod.string().nullish(),
+  "targetHandle": zod.string().nullish(),
+  "label": zod.string().nullish(),
+  "animated": zod.boolean().optional()
+}))
+}),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Delete flow
+ */
+export const DeleteFlowParams = zod.object({
+  "slug": zod.coerce.string(),
+  "flowId": zod.coerce.number()
 })
 
 
@@ -1009,6 +1318,7 @@ export const ListPresenceResponseItem = zod.object({
   "description": zod.string().nullish(),
   "status": zod.enum(['open', 'in_progress', 'blocked', 'done', 'cancelled']),
   "priority": zod.enum(['low', 'medium', 'high', 'urgent']),
+  "category": zod.enum(['infrastructure_hosting', 'security_compliance', 'mobile_devops', 'web_devops', 'database_schema', 'monitoring_observability', 'deployment_release', 'third_party_integration', 'support_operations']).nullish(),
   "assigneeId": zod.string().nullish(),
   "assignee": zod.object({
   "id": zod.number(),
@@ -1029,6 +1339,14 @@ export const ListPresenceResponseItem = zod.object({
   "decisionRationale": zod.string().nullish(),
   "closedAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date(),
+  "componentId": zod.number().nullish(),
+  "component": zod.object({
+  "id": zod.number(),
+  "projectId": zod.number(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "createdAt": zod.coerce.date().optional()
+}).nullish(),
   "totalMinutesLogged": zod.number().nullish()
 }).nullish(),
   "note": zod.string().nullish(),
@@ -1069,6 +1387,7 @@ export const UpsertPresenceResponse = zod.object({
   "description": zod.string().nullish(),
   "status": zod.enum(['open', 'in_progress', 'blocked', 'done', 'cancelled']),
   "priority": zod.enum(['low', 'medium', 'high', 'urgent']),
+  "category": zod.enum(['infrastructure_hosting', 'security_compliance', 'mobile_devops', 'web_devops', 'database_schema', 'monitoring_observability', 'deployment_release', 'third_party_integration', 'support_operations']).nullish(),
   "assigneeId": zod.string().nullish(),
   "assignee": zod.object({
   "id": zod.number(),
@@ -1089,6 +1408,14 @@ export const UpsertPresenceResponse = zod.object({
   "decisionRationale": zod.string().nullish(),
   "closedAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date(),
+  "componentId": zod.number().nullish(),
+  "component": zod.object({
+  "id": zod.number(),
+  "projectId": zod.number(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "createdAt": zod.coerce.date().optional()
+}).nullish(),
   "totalMinutesLogged": zod.number().nullish()
 }).nullish(),
   "note": zod.string().nullish(),
@@ -1295,6 +1622,7 @@ export const GetDashboardResponse = zod.object({
   "slug": zod.string(),
   "description": zod.string().nullish(),
   "githubRepo": zod.string().nullish(),
+  "hasGithubToken": zod.boolean(),
   "archived": zod.boolean(),
   "memberCount": zod.number().optional(),
   "openItemCount": zod.number().optional(),
@@ -1327,6 +1655,7 @@ export const GetDashboardResponse = zod.object({
   "description": zod.string().nullish(),
   "status": zod.enum(['open', 'in_progress', 'blocked', 'done', 'cancelled']),
   "priority": zod.enum(['low', 'medium', 'high', 'urgent']),
+  "category": zod.enum(['infrastructure_hosting', 'security_compliance', 'mobile_devops', 'web_devops', 'database_schema', 'monitoring_observability', 'deployment_release', 'third_party_integration', 'support_operations']).nullish(),
   "assigneeId": zod.string().nullish(),
   "assignee": zod.object({
   "id": zod.number(),
@@ -1347,6 +1676,14 @@ export const GetDashboardResponse = zod.object({
   "decisionRationale": zod.string().nullish(),
   "closedAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date(),
+  "componentId": zod.number().nullish(),
+  "component": zod.object({
+  "id": zod.number(),
+  "projectId": zod.number(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "createdAt": zod.coerce.date().optional()
+}).nullish(),
   "totalMinutesLogged": zod.number().nullish()
 }).nullish(),
   "note": zod.string().nullish(),
@@ -1385,7 +1722,8 @@ export const GetBurnDownParams = zod.object({
 
 export const GetBurnDownResponse = zod.object({
   "totalBudgetCents": zod.number(),
-  "totalSpentCents": zod.number(),
+  "totalSpentCents": zod.number().describe('Direct cost entries only (does not include derived labor).'),
+  "totalLaborCents": zod.number().optional().describe('Sum of (billable minutes × user hourly rate) across the project.'),
   "points": zod.array(zod.object({
   "date": zod.coerce.date(),
   "budgetCents": zod.number(),
@@ -1396,7 +1734,8 @@ export const GetBurnDownResponse = zod.object({
   "scopeId": zod.number(),
   "scopeName": zod.string(),
   "budgetCents": zod.number(),
-  "spentCents": zod.number()
+  "spentCents": zod.number().describe('Direct cost entries assigned to this scope (does not include labor).'),
+  "laborCents": zod.number().optional().describe('Sum of (billable minutes × user hourly rate) for items linked to this scope.')
 }))
 })
 
