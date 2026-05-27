@@ -991,7 +991,7 @@ export default function ProjectPage() {
 
   return (
     <Layout title={project.name.toUpperCase()} fluid>
-      <div className="flex flex-1 h-full min-h-0">
+      <div className="flex flex-1 h-full min-h-0 min-w-0">
         <div className="flex-1 overflow-auto p-4 min-w-0 space-y-4">
         {/* Project header */}
         <div className="flex items-center gap-3 flex-wrap">
