@@ -41,6 +41,14 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuCheckboxItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -232,11 +240,11 @@ export default function ProjectPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [draggedItemId, setDraggedItemId] = useState<number | null>(null);
   const [dragTarget, setDragTarget] = useState<string | null>(null);
-  const [itemTypeFilter, setItemTypeFilter] = useState<string>("all");
-  const [itemCategoryFilter, setItemCategoryFilter] = useState<string>("all");
-  const [itemComponentFilter, setItemComponentFilter] = useState<number | "all">("all");
-  const [itemScopeFilter, setItemScopeFilter] = useState<number | "all">("all");
-  const [itemMilestoneFilter, setItemMilestoneFilter] = useState<number | "all">("all");
+  const [itemTypeFilter, setItemTypeFilter] = useState<Set<string>>(new Set());
+  const [itemCategoryFilter, setItemCategoryFilter] = useState<Set<string>>(new Set());
+  const [itemComponentFilter, setItemComponentFilter] = useState<Set<number>>(new Set());
+  const [itemScopeFilter, setItemScopeFilter] = useState<Set<number>>(new Set());
+  const [itemMilestoneFilter, setItemMilestoneFilter] = useState<Set<number>>(new Set());
   const [hideDone, setHideDone] = useState(true);
   const [componentNewName, setComponentNewName] = useState("");
   const [componentEditId, setComponentEditId] = useState<number | null>(null);
@@ -1031,181 +1039,230 @@ export default function ProjectPage() {
 
           {/* ITEMS TAB */}
           <TabsContent value="items" className="mt-3 space-y-2">
-            {/* Type filter */}
-            <div className="flex gap-1 flex-wrap">
-              {[
-                { id: "all", label: "ALL" },
+            {/* Filter row — multi-select dropdowns */}
+            {(() => {
+              const triggerCls = (active: boolean, accent: "primary" | "accent" = "primary") =>
+                cn(
+                  "text-[10px] font-mono border px-2 py-0.5 inline-flex items-center gap-1 transition-colors outline-none",
+                  active
+                    ? accent === "accent"
+                      ? "border-accent text-accent bg-accent/10"
+                      : "border-primary text-primary bg-primary/10"
+                    : "border-border text-muted-foreground hover:text-foreground hover:border-muted-foreground",
+                );
+              const toggle = <T,>(setter: React.Dispatch<React.SetStateAction<Set<T>>>, value: T, checked: boolean) => {
+                setter((prev) => {
+                  const next = new Set(prev);
+                  if (checked) next.add(value); else next.delete(value);
+                  return next;
+                });
+              };
+              const visibleMilestones = (milestonesData as Milestone[]).filter(
+                (m) => itemScopeFilter.size === 0 || (m.scopeId != null && itemScopeFilter.has(m.scopeId)),
+              );
+              const anyActive =
+                itemTypeFilter.size > 0 ||
+                itemCategoryFilter.size > 0 ||
+                itemComponentFilter.size > 0 ||
+                itemScopeFilter.size > 0 ||
+                itemMilestoneFilter.size > 0;
+              const TYPES: { id: string; label: string }[] = [
                 { id: "todo", label: "TODO" },
                 { id: "bug", label: "BUG" },
                 { id: "decision", label: "DECISION LOG" },
                 { id: "request", label: "REQUEST" },
-              ].map((f) => (
-                <button
-                  key={f.id}
-                  onClick={() => setItemTypeFilter(f.id)}
-                  className={cn(
-                    "text-[10px] font-mono border px-2 py-0.5 transition-colors",
-                    itemTypeFilter === f.id
-                      ? "border-primary text-primary bg-primary/10"
-                      : "border-border text-muted-foreground hover:text-foreground hover:border-muted-foreground",
-                  )}
-                >
-                  {f.label}
-                </button>
-              ))}
-            </div>
-            {/* Category filter */}
-            <div className="flex gap-1 flex-wrap">
-              <button
-                onClick={() => setItemCategoryFilter("all")}
-                className={cn(
-                  "text-[10px] font-mono border px-2 py-0.5 transition-colors",
-                  itemCategoryFilter === "all"
-                    ? "border-accent text-accent bg-accent/10"
-                    : "border-border text-muted-foreground hover:text-foreground hover:border-muted-foreground",
-                )}
-              >
-                ALL CATEGORIES
-              </button>
-              {Object.entries(CATEGORY_LABELS).map(([id, label]) => (
-                <button
-                  key={id}
-                  onClick={() => setItemCategoryFilter(id)}
-                  className={cn(
-                    "text-[10px] font-mono border px-2 py-0.5 transition-colors",
-                    itemCategoryFilter === id
-                      ? "border-accent text-accent bg-accent/10"
-                      : "border-border text-muted-foreground hover:text-foreground hover:border-muted-foreground",
-                  )}
-                >
-                  {label.toUpperCase()}
-                </button>
-              ))}
-            </div>
-            {/* Component filter + done toggle row */}
-            <div className="flex gap-1 flex-wrap items-center">
-              {components.length > 0 && (
-                <>
-                  <button
-                    onClick={() => setItemComponentFilter("all")}
-                    className={cn(
-                      "text-[10px] font-mono border px-2 py-0.5 transition-colors",
-                      itemComponentFilter === "all"
-                        ? "border-primary text-primary bg-primary/10"
-                        : "border-border text-muted-foreground hover:text-foreground hover:border-muted-foreground",
-                    )}
-                  >
-                    ALL COMPONENTS
-                  </button>
-                  {components.map((c) => (
-                    <button
-                      key={c.id}
-                      onClick={() => setItemComponentFilter(c.id)}
-                      className={cn(
-                        "text-[10px] font-mono border px-2 py-0.5 transition-colors",
-                        itemComponentFilter === c.id
-                          ? "border-primary text-primary bg-primary/10"
-                          : "border-border text-muted-foreground hover:text-foreground hover:border-muted-foreground",
-                      )}
-                    >
-                      {c.name.toUpperCase()}
-                    </button>
-                  ))}
-                  <span className="border-l border-border h-3 mx-1" />
-                </>
-              )}
-              <button
-                onClick={() => setHideDone((v) => !v)}
-                className={cn(
-                  "text-[10px] font-mono border px-2 py-0.5 transition-colors",
-                  hideDone
-                    ? "border-muted-foreground text-muted-foreground hover:text-foreground hover:border-muted-foreground"
-                    : "border-primary text-primary bg-primary/10",
-                )}
-              >
-                {hideDone ? "SHOW DONE" : "HIDE DONE"}
-              </button>
-            </div>
-            {/* Scope + milestone filter row */}
-            {projectScopes.length > 0 && (
-              <div className="flex gap-1 flex-wrap items-center">
-                <button
-                  onClick={() => { setItemScopeFilter("all"); setItemMilestoneFilter("all"); }}
-                  className={cn(
-                    "text-[10px] font-mono border px-2 py-0.5 transition-colors",
-                    itemScopeFilter === "all"
-                      ? "border-primary text-primary bg-primary/10"
-                      : "border-border text-muted-foreground hover:text-foreground hover:border-muted-foreground",
-                  )}
-                >
-                  ALL SCOPES
-                </button>
-                {projectScopes.map((s) => (
-                  <button
-                    key={s.id}
-                    onClick={() => { setItemScopeFilter(s.id); setItemMilestoneFilter("all"); }}
-                    className={cn(
-                      "text-[10px] font-mono border px-2 py-0.5 transition-colors",
-                      itemScopeFilter === s.id
-                        ? "border-primary text-primary bg-primary/10"
-                        : "border-border text-muted-foreground hover:text-foreground hover:border-muted-foreground",
-                    )}
-                  >
-                    {s.name.toUpperCase()}
-                  </button>
-                ))}
-                {(() => {
-                  const visibleMilestones = (milestonesData as Milestone[]).filter(
-                    (m) => itemScopeFilter === "all" || m.scopeId === itemScopeFilter,
-                  );
-                  if (visibleMilestones.length === 0) return null;
-                  return (
-                    <>
-                      <span className="border-l border-border h-3 mx-1" />
-                      <button
-                        onClick={() => setItemMilestoneFilter("all")}
-                        className={cn(
-                          "text-[10px] font-mono border px-2 py-0.5 transition-colors",
-                          itemMilestoneFilter === "all"
-                            ? "border-accent text-accent bg-accent/10"
-                            : "border-border text-muted-foreground hover:text-foreground hover:border-muted-foreground",
-                        )}
-                      >
-                        ALL MILESTONES
+              ];
+              return (
+                <div className="flex gap-1 flex-wrap items-center">
+                  {/* TYPE */}
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button className={triggerCls(itemTypeFilter.size > 0)}>
+                        TYPE{itemTypeFilter.size > 0 && ` (${itemTypeFilter.size})`}
+                        <ChevronDown className="h-2.5 w-2.5" />
                       </button>
-                      {visibleMilestones.map((m) => (
-                        <button
-                          key={m.id}
-                          onClick={() => setItemMilestoneFilter(m.id)}
-                          className={cn(
-                            "text-[10px] font-mono border px-2 py-0.5 transition-colors",
-                            itemMilestoneFilter === m.id
-                              ? "border-accent text-accent bg-accent/10"
-                              : "border-border text-muted-foreground hover:text-foreground hover:border-muted-foreground",
-                          )}
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" className="font-mono text-xs rounded-none">
+                      <DropdownMenuLabel className="text-[10px] tracking-widest text-muted-foreground">TYPE</DropdownMenuLabel>
+                      <DropdownMenuSeparator />
+                      {TYPES.map((t) => (
+                        <DropdownMenuCheckboxItem
+                          key={t.id}
+                          checked={itemTypeFilter.has(t.id)}
+                          onCheckedChange={(c) => toggle(setItemTypeFilter, t.id, !!c)}
+                          onSelect={(e) => e.preventDefault()}
+                          className="text-xs"
                         >
-                          {m.name.toUpperCase()}
-                        </button>
+                          {t.label}
+                        </DropdownMenuCheckboxItem>
                       ))}
-                    </>
-                  );
-                })()}
-              </div>
-            )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+
+                  {/* CATEGORY */}
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button className={triggerCls(itemCategoryFilter.size > 0, "accent")}>
+                        CATEGORY{itemCategoryFilter.size > 0 && ` (${itemCategoryFilter.size})`}
+                        <ChevronDown className="h-2.5 w-2.5" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" className="font-mono text-xs rounded-none max-h-80 overflow-y-auto">
+                      <DropdownMenuLabel className="text-[10px] tracking-widest text-muted-foreground">CATEGORY</DropdownMenuLabel>
+                      <DropdownMenuSeparator />
+                      {Object.entries(CATEGORY_LABELS).map(([id, label]) => (
+                        <DropdownMenuCheckboxItem
+                          key={id}
+                          checked={itemCategoryFilter.has(id)}
+                          onCheckedChange={(c) => toggle(setItemCategoryFilter, id, !!c)}
+                          onSelect={(e) => e.preventDefault()}
+                          className="text-xs"
+                        >
+                          {label.toUpperCase()}
+                        </DropdownMenuCheckboxItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+
+                  {/* COMPONENT */}
+                  {components.length > 0 && (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button className={triggerCls(itemComponentFilter.size > 0)}>
+                          COMPONENT{itemComponentFilter.size > 0 && ` (${itemComponentFilter.size})`}
+                          <ChevronDown className="h-2.5 w-2.5" />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start" className="font-mono text-xs rounded-none max-h-80 overflow-y-auto">
+                        <DropdownMenuLabel className="text-[10px] tracking-widest text-muted-foreground">COMPONENT</DropdownMenuLabel>
+                        <DropdownMenuSeparator />
+                        {components.map((c) => (
+                          <DropdownMenuCheckboxItem
+                            key={c.id}
+                            checked={itemComponentFilter.has(c.id)}
+                            onCheckedChange={(checked) => toggle(setItemComponentFilter, c.id, !!checked)}
+                            onSelect={(e) => e.preventDefault()}
+                            className="text-xs"
+                          >
+                            {c.name.toUpperCase()}
+                          </DropdownMenuCheckboxItem>
+                        ))}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
+
+                  {/* SCOPE */}
+                  {projectScopes.length > 0 && (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button className={triggerCls(itemScopeFilter.size > 0)}>
+                          SCOPE{itemScopeFilter.size > 0 && ` (${itemScopeFilter.size})`}
+                          <ChevronDown className="h-2.5 w-2.5" />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start" className="font-mono text-xs rounded-none max-h-80 overflow-y-auto">
+                        <DropdownMenuLabel className="text-[10px] tracking-widest text-muted-foreground">SCOPE</DropdownMenuLabel>
+                        <DropdownMenuSeparator />
+                        {projectScopes.map((s) => (
+                          <DropdownMenuCheckboxItem
+                            key={s.id}
+                            checked={itemScopeFilter.has(s.id)}
+                            onCheckedChange={(c) => {
+                              toggle(setItemScopeFilter, s.id, !!c);
+                              if (!c) {
+                                setItemMilestoneFilter((prev) => {
+                                  const next = new Set(prev);
+                                  (milestonesData as Milestone[])
+                                    .filter((m) => m.scopeId === s.id)
+                                    .forEach((m) => next.delete(m.id));
+                                  return next;
+                                });
+                              }
+                            }}
+                            onSelect={(e) => e.preventDefault()}
+                            className="text-xs"
+                          >
+                            {s.name.toUpperCase()}
+                          </DropdownMenuCheckboxItem>
+                        ))}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
+
+                  {/* MILESTONE */}
+                  {visibleMilestones.length > 0 && (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button className={triggerCls(itemMilestoneFilter.size > 0, "accent")}>
+                          MILESTONE{itemMilestoneFilter.size > 0 && ` (${itemMilestoneFilter.size})`}
+                          <ChevronDown className="h-2.5 w-2.5" />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start" className="font-mono text-xs rounded-none max-h-80 overflow-y-auto">
+                        <DropdownMenuLabel className="text-[10px] tracking-widest text-muted-foreground">MILESTONE</DropdownMenuLabel>
+                        <DropdownMenuSeparator />
+                        {visibleMilestones.map((m) => (
+                          <DropdownMenuCheckboxItem
+                            key={m.id}
+                            checked={itemMilestoneFilter.has(m.id)}
+                            onCheckedChange={(c) => toggle(setItemMilestoneFilter, m.id, !!c)}
+                            onSelect={(e) => e.preventDefault()}
+                            className="text-xs"
+                          >
+                            {m.name.toUpperCase()}
+                          </DropdownMenuCheckboxItem>
+                        ))}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
+
+                  {/* CLEAR */}
+                  {anyActive && (
+                    <button
+                      onClick={() => {
+                        setItemTypeFilter(new Set());
+                        setItemCategoryFilter(new Set());
+                        setItemComponentFilter(new Set());
+                        setItemScopeFilter(new Set());
+                        setItemMilestoneFilter(new Set());
+                      }}
+                      className="text-[10px] font-mono border border-destructive/60 text-destructive hover:bg-destructive/10 px-2 py-0.5 transition-colors"
+                    >
+                      CLEAR
+                    </button>
+                  )}
+
+                  <span className="border-l border-border h-3 mx-1" />
+
+                  {/* HIDE DONE */}
+                  <button
+                    onClick={() => setHideDone((v) => !v)}
+                    className={cn(
+                      "text-[10px] font-mono border px-2 py-0.5 transition-colors",
+                      hideDone
+                        ? "border-muted-foreground text-muted-foreground hover:text-foreground hover:border-muted-foreground"
+                        : "border-primary text-primary bg-primary/10",
+                    )}
+                  >
+                    {hideDone ? "SHOW DONE" : "HIDE DONE"}
+                  </button>
+                </div>
+              );
+            })()}
             {(() => {
               const filtered = items
-                .filter((i) => itemTypeFilter === "all" || i.type === itemTypeFilter)
-                .filter((i) => itemCategoryFilter === "all" || i.category === itemCategoryFilter)
-                .filter((i) => itemComponentFilter === "all" || i.componentId === itemComponentFilter)
-                .filter((i) => itemScopeFilter === "all" || i.scopeId === itemScopeFilter)
-                .filter((i) => itemMilestoneFilter === "all" || i.milestoneId === itemMilestoneFilter)
+                .filter((i) => itemTypeFilter.size === 0 || itemTypeFilter.has(i.type))
+                .filter((i) => itemCategoryFilter.size === 0 || itemCategoryFilter.has(i.category))
+                .filter((i) => itemComponentFilter.size === 0 || (i.componentId != null && itemComponentFilter.has(i.componentId)))
+                .filter((i) => itemScopeFilter.size === 0 || (i.scopeId != null && itemScopeFilter.has(i.scopeId)))
+                .filter((i) => itemMilestoneFilter.size === 0 || (i.milestoneId != null && itemMilestoneFilter.has(i.milestoneId)))
                 .filter((i) => !hideDone || i.status !== "done");
               const anyFilterActive =
-                itemTypeFilter !== "all" ||
-                itemCategoryFilter !== "all" ||
-                itemComponentFilter !== "all" ||
-                itemScopeFilter !== "all" ||
-                itemMilestoneFilter !== "all" ||
+                itemTypeFilter.size > 0 ||
+                itemCategoryFilter.size > 0 ||
+                itemComponentFilter.size > 0 ||
+                itemScopeFilter.size > 0 ||
+                itemMilestoneFilter.size > 0 ||
                 hideDone;
               return filtered.length === 0 ? (
                 <div className="border border-border bg-card p-8 text-center">
