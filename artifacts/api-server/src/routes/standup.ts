@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { eq, gte, and } from "drizzle-orm";
+import { eq, gte, lt, and } from "drizzle-orm";
 import { db } from "../lib/db";
 import { items, timeEntries, activityEvents, standupCache } from "../lib/schema";
 import { requireAuth, AuthRequest } from "../lib/auth";
@@ -39,7 +39,11 @@ router.get("/", requireAuth, async (req: AuthRequest, res) => {
       .where(
         and(
           eq(activityEvents.actorId, req.userId!),
-          gte(activityEvents.createdAt, new Date(yesterday)),
+          // Bound to yesterday only (>= yesterday 00:00 UTC, < today 00:00 UTC)
+          // so the "Yesterday" section matches the time-entry window below and
+          // doesn't bleed in today's activity.
+          gte(activityEvents.createdAt, new Date(`${yesterday}T00:00:00.000Z`)),
+          lt(activityEvents.createdAt, new Date(`${today}T00:00:00.000Z`)),
         ),
       )
       .orderBy(activityEvents.createdAt),

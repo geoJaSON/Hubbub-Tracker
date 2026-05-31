@@ -3,6 +3,7 @@ import { eq, desc, sql } from "drizzle-orm";
 import { db } from "../lib/db";
 import { projects, commits, commitItems, items } from "../lib/schema";
 import { requireAuth, AuthRequest } from "../lib/auth";
+import { logActivity } from "../lib/activity";
 
 const router = Router({ mergeParams: true });
 
@@ -76,10 +77,18 @@ router.post("/", requireAuth, async (req: AuthRequest, res) => {
           )
           .limit(1);
         if (item) {
-          await db
+          const linked = await db
             .insert(commitItems)
             .values({ commitId: row.id, itemId: item.id })
-            .onConflictDoNothing();
+            .onConflictDoNothing()
+            .returning();
+          if (linked.length > 0) {
+            await logActivity("commit_linked", req.userId ?? null, project.id, {
+              number: item.number,
+              title: item.title,
+              sha: row.sha.slice(0, 7),
+            });
+          }
         }
       }
     }

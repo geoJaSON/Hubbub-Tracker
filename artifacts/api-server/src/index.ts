@@ -5,6 +5,7 @@ import { projects, commits, commitItems, items, messages } from "./lib/schema";
 import { eq, sql, and } from "drizzle-orm";
 import { notifyProject } from "./lib/pgnotify";
 import { decrypt } from "./lib/crypto";
+import { logActivity } from "./lib/activity";
 
 const rawPort = process.env["PORT"];
 
@@ -123,7 +124,7 @@ async function pollGitHubCommits() {
             );
             for (const num of refs) {
               const [item] = await db
-                .select({ id: items.id })
+                .select({ id: items.id, number: items.number, title: items.title })
                 .from(items)
                 .where(
                   and(
@@ -133,10 +134,18 @@ async function pollGitHubCommits() {
                 )
                 .limit(1);
               if (item) {
-                await db
+                const linked = await db
                   .insert(commitItems)
                   .values({ commitId: inserted.id, itemId: item.id })
-                  .onConflictDoNothing();
+                  .onConflictDoNothing()
+                  .returning();
+                if (linked.length > 0) {
+                  await logActivity("commit_linked", null, project.id, {
+                    number: item.number,
+                    title: item.title,
+                    sha: c.sha.slice(0, 7),
+                  });
+                }
               }
             }
           }

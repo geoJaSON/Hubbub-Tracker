@@ -92,30 +92,95 @@ router.get("/", requireAuth, async (req: AuthRequest, res) => {
           .limit(20)
       : [];
 
-  const projectActorIds = [...new Set(recentActivity.filter(e => e.actorId).map(e => e.actorId!))];
-  const actorRows = projectActorIds.length > 0
-    ? await db.select().from(users).where(
-        sql`${users.clerkId} = ANY(ARRAY[${sql.join(projectActorIds.map(id => sql`${id}`), sql`, `)}]::text[])`
-      )
-    : [];
+  const intArray = (xs: number[]) =>
+    sql`ARRAY[${sql.join(xs.map((x) => sql`${x}`), sql`, `)}]::int[]`;
+  const textArray = (xs: string[]) =>
+    sql`ARRAY[${sql.join(xs.map((x) => sql`${x}`), sql`, `)}]::text[]`;
+
+  const projectActorIds = [...new Set(recentActivity.filter((e) => e.actorId).map((e) => e.actorId!))];
+  const actorRows =
+    projectActorIds.length > 0
+      ? await db.select().from(users).where(sql`${users.clerkId} = ANY(${textArray(projectActorIds)})`)
+      : [];
+
+  // Per-project member + open-item counts
+  const memberCountRows =
+    ids.length > 0
+      ? await db
+          .select({ projectId: projectMembers.projectId, c: count() })
+          .from(projectMembers)
+          .where(sql`${projectMembers.projectId} = ANY(${intArray(ids)})`)
+          .groupBy(projectMembers.projectId)
+      : [];
+  const openItemRows =
+    ids.length > 0
+      ? await db
+          .select({ projectId: items.projectId, c: count() })
+          .from(items)
+          .where(
+            sql`${items.projectId} = ANY(${intArray(ids)}) AND ${items.status} NOT IN ('done','cancelled')`,
+          )
+          .groupBy(items.projectId)
+      : [];
+  const memberCountByProject = new Map(memberCountRows.map((r) => [r.projectId, Number(r.c)]));
+  const openItemByProject = new Map(openItemRows.map((r) => [r.projectId, Number(r.c)]));
+
+  // Item counts grouped by status across the caller's projects
+  const statusRows =
+    ids.length > 0
+      ? await db
+          .select({ status: items.status, c: count() })
+          .from(items)
+          .where(sql`${items.projectId} = ANY(${intArray(ids)})`)
+          .groupBy(items.status)
+      : [];
+  const itemsByStatus: Record<string, number> = Object.fromEntries(
+    statusRows.map((r) => [r.status, Number(r.c)]),
+  );
+
+  // Enrich presence rows with their user + the item they're working on
+  const presenceUserRows =
+    presenceRows.length > 0
+      ? await db
+          .select()
+          .from(users)
+          .where(sql`${users.clerkId} = ANY(${textArray(presenceRows.map((p) => p.userId))})`)
+      : [];
+  const presenceItemIds = presenceRows.filter((p) => p.itemId).map((p) => p.itemId!);
+  const presenceItemRows =
+    presenceItemIds.length > 0
+      ? await db.select().from(items).where(sql`${items.id} = ANY(${intArray(presenceItemIds)})`)
+      : [];
 
   return res.json({
-    projects: myProjects.map(({ githubToken: _tok, ...p }) => ({ ...p, memberCount: 0, openItemCount: 0 })),
+    projects: myProjects.map(({ githubToken: _tok, ...p }) => ({
+      ...p,
+      memberCount: memberCountByProject.get(p.id) ?? 0,
+      openItemCount: openItemByProject.get(p.id) ?? 0,
+    })),
     openItems: Number(openCount?.count ?? 0),
     overdueItems: Number(overdueCount?.count ?? 0),
-    itemsByStatus: {},
-    teamPresence: presenceRows.map((p) => ({ ...p, user: null, item: null })),
-    recentActivity: recentActivity.map(e => ({
+    itemsByStatus,
+    teamPresence: presenceRows.map((p) => ({
+      ...p,
+      user: presenceUserRows.find((u) => u.clerkId === p.userId) ?? null,
+      item: presenceItemRows.find((i) => i.id === p.itemId) ?? null,
+    })),
+    recentActivity: recentActivity.map((e) => ({
       ...e,
-      actor: actorRows.find(u => u.clerkId === e.actorId) ?? null,
+      actor: actorRows.find((u) => u.clerkId === e.actorId) ?? null,
       projectSlug: null,
     })),
   });
 });
 
 // GET /projects/:slug/burn-down
-router.get("/projects/:slug/burn-down", requireAuth, async (req, res) => {
-  const slug = String(req.params.slug);
+// Mounted in routes/index.ts at /projects/:slug/burn-down behind the project
+// member guard (which supplies requireAuth + membership), so the served path is
+// /api/projects/:slug/burn-down.
+export const burnDownRouter = Router({ mergeParams: true });
+burnDownRouter.get("/", async (req, res) => {
+  const slug = String((req.params as { slug?: string }).slug);
   const [project] = await db
     .select()
     .from(projects)

@@ -550,10 +550,10 @@ export default function ProjectPage() {
     return localDocs as DocWithSnippet[];
   }, [debouncedDocSearch, serverSearchResults, localDocs]);
 
-  // Presence heartbeat: send PUT /api/presence while the chat tab is open
+  // Presence heartbeat: mark the viewer as online while the project page is
+  // mounted. (Chat is now an always-visible sidebar, not a tab, so this no
+  // longer keys off activeTab.)
   useEffect(() => {
-    if (activeTab !== "chat") return;
-
     const heartbeat = async () => {
       try {
         await fetch(`${window.location.origin}${basePath}/api/presence`, {
@@ -567,7 +567,7 @@ export default function ProjectPage() {
     void heartbeat();
     const id = setInterval(() => void heartbeat(), 30_000);
     return () => clearInterval(id);
-  }, [slug, activeTab]);
+  }, [slug]);
 
   const handleSendMsg = async () => {
     const text = chatMsg.trim();
@@ -1262,7 +1262,7 @@ export default function ProjectPage() {
             {(() => {
               const filtered = items
                 .filter((i) => itemTypeFilter.size === 0 || itemTypeFilter.has(i.type))
-                .filter((i) => itemCategoryFilter.size === 0 || itemCategoryFilter.has(i.category))
+                .filter((i) => itemCategoryFilter.size === 0 || (i.category != null && itemCategoryFilter.has(i.category)))
                 .filter((i) => itemComponentFilter.size === 0 || (i.componentId != null && itemComponentFilter.has(i.componentId)))
                 .filter((i) => itemScopeFilter.size === 0 || (i.scopeId != null && itemScopeFilter.has(i.scopeId)))
                 .filter((i) => itemMilestoneFilter.size === 0 || (i.milestoneId != null && itemMilestoneFilter.has(i.milestoneId)))
@@ -1623,15 +1623,26 @@ export default function ProjectPage() {
               {(activity as Array<{ id: number; type: string; createdAt: string }>).length === 0 ? (
                 <div className="p-6 text-center text-muted-foreground font-mono text-sm">no activity</div>
               ) : (
-                (activity as Array<{ id: number; type: string; createdAt: string }>).map((e) => (
+                (activity as Array<{ id: number; type: string; createdAt: string; payload?: { number?: number; title?: string }; actor?: { displayName?: string } | null }>).map((e) => {
+                  const num = e.payload?.number;
+                  const who = e.actor?.displayName;
+                  return (
                   <div key={e.id} className="flex items-start gap-3 px-4 py-2.5 text-xs font-mono">
                     <span className="text-primary shrink-0">EVENT</span>
-                    <span className="text-foreground">{e.type.replace(/_/g, " ")}</span>
+                    <span className="text-foreground">
+                      {who && <span className="text-accent">{who} </span>}
+                      {e.type.replace(/_/g, " ")}
+                      {num != null && <span className="text-primary"> #{num}</span>}
+                      {e.payload?.title ? (
+                        <span className="text-muted-foreground"> — {e.payload.title}</span>
+                      ) : null}
+                    </span>
                     <span className="text-muted-foreground ml-auto shrink-0">
                       {new Date(e.createdAt).toLocaleDateString()}
                     </span>
                   </div>
-                ))
+                  );
+                })
               )}
             </div>
           </TabsContent>
