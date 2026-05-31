@@ -103,14 +103,20 @@ export default function Dashboard() {
                     no activity yet
                   </p>
                 ) : (
-                  (data?.recentActivity ?? []).map((e) => (
-                    <div key={e.id} className="px-4 py-2 text-xs font-mono">
-                      <span className="text-primary">[{e.type.replace(/_/g, " ")}]</span>{" "}
-                      <span className="text-muted-foreground">
-                        {new Date(e.createdAt).toLocaleDateString()}
-                      </span>
-                    </div>
-                  ))
+                  (data?.recentActivity ?? []).map((e) => {
+                    const num = (e.payload as { number?: number } | undefined)?.number;
+                    const who = e.actor?.displayName ?? "someone";
+                    return (
+                      <div key={e.id} className="px-4 py-2 text-xs font-mono">
+                        <span className="text-primary">[{e.type.replace(/_/g, " ")}]</span>{" "}
+                        {num != null && <span className="text-accent">#{num} </span>}
+                        <span className="text-foreground">{who}</span>{" "}
+                        <span className="text-muted-foreground">
+                          {new Date(e.createdAt).toLocaleString()}
+                        </span>
+                      </div>
+                    );
+                  })
                 )}
               </div>
             </div>
@@ -127,7 +133,8 @@ export default function Dashboard() {
                 {(data?.teamPresence ?? []).map((p) => (
                   <div key={p.userId} className="flex items-center gap-2 border border-border px-2 py-1 text-xs font-mono">
                     <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
-                    <span className="text-foreground">{p.userId.slice(0, 8)}</span>
+                    <span className="text-foreground">{p.user?.displayName ?? p.userId.slice(0, 8)}</span>
+                    {p.item && <span className="text-muted-foreground">· #{p.item.number}</span>}
                   </div>
                 ))}
               </div>
