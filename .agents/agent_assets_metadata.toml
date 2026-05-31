@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "zviS8ogPq1DQizV21ECQs"
+uri = "file://HUBBUB_AI_SCHEMA_GUIDE.md"
+type = "text"
+title = "Hubbub AI Assistant Integration Guide"
