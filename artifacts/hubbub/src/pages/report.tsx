@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useParams, Link } from "wouter";
-import { useAuth } from "@clerk/react";
+import { useAuth } from "@/lib/auth-context";
 import { useQuery } from "@tanstack/react-query";
 import { Printer, ArrowLeft, Clock, DollarSign, GitCommit, CheckSquare, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";

@@ -84,7 +84,7 @@ export const users = pgTable(
   "users",
   {
     id: serial("id").primaryKey(),
-    clerkId: varchar("clerk_id", { length: 128 }).notNull(),
+    clerkId: varchar("clerk_id", { length: 128 }),
     email: text("email"),
     displayName: text("display_name").notNull(),
     username: text("username"),
@@ -92,11 +92,13 @@ export const users = pgTable(
     role: userRoleEnum("role").notNull().default("member"),
     hourlyRateCents: integer("hourly_rate_cents"),
     active: boolean("active").notNull().default(true),
+    passwordHash: text("password_hash"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (t) => ({
     clerkIdIdx: uniqueIndex("users_clerk_id_idx").on(t.clerkId),
     usernameIdx: uniqueIndex("users_username_idx").on(t.username),
+    emailIdx: uniqueIndex("users_email_idx").on(t.email),
   }),
 );
 

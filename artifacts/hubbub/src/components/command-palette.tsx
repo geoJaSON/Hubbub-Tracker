@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Command, CommandInput, CommandList, CommandItem, CommandGroup, CommandEmpty } from "cmdk";
 import { LayoutDashboard, FolderKanban, Search, Settings, LogOut, CalendarDays } from "lucide-react";
-import { useClerk } from "@clerk/react";
+import { useAuth } from "@/lib/auth-context";
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -22,7 +22,7 @@ const commands = [
 
 export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   const [, setLocation] = useLocation();
-  const { signOut } = useClerk();
+  const { signOut } = useAuth();
   const [query, setQuery] = useState("");
 
   useEffect(() => {
@@ -76,7 +76,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
             <CommandGroup heading={<span className="text-muted-foreground text-xs tracking-widest">SESSION</span>}>
               <CommandItem
                 value="sign out logout"
-                onSelect={() => { onOpenChange(false); signOut({ redirectUrl: basePath || "/" }); }}
+                onSelect={() => { onOpenChange(false); signOut(); setLocation(basePath || "/"); }}
                 className="flex items-center gap-2 px-2 py-1.5 text-sm cursor-pointer text-destructive hover:bg-muted data-[selected=true]:bg-muted font-mono"
               >
                 <LogOut className="h-3.5 w-3.5 shrink-0" />

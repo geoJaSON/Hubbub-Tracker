@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from "express";
-import { getAuth } from "@clerk/express";
+import jwt from "jsonwebtoken";
 import { db } from "./db";
-import { users, projects, projectMembers } from "./schema";
+import { projects, projectMembers } from "./schema";
 import { eq, and } from "drizzle-orm";
 
 export interface AuthRequest extends Request {
@@ -9,58 +9,65 @@ export interface AuthRequest extends Request {
   localUserId?: number;
 }
 
-export const requireAuth = async (
+interface JwtPayload {
+  sub: string;
+  localUserId: number;
+  role: string;
+}
+
+function getSecret(): string {
+  const s = process.env.JWT_SECRET ?? process.env.SESSION_SECRET;
+  if (!s) throw new Error("JWT_SECRET must be set");
+  return s;
+}
+
+function extractToken(req: Request): string | null {
+  const auth = req.headers.authorization;
+  if (auth?.startsWith("Bearer ")) return auth.slice(7);
+  return null;
+}
+
+function verifyToken(token: string): JwtPayload | null {
+  try {
+    return jwt.verify(token, getSecret()) as JwtPayload;
+  } catch {
+    return null;
+  }
+}
+
+export const requireAuth = (
   req: AuthRequest,
   res: Response,
   next: NextFunction,
 ) => {
-  const auth = getAuth(req);
-  const clerkId = auth?.userId;
-  if (!clerkId) {
-    return res.status(401).json({ error: "Unauthorized" });
-  }
-  req.userId = clerkId;
+  const token = extractToken(req);
+  if (!token) return res.status(401).json({ error: "Unauthorized" });
 
-  const [user] = await db
-    .select()
-    .from(users)
-    .where(eq(users.clerkId, clerkId))
-    .limit(1);
+  const payload = verifyToken(token);
+  if (!payload) return res.status(401).json({ error: "Unauthorized" });
 
-  if (!user) {
-    return res.status(401).json({ error: "User not provisioned" });
-  }
-  req.localUserId = user.id;
+  req.userId = payload.sub;
+  req.localUserId = payload.localUserId;
   return next();
 };
 
-export const requireAdmin = async (
+export const requireAdmin = (
   req: AuthRequest,
   res: Response,
   next: NextFunction,
 ) => {
-  const auth = getAuth(req);
-  const clerkId = auth?.userId;
-  if (!clerkId) return res.status(401).json({ error: "Unauthorized" });
+  const token = extractToken(req);
+  if (!token) return res.status(401).json({ error: "Unauthorized" });
 
-  const [user] = await db
-    .select()
-    .from(users)
-    .where(eq(users.clerkId, clerkId))
-    .limit(1);
+  const payload = verifyToken(token);
+  if (!payload) return res.status(401).json({ error: "Unauthorized" });
+  if (payload.role !== "admin") return res.status(403).json({ error: "Forbidden" });
 
-  if (!user || user.role !== "admin") {
-    return res.status(403).json({ error: "Forbidden" });
-  }
-  req.userId = clerkId;
-  req.localUserId = user.id;
+  req.userId = payload.sub;
+  req.localUserId = payload.localUserId;
   return next();
 };
 
-/** Verify the signed-in user is a member of the project identified by
- *  `req.params.slug`. Must be used AFTER `requireAuth`.
- *  Attaches `req.project` and `req.projectRole` for downstream handlers.
- */
 export const requireProjectMember = async (
   req: AuthRequest,
   res: Response,
@@ -94,26 +101,26 @@ export const requireProjectMember = async (
   }
 
   (req as AuthRequest & { project?: typeof project; projectRole?: string }).project = project;
-  (req as AuthRequest & { project?: typeof project; projectRole?: string }).projectRole =
-    member.role;
+  (req as AuthRequest & { project?: typeof project; projectRole?: string }).projectRole = member.role;
   next();
 };
 
-export const softAuth = async (
+export const softAuth = (
   req: AuthRequest,
   _res: Response,
   next: NextFunction,
 ) => {
-  const auth = getAuth(req);
-  const clerkId = auth?.userId;
-  if (clerkId) {
-    req.userId = clerkId;
-    const [user] = await db
-      .select()
-      .from(users)
-      .where(eq(users.clerkId, clerkId))
-      .limit(1);
-    if (user) req.localUserId = user.id;
+  const token = extractToken(req);
+  if (token) {
+    const payload = verifyToken(token);
+    if (payload) {
+      req.userId = payload.sub;
+      req.localUserId = payload.localUserId;
+    }
   }
   next();
 };
+
+export function signToken(payload: { sub: string; localUserId: number; role: string }): string {
+  return jwt.sign(payload, getSecret(), { expiresIn: "7d" });
+}

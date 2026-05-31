@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useParams, Link, useLocation } from "wouter";
-import { useAuth } from "@clerk/react";
+import { useAuth } from "@/lib/auth-context";
 import {
   useGetProject, useListItems, useListMessages, usePostMessage,
   useListActivity, useListDocs, useCreateItem, useUpdateItem,

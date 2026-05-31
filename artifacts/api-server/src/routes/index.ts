@@ -1,5 +1,6 @@
 import { Router, type IRouter, RequestHandler } from "express";
 import healthRouter from "./health";
+import authRouter from "./auth";
 import usersRouter from "./users";
 import projectsRouter from "./projects";
 import scopesRouter from "./scopes";
@@ -23,6 +24,7 @@ import { requireAuth, requireProjectMember } from "../lib/auth";
 const router: IRouter = Router();
 
 router.use(healthRouter);
+router.use("/auth", authRouter);
 router.use("/users", usersRouter);
 router.use("/projects", projectsRouter);
 

@@ -1,6 +1,6 @@
 import { ReactNode, useState, useCallback, useEffect, useRef } from "react";
 import { Link, useLocation } from "wouter";
-import { useClerk, useUser } from "@clerk/react";
+import { useAuth } from "@/lib/auth-context";
 import {
   LayoutDashboard,
   FolderKanban,
@@ -139,16 +139,16 @@ interface LayoutProps {
 
 export function Layout({ children, title, fluid }: LayoutProps) {
   const [location, navigate] = useLocation();
-  const { signOut } = useClerk();
-  const { user } = useUser();
+  const { signOut, user } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const { theme, setTheme } = useTheme();
   const [themePickerOpen, setThemePickerOpen] = useState(false);
 
   const handleSignOut = useCallback(() => {
-    signOut({ redirectUrl: basePath || "/" });
-  }, [signOut]);
+    signOut();
+    navigate(basePath || "/");
+  }, [signOut, navigate]);
 
   const openPalette = useCallback(() => setPaletteOpen(true), []);
   useKeyboardChords(navigate, openPalette);
@@ -268,7 +268,7 @@ export function Layout({ children, title, fluid }: LayoutProps) {
           <div className="flex items-center gap-2 px-1">
             <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
             <span className="text-xs text-muted-foreground truncate flex-1">
-              {user?.username ?? user?.firstName ?? "USER"}
+              {user?.username ?? user?.displayName ?? "USER"}
             </span>
             <button
               onClick={handleSignOut}
