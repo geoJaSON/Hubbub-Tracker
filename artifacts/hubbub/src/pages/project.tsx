@@ -116,6 +116,8 @@ function TeletypeText({ text, onDone }: { text: string; onDone: () => void }) {
 
 type RichItem = Item & { projectSlug: string };
 
+type ItemLabelChip = { id: number; name: string; color: string };
+
 function ItemCard({
   item,
   onStatusChange,
@@ -155,6 +157,16 @@ function ItemCard({
           </>
         )}
       </div>
+      {(() => {
+        const ls = (item as RichItem & { labels?: ItemLabelChip[] }).labels ?? [];
+        return ls.length > 0 ? (
+          <div className="flex gap-1 flex-wrap">
+            {ls.map((l) => (
+              <span key={l.id} className="text-[10px] font-mono border px-1 py-0.5" style={{ borderColor: l.color, color: l.color }}>{l.name}</span>
+            ))}
+          </div>
+        ) : null;
+      })()}
       <div className="flex gap-1 flex-wrap">
         {STATUS_COLS.filter((s) => s !== item.status).map((s) => (
           <button
@@ -255,6 +267,7 @@ export default function ProjectPage() {
   const [itemComponentFilter, setItemComponentFilter] = useState<Set<number>>(new Set());
   const [itemScopeFilter, setItemScopeFilter] = useState<Set<number>>(new Set());
   const [itemMilestoneFilter, setItemMilestoneFilter] = useState<Set<number>>(new Set());
+  const [itemLabelFilter, setItemLabelFilter] = useState<Set<number>>(new Set());
   const [hideDone, setHideDone] = useState(true);
   const [componentNewName, setComponentNewName] = useState("");
   const [componentEditId, setComponentEditId] = useState<number | null>(null);
@@ -1075,7 +1088,15 @@ export default function ProjectPage() {
                 itemCategoryFilter.size > 0 ||
                 itemComponentFilter.size > 0 ||
                 itemScopeFilter.size > 0 ||
-                itemMilestoneFilter.size > 0;
+                itemMilestoneFilter.size > 0 ||
+                itemLabelFilter.size > 0;
+              const labelById = new Map<number, ItemLabelChip>();
+              for (const it of items)
+                for (const l of (it as Item & { labels?: ItemLabelChip[] }).labels ?? [])
+                  labelById.set(l.id, l);
+              const allLabels = [...labelById.values()].sort((a, b) =>
+                a.name.localeCompare(b.name),
+              );
               const TYPES: { id: string; label: string }[] = [
                 { id: "todo", label: "TODO" },
                 { id: "bug", label: "BUG" },
@@ -1155,6 +1176,34 @@ export default function ProjectPage() {
                             className="text-xs"
                           >
                             {c.name.toUpperCase()}
+                          </DropdownMenuCheckboxItem>
+                        ))}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
+
+                  {/* LABEL */}
+                  {allLabels.length > 0 && (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button className={triggerCls(itemLabelFilter.size > 0)}>
+                          LABEL{itemLabelFilter.size > 0 && ` (${itemLabelFilter.size})`}
+                          <ChevronDown className="h-2.5 w-2.5" />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start" className="font-mono text-xs rounded-none max-h-80 overflow-y-auto">
+                        <DropdownMenuLabel className="text-[10px] tracking-widest text-muted-foreground">LABEL</DropdownMenuLabel>
+                        <DropdownMenuSeparator />
+                        {allLabels.map((l) => (
+                          <DropdownMenuCheckboxItem
+                            key={l.id}
+                            checked={itemLabelFilter.has(l.id)}
+                            onCheckedChange={(c) => toggle(setItemLabelFilter, l.id, !!c)}
+                            onSelect={(e) => e.preventDefault()}
+                            className="text-xs"
+                          >
+                            <span className="inline-block h-2 w-2 mr-1.5 rounded-sm align-middle" style={{ background: l.color }} />
+                            {l.name}
                           </DropdownMenuCheckboxItem>
                         ))}
                       </DropdownMenuContent>
@@ -1266,6 +1315,7 @@ export default function ProjectPage() {
                 .filter((i) => itemComponentFilter.size === 0 || (i.componentId != null && itemComponentFilter.has(i.componentId)))
                 .filter((i) => itemScopeFilter.size === 0 || (i.scopeId != null && itemScopeFilter.has(i.scopeId)))
                 .filter((i) => itemMilestoneFilter.size === 0 || (i.milestoneId != null && itemMilestoneFilter.has(i.milestoneId)))
+                .filter((i) => itemLabelFilter.size === 0 || ((i as Item & { labels?: ItemLabelChip[] }).labels ?? []).some((l) => itemLabelFilter.has(l.id)))
                 .filter((i) => !hideDone || i.status !== "done");
               const anyFilterActive =
                 itemTypeFilter.size > 0 ||
@@ -1273,6 +1323,7 @@ export default function ProjectPage() {
                 itemComponentFilter.size > 0 ||
                 itemScopeFilter.size > 0 ||
                 itemMilestoneFilter.size > 0 ||
+                itemLabelFilter.size > 0 ||
                 hideDone;
               return filtered.length === 0 ? (
                 <div className="border border-border bg-card p-8 text-center">
@@ -1322,6 +1373,11 @@ export default function ProjectPage() {
                             {milestoneNameById.get(item.milestoneId) ?? "Milestone"}
                           </span>
                         )}
+                        {((item as Item & { labels?: ItemLabelChip[] }).labels ?? []).map((l) => (
+                          <span key={l.id} className="hidden lg:inline-block text-[10px] font-mono border px-1.5 py-0.5 shrink-0" style={{ borderColor: l.color, color: l.color }}>
+                            {l.name}
+                          </span>
+                        ))}
                         <span className={cn("text-xs font-mono border px-1.5 py-0.5", STATUS_COLORS[item.status])}>
                           {STATUS_LABELS[item.status] ?? item.status}
                         </span>
