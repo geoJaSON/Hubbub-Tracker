@@ -21,6 +21,7 @@ import type {
 
 import type {
   ActivityEvent,
+  Attachment,
   BurnDown,
   Comment,
   CommentInput,
@@ -38,14 +39,18 @@ import type {
   FlowUpdate,
   HealthStatus,
   Item,
+  ItemDependencyInput,
   ItemDetail,
   ItemInput,
   ItemUpdate,
+  ListNotificationsParams,
+  MarkReadInput,
   Message,
   MessageInput,
   Milestone,
   MilestoneInput,
   MilestoneUpdate,
+  Notification,
   Presence,
   PresenceInput,
   Project,
@@ -66,6 +71,7 @@ import type {
   Standup,
   TimeEntry,
   TimeEntryInput,
+  UnreadCount,
   User,
   UserAdminUpdate,
   UserInput,
@@ -2537,6 +2543,313 @@ export const useDeleteComment = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getDeleteCommentMutationOptions(options));
+    }
+
+export const getAddDependencyUrl = (slug: string,
+    itemNumber: number,) => {
+
+
+
+
+  return `/api/projects/${slug}/items/${itemNumber}/dependencies`
+}
+
+/**
+ * @summary Add a blocked-by dependency to an item
+ */
+export const addDependency = async (slug: string,
+    itemNumber: number,
+    itemDependencyInput: ItemDependencyInput, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getAddDependencyUrl(slug,itemNumber),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      itemDependencyInput,)
+  }
+);}
+
+
+
+
+export const getAddDependencyMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addDependency>>, TError,{slug: string;itemNumber: number;data: BodyType<ItemDependencyInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof addDependency>>, TError,{slug: string;itemNumber: number;data: BodyType<ItemDependencyInput>}, TContext> => {
+
+const mutationKey = ['addDependency'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof addDependency>>, {slug: string;itemNumber: number;data: BodyType<ItemDependencyInput>}> = (props) => {
+          const {slug,itemNumber,data} = props ?? {};
+
+          return  addDependency(slug,itemNumber,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AddDependencyMutationResult = NonNullable<Awaited<ReturnType<typeof addDependency>>>
+    export type AddDependencyMutationBody = BodyType<ItemDependencyInput>
+    export type AddDependencyMutationError = ErrorType<void>
+
+    /**
+ * @summary Add a blocked-by dependency to an item
+ */
+export const useAddDependency = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addDependency>>, TError,{slug: string;itemNumber: number;data: BodyType<ItemDependencyInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof addDependency>>,
+        TError,
+        {slug: string;itemNumber: number;data: BodyType<ItemDependencyInput>},
+        TContext
+      > => {
+      return useMutation(getAddDependencyMutationOptions(options));
+    }
+
+export const getRemoveDependencyUrl = (slug: string,
+    itemNumber: number,
+    dependsOnItemNumber: number,) => {
+
+
+
+
+  return `/api/projects/${slug}/items/${itemNumber}/dependencies/${dependsOnItemNumber}`
+}
+
+/**
+ * @summary Remove a dependency from an item
+ */
+export const removeDependency = async (slug: string,
+    itemNumber: number,
+    dependsOnItemNumber: number, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getRemoveDependencyUrl(slug,itemNumber,dependsOnItemNumber),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+export const getRemoveDependencyMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof removeDependency>>, TError,{slug: string;itemNumber: number;dependsOnItemNumber: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof removeDependency>>, TError,{slug: string;itemNumber: number;dependsOnItemNumber: number}, TContext> => {
+
+const mutationKey = ['removeDependency'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof removeDependency>>, {slug: string;itemNumber: number;dependsOnItemNumber: number}> = (props) => {
+          const {slug,itemNumber,dependsOnItemNumber} = props ?? {};
+
+          return  removeDependency(slug,itemNumber,dependsOnItemNumber,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RemoveDependencyMutationResult = NonNullable<Awaited<ReturnType<typeof removeDependency>>>
+
+    export type RemoveDependencyMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Remove a dependency from an item
+ */
+export const useRemoveDependency = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof removeDependency>>, TError,{slug: string;itemNumber: number;dependsOnItemNumber: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof removeDependency>>,
+        TError,
+        {slug: string;itemNumber: number;dependsOnItemNumber: number},
+        TContext
+      > => {
+      return useMutation(getRemoveDependencyMutationOptions(options));
+    }
+
+export const getListAttachmentsUrl = (slug: string,
+    entityType: 'item' | 'comment' | 'scope' | 'message',
+    entityId: number,) => {
+
+
+
+
+  return `/api/projects/${slug}/attachments/${entityType}/${entityId}`
+}
+
+/**
+ * @summary List attachments for an entity
+ */
+export const listAttachments = async (slug: string,
+    entityType: 'item' | 'comment' | 'scope' | 'message',
+    entityId: number, options?: RequestInit): Promise<Attachment[]> => {
+
+  return customFetch<Attachment[]>(getListAttachmentsUrl(slug,entityType,entityId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListAttachmentsQueryKey = (slug: string,
+    entityType: 'item' | 'comment' | 'scope' | 'message',
+    entityId: number,) => {
+    return [
+    `/api/projects/${slug}/attachments/${entityType}/${entityId}`
+    ] as const;
+    }
+
+
+export const getListAttachmentsQueryOptions = <TData = Awaited<ReturnType<typeof listAttachments>>, TError = ErrorType<unknown>>(slug: string,
+    entityType: 'item' | 'comment' | 'scope' | 'message',
+    entityId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAttachments>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListAttachmentsQueryKey(slug,entityType,entityId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listAttachments>>> = ({ signal }) => listAttachments(slug,entityType,entityId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(slug && entityType && entityId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listAttachments>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListAttachmentsQueryResult = NonNullable<Awaited<ReturnType<typeof listAttachments>>>
+export type ListAttachmentsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List attachments for an entity
+ */
+
+export function useListAttachments<TData = Awaited<ReturnType<typeof listAttachments>>, TError = ErrorType<unknown>>(
+ slug: string,
+    entityType: 'item' | 'comment' | 'scope' | 'message',
+    entityId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAttachments>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListAttachmentsQueryOptions(slug,entityType,entityId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getDeleteAttachmentUrl = (slug: string,
+    id: number,) => {
+
+
+
+
+  return `/api/projects/${slug}/attachments/${id}`
+}
+
+/**
+ * @summary Delete an attachment
+ */
+export const deleteAttachment = async (slug: string,
+    id: number, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getDeleteAttachmentUrl(slug,id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+export const getDeleteAttachmentMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteAttachment>>, TError,{slug: string;id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteAttachment>>, TError,{slug: string;id: number}, TContext> => {
+
+const mutationKey = ['deleteAttachment'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteAttachment>>, {slug: string;id: number}> = (props) => {
+          const {slug,id} = props ?? {};
+
+          return  deleteAttachment(slug,id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteAttachmentMutationResult = NonNullable<Awaited<ReturnType<typeof deleteAttachment>>>
+
+    export type DeleteAttachmentMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Delete an attachment
+ */
+export const useDeleteAttachment = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteAttachment>>, TError,{slug: string;id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteAttachment>>,
+        TError,
+        {slug: string;id: number},
+        TContext
+      > => {
+      return useMutation(getDeleteAttachmentMutationOptions(options));
     }
 
 export const getListTimeEntriesUrl = (slug: string,
@@ -5035,4 +5348,236 @@ export function useGetBurnDown<TData = Awaited<ReturnType<typeof getBurnDown>>, 
 
 
 
+
+export const getListNotificationsUrl = (params?: ListNotificationsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/notifications?${stringifiedParams}` : `/api/notifications`
+}
+
+/**
+ * @summary List notifications for the current user
+ */
+export const listNotifications = async (params?: ListNotificationsParams, options?: RequestInit): Promise<Notification[]> => {
+
+  return customFetch<Notification[]>(getListNotificationsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListNotificationsQueryKey = (params?: ListNotificationsParams,) => {
+    return [
+    `/api/notifications`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListNotificationsQueryOptions = <TData = Awaited<ReturnType<typeof listNotifications>>, TError = ErrorType<unknown>>(params?: ListNotificationsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listNotifications>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListNotificationsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listNotifications>>> = ({ signal }) => listNotifications(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listNotifications>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListNotificationsQueryResult = NonNullable<Awaited<ReturnType<typeof listNotifications>>>
+export type ListNotificationsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List notifications for the current user
+ */
+
+export function useListNotifications<TData = Awaited<ReturnType<typeof listNotifications>>, TError = ErrorType<unknown>>(
+ params?: ListNotificationsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listNotifications>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListNotificationsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getGetUnreadCountUrl = () => {
+
+
+
+
+  return `/api/notifications/unread-count`
+}
+
+/**
+ * @summary Count unread notifications
+ */
+export const getUnreadCount = async ( options?: RequestInit): Promise<UnreadCount> => {
+
+  return customFetch<UnreadCount>(getGetUnreadCountUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetUnreadCountQueryKey = () => {
+    return [
+    `/api/notifications/unread-count`
+    ] as const;
+    }
+
+
+export const getGetUnreadCountQueryOptions = <TData = Awaited<ReturnType<typeof getUnreadCount>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getUnreadCount>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetUnreadCountQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getUnreadCount>>> = ({ signal }) => getUnreadCount({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getUnreadCount>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetUnreadCountQueryResult = NonNullable<Awaited<ReturnType<typeof getUnreadCount>>>
+export type GetUnreadCountQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Count unread notifications
+ */
+
+export function useGetUnreadCount<TData = Awaited<ReturnType<typeof getUnreadCount>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getUnreadCount>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetUnreadCountQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getMarkNotificationsReadUrl = () => {
+
+
+
+
+  return `/api/notifications/read`
+}
+
+/**
+ * @summary Mark notifications as read
+ */
+export const markNotificationsRead = async (markReadInput: MarkReadInput, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getMarkNotificationsReadUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      markReadInput,)
+  }
+);}
+
+
+
+
+export const getMarkNotificationsReadMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof markNotificationsRead>>, TError,{data: BodyType<MarkReadInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof markNotificationsRead>>, TError,{data: BodyType<MarkReadInput>}, TContext> => {
+
+const mutationKey = ['markNotificationsRead'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof markNotificationsRead>>, {data: BodyType<MarkReadInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  markNotificationsRead(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type MarkNotificationsReadMutationResult = NonNullable<Awaited<ReturnType<typeof markNotificationsRead>>>
+    export type MarkNotificationsReadMutationBody = BodyType<MarkReadInput>
+    export type MarkNotificationsReadMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Mark notifications as read
+ */
+export const useMarkNotificationsRead = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof markNotificationsRead>>, TError,{data: BodyType<MarkReadInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof markNotificationsRead>>,
+        TError,
+        {data: BodyType<MarkReadInput>},
+        TContext
+      > => {
+      return useMutation(getMarkNotificationsReadMutationOptions(options));
+    }
 

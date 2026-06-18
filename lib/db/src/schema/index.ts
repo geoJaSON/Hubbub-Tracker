@@ -77,6 +77,20 @@ export const activityTypeEnum = pgEnum("activity_type", [
   "message_posted",
   "cost_added",
   "decision_logged",
+  "attachment_added",
+]);
+export const attachmentEntityEnum = pgEnum("attachment_entity", [
+  "item",
+  "comment",
+  "scope",
+  "message",
+]);
+export const notificationTypeEnum = pgEnum("notification_type", [
+  "mention",
+  "assigned",
+  "status_changed",
+  "comment_on_watched",
+  "reply",
 ]);
 
 // ── Users ──────────────────────────────────────────────────────────────────
@@ -404,6 +418,91 @@ export const appSettings = pgTable("app_settings", {
   value: text("value").notNull(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
+
+// ── Attachments ────────────────────────────────────────────────────────────
+// Polymorphic: a file attached to an item, comment, scope, or message. The blob
+// itself lives in the configured storage backend (local disk by default) under
+// `storageKey`; this row is the metadata + access-control anchor (via projectId).
+export const attachments = pgTable(
+  "attachments",
+  {
+    id: serial("id").primaryKey(),
+    projectId: integer("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    entityType: attachmentEntityEnum("entity_type").notNull(),
+    entityId: integer("entity_id").notNull(),
+    filename: text("filename").notNull(),
+    mimeType: varchar("mime_type", { length: 255 }).notNull(),
+    sizeBytes: integer("size_bytes").notNull(),
+    storageBackend: varchar("storage_backend", { length: 16 })
+      .notNull()
+      .default("local"),
+    storageKey: text("storage_key").notNull(),
+    uploadedBy: varchar("uploaded_by", { length: 128 }).notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => ({
+    entityIdx: index("attachments_entity_idx").on(
+      t.projectId,
+      t.entityType,
+      t.entityId,
+    ),
+  }),
+);
+
+// ── Notifications ──────────────────────────────────────────────────────────
+// Per-user inbox. recipientId/actorId hold the stable string user id (users.clerkId).
+// readAt IS NULL means unread.
+export const notifications = pgTable(
+  "notifications",
+  {
+    id: serial("id").primaryKey(),
+    recipientId: varchar("recipient_id", { length: 128 }).notNull(),
+    actorId: varchar("actor_id", { length: 128 }),
+    type: notificationTypeEnum("type").notNull(),
+    projectId: integer("project_id").references(() => projects.id, {
+      onDelete: "cascade",
+    }),
+    itemId: integer("item_id").references(() => items.id, {
+      onDelete: "cascade",
+    }),
+    payload: jsonb("payload").notNull().default({}),
+    readAt: timestamp("read_at"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => ({
+    recipientUnreadIdx: index("notifications_recipient_unread_idx").on(
+      t.recipientId,
+      t.readAt,
+      t.createdAt,
+    ),
+  }),
+);
+
+// ── Item Dependencies ──────────────────────────────────────────────────────
+// (itemId, dependsOnItemId) means "itemId is blocked by dependsOnItemId".
+export const itemDependencies = pgTable(
+  "item_dependencies",
+  {
+    id: serial("id").primaryKey(),
+    itemId: integer("item_id")
+      .notNull()
+      .references(() => items.id, { onDelete: "cascade" }),
+    dependsOnItemId: integer("depends_on_item_id")
+      .notNull()
+      .references(() => items.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => ({
+    pairIdx: uniqueIndex("item_dependencies_pair_idx").on(
+      t.itemId,
+      t.dependsOnItemId,
+    ),
+    itemIdx: index("item_dependencies_item_idx").on(t.itemId),
+    dependsIdx: index("item_dependencies_depends_idx").on(t.dependsOnItemId),
+  }),
+);
 
 // ── Activity ───────────────────────────────────────────────────────────────
 export const activityEvents = pgTable(

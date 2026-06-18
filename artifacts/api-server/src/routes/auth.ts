@@ -54,6 +54,14 @@ router.post("/login", async (req, res) => {
 });
 
 // POST /api/auth/register
+//
+// Registration policy (all configurable for self-hosting):
+//   - The very first account always succeeds and becomes `admin` (bootstrap).
+//   - An admin can pre-create a user (POST /users, no password). That person
+//     "claims" the record by registering with the same email — keeping the
+//     role/rate/memberships the admin assigned.
+//   - Otherwise, open self-signup is allowed unless ALLOW_OPEN_SIGNUP="false".
+//   - If ALLOWED_EMAIL_DOMAIN is set, the email must belong to that domain.
 router.post("/register", async (req, res) => {
   const { email, password, displayName, username } = req.body as {
     email?: string;
@@ -69,13 +77,57 @@ router.post("/register", async (req, res) => {
     return res.status(400).json({ error: "Password must be at least 8 characters" });
   }
 
+  const normalizedEmail = email.toLowerCase().trim();
+
+  const allowedDomain = process.env.ALLOWED_EMAIL_DOMAIN?.trim().replace(/^@/, "");
+  if (allowedDomain && !normalizedEmail.endsWith(`@${allowedDomain.toLowerCase()}`)) {
+    return res.status(403).json({
+      error: "domain_not_allowed",
+      message: `Only @${allowedDomain} accounts are permitted.`,
+    });
+  }
+
   const [existing] = await db
-    .select({ id: users.id })
+    .select()
     .from(users)
-    .where(eq(users.email, email.toLowerCase()))
+    .where(eq(users.email, normalizedEmail))
     .limit(1);
-  if (existing) {
+
+  // An existing record with a password set is a real, claimed account.
+  if (existing?.passwordHash) {
     return res.status(409).json({ error: "Email already registered" });
+  }
+
+  const [{ count: userCount } = { count: 0 }] = await db
+    .select({ count: count() })
+    .from(users);
+  const isFirstUser = userCount === 0;
+
+  // Gate open self-signup. The first user and claimable pre-created records are
+  // always allowed so the operator never locks themselves out.
+  const openSignup = process.env.ALLOW_OPEN_SIGNUP !== "false";
+  if (!openSignup && !isFirstUser && !existing) {
+    return res.status(403).json({
+      error: "signup_closed",
+      message: "Self-registration is disabled. Ask an admin to invite you.",
+    });
+  }
+
+  const passwordHash = await bcrypt.hash(password, 12);
+
+  // Claim an admin-pre-created record: keep its stable id (so any project
+  // memberships/role the admin assigned stay intact), just set the password.
+  if (existing) {
+    const [claimed] = await db
+      .update(users)
+      .set({
+        passwordHash,
+        ...(displayName ? { displayName } : {}),
+        ...(username ? { username } : {}),
+      })
+      .where(eq(users.id, existing.id))
+      .returning();
+    return res.status(200).json({ token: issueToken(claimed), user: omitHash(claimed) });
   }
 
   const [adminRow] = await db
@@ -84,15 +136,13 @@ router.post("/register", async (req, res) => {
     .where(eq(users.role, "admin"));
   const noAdmins = (adminRow?.count ?? 0) === 0;
 
-  const passwordHash = await bcrypt.hash(password, 12);
   const localId = crypto.randomUUID();
-
   const [created] = await db
     .insert(users)
     .values({
       clerkId: localId,
-      email: email.toLowerCase(),
-      displayName: displayName ?? email.split("@")[0],
+      email: normalizedEmail,
+      displayName: displayName ?? normalizedEmail.split("@")[0],
       username: username ?? null,
       role: noAdmins ? "admin" : "member",
       passwordHash,

@@ -11,6 +11,7 @@ import type { ItemCategory } from './itemCategory';
 import type { ItemDetailPriority } from './itemDetailPriority';
 import type { ItemDetailStatus } from './itemDetailStatus';
 import type { ItemDetailType } from './itemDetailType';
+import type { ItemRef } from './itemRef';
 import type { ProjectComponent } from './projectComponent';
 import type { TimeEntry } from './timeEntry';
 import type { User } from './user';
@@ -47,6 +48,8 @@ export interface ItemDetail {
   component?: ProjectComponent | null;
   /** @nullable */
   totalMinutesLogged?: number | null;
+  blockedBy?: ItemRef[];
+  isBlocked?: boolean;
   comments: Comment[];
   timeEntries: TimeEntry[];
   commits: Commit[];

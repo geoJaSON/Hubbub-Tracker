@@ -1,0 +1,46 @@
+# Hubbub Tracker — self-hosted all-in-one stack.
+#   1. cp .env.example .env   (and set JWT_SECRET / ENCRYPTION_KEY)
+#   2. docker compose up --build
+#   3. open http://localhost:${APP_PORT:-3000}  — first account becomes admin.
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: hubbub
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-hubbub}
+      POSTGRES_DB: hubbub
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hubbub -d hubbub"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  app:
+    build:
+      context: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    # Brings in JWT_SECRET, ENCRYPTION_KEY, ALLOW_OPEN_SIGNUP, ALLOWED_EMAIL_DOMAIN,
+    # GITHUB_TOKEN from .env. The `environment:` block below overrides the rest.
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgres://hubbub:${POSTGRES_PASSWORD:-hubbub}@db:5432/hubbub
+      NODE_ENV: production
+      PORT: 8080
+      BASE_PATH: /
+      WEB_DIST: /app/artifacts/hubbub/dist/public
+      UPLOADS_DIR: /data/uploads
+    ports:
+      - "${APP_PORT:-3000}:8080"
+    volumes:
+      - uploads:/data/uploads
+
+volumes:
+  pgdata:
+  uploads:

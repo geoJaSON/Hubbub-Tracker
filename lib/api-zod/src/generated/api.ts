@@ -532,7 +532,14 @@ export const ListItemsResponseItem = zod.object({
   "description": zod.string().nullish(),
   "createdAt": zod.coerce.date().optional()
 }).nullish(),
-  "totalMinutesLogged": zod.number().nullish()
+  "totalMinutesLogged": zod.number().nullish(),
+  "blockedBy": zod.array(zod.object({
+  "id": zod.number(),
+  "number": zod.number(),
+  "title": zod.string(),
+  "status": zod.enum(['open', 'in_progress', 'blocked', 'done', 'cancelled'])
+})).optional(),
+  "isBlocked": zod.boolean().optional()
 })
 export const ListItemsResponse = zod.array(ListItemsResponseItem)
 
@@ -608,6 +615,13 @@ export const GetItemResponse = zod.object({
   "createdAt": zod.coerce.date().optional()
 }).nullish(),
   "totalMinutesLogged": zod.number().nullish(),
+  "blockedBy": zod.array(zod.object({
+  "id": zod.number(),
+  "number": zod.number(),
+  "title": zod.string(),
+  "status": zod.enum(['open', 'in_progress', 'blocked', 'done', 'cancelled'])
+})).optional(),
+  "isBlocked": zod.boolean().optional(),
   "comments": zod.array(zod.object({
   "id": zod.number(),
   "itemId": zod.number(),
@@ -726,7 +740,14 @@ export const UpdateItemResponse = zod.object({
   "description": zod.string().nullish(),
   "createdAt": zod.coerce.date().optional()
 }).nullish(),
-  "totalMinutesLogged": zod.number().nullish()
+  "totalMinutesLogged": zod.number().nullish(),
+  "blockedBy": zod.array(zod.object({
+  "id": zod.number(),
+  "number": zod.number(),
+  "title": zod.string(),
+  "status": zod.enum(['open', 'in_progress', 'blocked', 'done', 'cancelled'])
+})).optional(),
+  "isBlocked": zod.boolean().optional()
 })
 
 
@@ -825,6 +846,68 @@ export const DeleteCommentParams = zod.object({
   "slug": zod.coerce.string(),
   "itemNumber": zod.coerce.number(),
   "commentId": zod.coerce.number()
+})
+
+
+/**
+ * @summary Add a blocked-by dependency to an item
+ */
+export const AddDependencyParams = zod.object({
+  "slug": zod.coerce.string(),
+  "itemNumber": zod.coerce.number()
+})
+
+export const AddDependencyBody = zod.object({
+  "dependsOnItemNumber": zod.number()
+})
+
+
+/**
+ * @summary Remove a dependency from an item
+ */
+export const RemoveDependencyParams = zod.object({
+  "slug": zod.coerce.string(),
+  "itemNumber": zod.coerce.number(),
+  "dependsOnItemNumber": zod.coerce.number()
+})
+
+
+/**
+ * @summary List attachments for an entity
+ */
+export const ListAttachmentsParams = zod.object({
+  "slug": zod.coerce.string(),
+  "entityType": zod.enum(['item', 'comment', 'scope', 'message']),
+  "entityId": zod.coerce.number()
+})
+
+export const ListAttachmentsResponseItem = zod.object({
+  "id": zod.number(),
+  "projectId": zod.number(),
+  "entityType": zod.enum(['item', 'comment', 'scope', 'message']),
+  "entityId": zod.number(),
+  "filename": zod.string(),
+  "mimeType": zod.string(),
+  "sizeBytes": zod.number(),
+  "storageBackend": zod.string().optional(),
+  "storageKey": zod.string().optional(),
+  "uploadedBy": zod.string(),
+  "uploader": zod.object({
+  "id": zod.number().optional(),
+  "displayName": zod.string().optional(),
+  "avatarUrl": zod.string().nullish()
+}).nullish(),
+  "createdAt": zod.coerce.date()
+})
+export const ListAttachmentsResponse = zod.array(ListAttachmentsResponseItem)
+
+
+/**
+ * @summary Delete an attachment
+ */
+export const DeleteAttachmentParams = zod.object({
+  "slug": zod.coerce.string(),
+  "id": zod.coerce.number()
 })
 
 
@@ -1347,7 +1430,14 @@ export const ListPresenceResponseItem = zod.object({
   "description": zod.string().nullish(),
   "createdAt": zod.coerce.date().optional()
 }).nullish(),
-  "totalMinutesLogged": zod.number().nullish()
+  "totalMinutesLogged": zod.number().nullish(),
+  "blockedBy": zod.array(zod.object({
+  "id": zod.number(),
+  "number": zod.number(),
+  "title": zod.string(),
+  "status": zod.enum(['open', 'in_progress', 'blocked', 'done', 'cancelled'])
+})).optional(),
+  "isBlocked": zod.boolean().optional()
 }).nullish(),
   "note": zod.string().nullish(),
   "updatedAt": zod.coerce.date()
@@ -1416,7 +1506,14 @@ export const UpsertPresenceResponse = zod.object({
   "description": zod.string().nullish(),
   "createdAt": zod.coerce.date().optional()
 }).nullish(),
-  "totalMinutesLogged": zod.number().nullish()
+  "totalMinutesLogged": zod.number().nullish(),
+  "blockedBy": zod.array(zod.object({
+  "id": zod.number(),
+  "number": zod.number(),
+  "title": zod.string(),
+  "status": zod.enum(['open', 'in_progress', 'blocked', 'done', 'cancelled'])
+})).optional(),
+  "isBlocked": zod.boolean().optional()
 }).nullish(),
   "note": zod.string().nullish(),
   "updatedAt": zod.coerce.date()
@@ -1684,7 +1781,14 @@ export const GetDashboardResponse = zod.object({
   "description": zod.string().nullish(),
   "createdAt": zod.coerce.date().optional()
 }).nullish(),
-  "totalMinutesLogged": zod.number().nullish()
+  "totalMinutesLogged": zod.number().nullish(),
+  "blockedBy": zod.array(zod.object({
+  "id": zod.number(),
+  "number": zod.number(),
+  "title": zod.string(),
+  "status": zod.enum(['open', 'in_progress', 'blocked', 'done', 'cancelled'])
+})).optional(),
+  "isBlocked": zod.boolean().optional()
 }).nullish(),
   "note": zod.string().nullish(),
   "updatedAt": zod.coerce.date()
@@ -1737,6 +1841,45 @@ export const GetBurnDownResponse = zod.object({
   "spentCents": zod.number().describe('Direct cost entries assigned to this scope (does not include labor).'),
   "laborCents": zod.number().optional().describe('Sum of (billable minutes × user hourly rate) for items linked to this scope.')
 }))
+})
+
+
+/**
+ * @summary List notifications for the current user
+ */
+export const ListNotificationsQueryParams = zod.object({
+  "unread": zod.coerce.boolean().optional(),
+  "limit": zod.coerce.number().optional()
+})
+
+export const ListNotificationsResponseItem = zod.object({
+  "id": zod.number(),
+  "recipientId": zod.string(),
+  "actorId": zod.string().nullish(),
+  "type": zod.enum(['mention', 'assigned', 'status_changed', 'comment_on_watched', 'reply']),
+  "projectId": zod.number().nullish(),
+  "itemId": zod.number().nullish(),
+  "payload": zod.record(zod.string(), zod.unknown()),
+  "readAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+})
+export const ListNotificationsResponse = zod.array(ListNotificationsResponseItem)
+
+
+/**
+ * @summary Count unread notifications
+ */
+export const GetUnreadCountResponse = zod.object({
+  "count": zod.number()
+})
+
+
+/**
+ * @summary Mark notifications as read
+ */
+export const MarkNotificationsReadBody = zod.object({
+  "ids": zod.array(zod.number()).optional(),
+  "all": zod.boolean().optional()
 })
 
 

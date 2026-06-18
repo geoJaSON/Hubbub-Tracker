@@ -566,6 +566,13 @@ export function GanttScheduler({
               if (!d) return null;
               const off = clampToView(d);
               const overdue = d < today && item.status !== "done";
+              const blockers = (item.blockedBy ?? [])
+                .filter((b) => b.status !== "done" && b.status !== "cancelled")
+                .map((b) => `#${b.number}`);
+              const blocked =
+                item.isBlocked === true &&
+                item.status !== "done" &&
+                item.status !== "cancelled";
               return (
                 <div key={item.id} className="relative border-b border-border" style={{ height: ITEM_ROW_H }}>
                   <div
@@ -573,11 +580,13 @@ export function GanttScheduler({
                       "absolute top-1/2 -translate-y-1/2 -translate-x-1/2 flex items-center gap-1",
                     )}
                     style={{ left: off * DAY_PX }}
+                    title={blocked ? `blocked by ${blockers.join(", ")}` : undefined}
                   >
                     <div
                       className={cn(
                         "w-2 h-2 rounded-full border",
                         item.status === "done" ? "bg-primary border-primary" :
+                        blocked ? "bg-yellow-500/70 border-yellow-500" :
                         overdue ? "bg-destructive border-destructive" :
                         "bg-accent/50 border-accent",
                       )}
@@ -596,6 +605,7 @@ export function GanttScheduler({
         <span className="flex items-center gap-1"><span className="w-2 h-2 rotate-45 bg-primary/30 border border-primary/60 inline-block" /> point milestone</span>
         <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-accent/50 border border-accent inline-block" /> item due date</span>
         <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-destructive border border-destructive inline-block" /> overdue</span>
+        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-yellow-500/70 border border-yellow-500 inline-block" /> blocked</span>
       </div>
 
       {/* ── Create milestone dialog ── */}

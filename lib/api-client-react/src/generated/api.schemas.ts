@@ -359,6 +359,24 @@ export interface ProjectComponent {
   createdAt?: string;
 }
 
+export type ItemRefStatus = typeof ItemRefStatus[keyof typeof ItemRefStatus];
+
+
+export const ItemRefStatus = {
+  open: 'open',
+  in_progress: 'in_progress',
+  blocked: 'blocked',
+  done: 'done',
+  cancelled: 'cancelled',
+} as const;
+
+export interface ItemRef {
+  id: number;
+  number: number;
+  title: string;
+  status: ItemRefStatus;
+}
+
 export interface Item {
   id: number;
   projectId: number;
@@ -391,6 +409,8 @@ export interface Item {
   component?: ProjectComponent | null;
   /** @nullable */
   totalMinutesLogged?: number | null;
+  blockedBy?: ItemRef[];
+  isBlocked?: boolean;
 }
 
 export type ItemDetailType = typeof ItemDetailType[keyof typeof ItemDetailType];
@@ -495,9 +515,15 @@ export interface ItemDetail {
   component?: ProjectComponent | null;
   /** @nullable */
   totalMinutesLogged?: number | null;
+  blockedBy?: ItemRef[];
+  isBlocked?: boolean;
   comments: Comment[];
   timeEntries: TimeEntry[];
   commits: Commit[];
+}
+
+export interface ItemDependencyInput {
+  dependsOnItemNumber: number;
 }
 
 export type ItemInputType = typeof ItemInputType[keyof typeof ItemInputType];
@@ -678,6 +704,80 @@ export interface FlowUpdate {
 
 export interface CommentInput {
   body: string;
+}
+
+export type AttachmentEntityType = typeof AttachmentEntityType[keyof typeof AttachmentEntityType];
+
+
+export const AttachmentEntityType = {
+  item: 'item',
+  comment: 'comment',
+  scope: 'scope',
+  message: 'message',
+} as const;
+
+/**
+ * @nullable
+ */
+export type AttachmentUploader = {
+  id?: number;
+  displayName?: string;
+  /** @nullable */
+  avatarUrl?: string | null;
+} | null;
+
+export interface Attachment {
+  id: number;
+  projectId: number;
+  entityType: AttachmentEntityType;
+  entityId: number;
+  filename: string;
+  mimeType: string;
+  sizeBytes: number;
+  storageBackend?: string;
+  storageKey?: string;
+  uploadedBy: string;
+  /** @nullable */
+  uploader?: AttachmentUploader;
+  createdAt: string;
+}
+
+export type NotificationType = typeof NotificationType[keyof typeof NotificationType];
+
+
+export const NotificationType = {
+  mention: 'mention',
+  assigned: 'assigned',
+  status_changed: 'status_changed',
+  comment_on_watched: 'comment_on_watched',
+  reply: 'reply',
+} as const;
+
+export type NotificationPayload = { [key: string]: unknown };
+
+export interface Notification {
+  id: number;
+  recipientId: string;
+  /** @nullable */
+  actorId?: string | null;
+  type: NotificationType;
+  /** @nullable */
+  projectId?: number | null;
+  /** @nullable */
+  itemId?: number | null;
+  payload: NotificationPayload;
+  /** @nullable */
+  readAt?: string | null;
+  createdAt: string;
+}
+
+export interface UnreadCount {
+  count: number;
+}
+
+export interface MarkReadInput {
+  ids?: number[];
+  all?: boolean;
 }
 
 export interface CommentUpdate {
@@ -938,5 +1038,10 @@ export interface BurnDown {
 
 export type SearchParams = {
 q: string;
+};
+
+export type ListNotificationsParams = {
+unread?: boolean;
+limit?: number;
 };
 

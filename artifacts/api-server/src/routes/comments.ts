@@ -4,6 +4,8 @@ import { db } from "../lib/db";
 import { projects, items, comments, users } from "../lib/schema";
 import { requireAuth, AuthRequest } from "../lib/auth";
 import { logActivity } from "../lib/activity";
+import { resolveMentions } from "../lib/mentions";
+import { createNotifications, type NotificationType } from "../lib/notify";
 
 const router = Router({ mergeParams: true });
 
@@ -89,6 +91,38 @@ router.post("/", requireAuth, async (req: AuthRequest, res) => {
     itemId: item.id,
     commentId: created.id,
   });
+
+  // Notify @mentions, the item assignee, and prior commenters (mention wins).
+  try {
+    const body: string = req.body.body ?? "";
+    const mentioned = new Set(await resolveMentions(body, project.id));
+    const recip = new Map<string, NotificationType>();
+    if (item.assigneeId) recip.set(item.assigneeId, "comment_on_watched");
+    const prior = await db
+      .select({ authorId: comments.authorId })
+      .from(comments)
+      .where(eq(comments.itemId, item.id));
+    for (const c of prior) recip.set(c.authorId, "comment_on_watched");
+    for (const id of mentioned) recip.set(id, "mention");
+    recip.delete(req.userId!);
+    await createNotifications(
+      [...recip].map(([recipientId, type]) => ({
+        recipientId,
+        actorId: req.userId!,
+        type,
+        projectId: project.id,
+        itemId: item.id,
+        payload: {
+          slug: project.slug,
+          itemNumber: item.number,
+          commentId: created.id,
+          snippet: body.slice(0, 140),
+        },
+      })),
+    );
+  } catch (e) {
+    console.error("comment notify failed", e);
+  }
 
   const [author] = await db
     .select()

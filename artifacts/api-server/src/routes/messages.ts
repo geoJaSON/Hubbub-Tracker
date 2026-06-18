@@ -5,6 +5,8 @@ import { projects, messages, users, items } from "../lib/schema";
 import { requireAuth, AuthRequest } from "../lib/auth";
 import { logActivity } from "../lib/activity";
 import { subscribeToProject, notifyProject } from "../lib/pgnotify";
+import { resolveMentions } from "../lib/mentions";
+import { createNotifications } from "../lib/notify";
 
 const router = Router({ mergeParams: true });
 
@@ -247,6 +249,28 @@ router.post("/", requireAuth, async (req: AuthRequest, res) => {
 
   const msg = { ...created, author: author ?? null };
   await notifyProject(pool, project.id, { type: "message", message: msg });
+
+  // Notify @mentioned project members (excluding the author).
+  try {
+    const mentioned = (await resolveMentions(rawBody, project.id)).filter(
+      (id) => id !== req.userId,
+    );
+    await createNotifications(
+      mentioned.map((recipientId) => ({
+        recipientId,
+        actorId: req.userId!,
+        type: "mention" as const,
+        projectId: project.id,
+        payload: {
+          slug: project.slug,
+          messageId: created.id,
+          snippet: rawBody.slice(0, 140),
+        },
+      })),
+    );
+  } catch (e) {
+    console.error("mention notify (message) failed", e);
+  }
 
   return res.status(201).json(msg);
 });

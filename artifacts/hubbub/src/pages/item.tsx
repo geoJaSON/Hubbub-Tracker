@@ -3,6 +3,7 @@ import { useParams, Link } from "wouter";
 import {
   useGetItem, useUpdateItem, useCreateComment, useCreateTimeEntry,
   useGetProject, useUpsertPresence, useListComponents, useListMilestones,
+  useAddDependency, useRemoveDependency,
 } from "@workspace/api-client-react";
 import type { ItemUpdateStatus, ItemUpdatePriority, ItemCategory, Commit, ProjectComponent, Milestone, Scope } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -19,6 +20,7 @@ import {
   Send, GitCommit, User as UserIcon, Zap,
 } from "lucide-react";
 import { MarkdownRenderer } from "@/components/markdown-renderer";
+import { AttachmentsPanel } from "@/components/attachments-panel";
 
 const STATUS_LABELS: Record<string, string> = {
   open: "OPEN", in_progress: "IN PROGRESS", blocked: "BLOCKED",
@@ -77,6 +79,8 @@ export default function ItemPage() {
   const createComment = useCreateComment();
   const createTimeEntry = useCreateTimeEntry();
   const upsertPresence = useUpsertPresence();
+  const addDependency = useAddDependency();
+  const removeDependency = useRemoveDependency();
   const qc = useQueryClient();
   const { toast } = useToast();
 
@@ -92,6 +96,7 @@ export default function ItemPage() {
   const [logTime, setLogTime] = useState("");
   const [logNote, setLogNote] = useState("");
   const [workingOn, setWorkingOn] = useState(false);
+  const [depInput, setDepInput] = useState("");
 
   if (isLoading) {
     return (
@@ -120,6 +125,35 @@ export default function ItemPage() {
 
   const handleField = async (patch: Parameters<typeof updateItem.mutateAsync>[0]["data"]) => {
     await updateItem.mutateAsync({ slug, itemNumber: item.number, data: patch });
+    invalidate();
+  };
+
+  const handleAddDependency = async () => {
+    const n = parseInt(depInput.replace(/[^0-9]/g, ""), 10);
+    if (!Number.isInteger(n)) return;
+    try {
+      await addDependency.mutateAsync({
+        slug: slug!,
+        itemNumber: item.number,
+        data: { dependsOnItemNumber: n },
+      });
+      setDepInput("");
+      invalidate();
+    } catch (e) {
+      toast({
+        title: "Couldn't add dependency",
+        description: (e as Error).message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleRemoveDependency = async (dependsOnItemNumber: number) => {
+    await removeDependency.mutateAsync({
+      slug: slug!,
+      itemNumber: item.number,
+      dependsOnItemNumber,
+    });
     invalidate();
   };
 
@@ -584,6 +618,70 @@ export default function ItemPage() {
           </div>
           <p className="text-xs text-muted-foreground font-mono">formats: 1h30m · 1:30 · 90 (min) · 1.5 (hrs)</p>
         </div>
+
+        {/* Dependencies */}
+        <div className="border border-border bg-card p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-mono text-muted-foreground tracking-widest">// DEPENDENCIES</span>
+            {item.isBlocked && (
+              <span className="text-[10px] font-mono text-destructive border border-destructive/50 px-1.5 py-0.5">
+                BLOCKED
+              </span>
+            )}
+          </div>
+          {(item.blockedBy ?? []).length === 0 ? (
+            <p className="text-muted-foreground font-mono text-xs">not blocked by anything</p>
+          ) : (
+            <ul className="space-y-1">
+              {(item.blockedBy ?? []).map((d) => {
+                const isOpen = d.status !== "done" && d.status !== "cancelled";
+                return (
+                  <li key={d.id} className="flex items-center gap-2 text-xs font-mono">
+                    <span className={isOpen ? "text-destructive" : "text-primary"}>blocked by</span>
+                    <Link href={`/projects/${slug}/items/${d.number}`} className="text-accent hover:underline shrink-0">
+                      #{d.number}
+                    </Link>
+                    <span className="truncate text-foreground" title={d.title}>{d.title}</span>
+                    <span className="text-muted-foreground shrink-0">[{STATUS_LABELS[d.status] ?? d.status}]</span>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveDependency(d.number)}
+                      className="ml-auto text-muted-foreground hover:text-destructive shrink-0"
+                      title="Remove dependency"
+                    >
+                      ×
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+          <div className="flex items-center gap-2">
+            <Input
+              value={depInput}
+              onChange={(e) => setDepInput(e.target.value)}
+              placeholder="#item number"
+              className="h-8 font-mono text-xs"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  void handleAddDependency();
+                }
+              }}
+            />
+            <Button
+              type="button"
+              onClick={() => void handleAddDependency()}
+              disabled={!depInput.trim() || addDependency.isPending}
+              className="bg-primary text-primary-foreground font-mono text-xs h-8"
+            >
+              ADD
+            </Button>
+          </div>
+        </div>
+
+        {/* Attachments */}
+        <AttachmentsPanel projectSlug={slug!} entityType="item" entityId={item.id} />
 
         {/* Comments */}
         <div className="border border-border bg-card p-4 space-y-3">

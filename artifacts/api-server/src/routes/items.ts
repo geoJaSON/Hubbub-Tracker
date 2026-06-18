@@ -10,9 +10,11 @@ import {
   commits,
   commitItems,
   projectComponents,
+  itemDependencies,
 } from "../lib/schema";
 import { requireAuth, AuthRequest } from "../lib/auth";
 import { logActivity } from "../lib/activity";
+import { createNotifications, type NotificationType } from "../lib/notify";
 
 const router = Router({ mergeParams: true });
 
@@ -23,6 +25,25 @@ async function getProject(slug: string) {
     .where(eq(projects.slug, slug))
     .limit(1);
   return p ?? null;
+}
+
+// Items this item is blocked by, plus a computed isBlocked flag (any blocker
+// not yet done/cancelled). Kept separate from the manual "blocked" status.
+async function getDependencies(itemId: number) {
+  const blockedBy = await db
+    .select({
+      id: items.id,
+      number: items.number,
+      title: items.title,
+      status: items.status,
+    })
+    .from(itemDependencies)
+    .innerJoin(items, eq(itemDependencies.dependsOnItemId, items.id))
+    .where(eq(itemDependencies.itemId, itemId));
+  const isBlocked = blockedBy.some(
+    (d) => d.status !== "done" && d.status !== "cancelled",
+  );
+  return { blockedBy, isBlocked };
 }
 
 async function enrichItem(item: typeof items.$inferSelect) {
@@ -51,11 +72,15 @@ async function enrichItem(item: typeof items.$inferSelect) {
     component = c ?? null;
   }
 
+  const { blockedBy, isBlocked } = await getDependencies(item.id);
+
   return {
     ...item,
     assignee,
     component,
     totalMinutesLogged: timeSum?.total ? Number(timeSum.total) : 0,
+    blockedBy,
+    isBlocked,
   };
 }
 
@@ -216,11 +241,14 @@ router.get("/:itemNumber", requireAuth, async (req, res) => {
   }
 
   const totalMinutesLogged = timeRows.reduce((acc, t) => acc + t.minutes, 0);
+  const { blockedBy, isBlocked } = await getDependencies(item.id);
 
   return res.json({
     ...item,
     assignee,
     totalMinutesLogged,
+    blockedBy,
+    isBlocked,
     comments: commentRows.map((c) => ({
       ...c,
       author: userRows.find((u) => u.clerkId === c.authorId) ?? null,
@@ -308,6 +336,35 @@ router.patch("/:itemNumber", requireAuth, async (req: AuthRequest, res) => {
       number: existing.number,
       assigneeId,
     });
+  }
+
+  // Notify the assignee on status change + the new assignee on (re)assignment.
+  try {
+    const recip = new Map<string, NotificationType>();
+    if (status && status !== existing.status && existing.assigneeId) {
+      recip.set(existing.assigneeId, "status_changed");
+    }
+    if (assigneeId && assigneeId !== existing.assigneeId) {
+      recip.set(assigneeId, "assigned"); // assignment wins for the new assignee
+    }
+    recip.delete(req.userId!);
+    await createNotifications(
+      [...recip].map(([recipientId, type]) => ({
+        recipientId,
+        actorId: req.userId!,
+        type,
+        projectId: project.id,
+        itemId: existing.id,
+        payload: {
+          slug: project.slug,
+          itemNumber: existing.number,
+          title: existing.title,
+          status: status ?? existing.status,
+        },
+      })),
+    );
+  } catch (e) {
+    console.error("item notify failed", e);
   }
 
   return res.json(await enrichItem(updated));

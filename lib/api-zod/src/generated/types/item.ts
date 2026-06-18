@@ -7,6 +7,7 @@
  */
 import type { ItemCategory } from './itemCategory';
 import type { ItemPriority } from './itemPriority';
+import type { ItemRef } from './itemRef';
 import type { ItemStatus } from './itemStatus';
 import type { ItemType } from './itemType';
 import type { ProjectComponent } from './projectComponent';
@@ -44,4 +45,6 @@ export interface Item {
   component?: ProjectComponent | null;
   /** @nullable */
   totalMinutesLogged?: number | null;
+  blockedBy?: ItemRef[];
+  isBlocked?: boolean;
 }

@@ -27,6 +27,9 @@ tags:
   - name: dashboard
   - name: components
   - name: flows
+  - name: attachments
+  - name: notifications
+  - name: dependencies
 
 paths:
   /healthz:
@@ -735,6 +738,119 @@ paths:
             type: integer
         - in: path
           name: commentId
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  # ── Dependencies ───────────────────────────────────────────────────────────
+  /projects/{slug}/items/{itemNumber}/dependencies:
+    post:
+      operationId: addDependency
+      tags: [dependencies]
+      summary: Add a blocked-by dependency to an item
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: itemNumber
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ItemDependencyInput"
+      responses:
+        "201":
+          description: Created
+        "409":
+          description: Would create a cycle
+        "422":
+          description: An item cannot depend on itself
+
+  /projects/{slug}/items/{itemNumber}/dependencies/{dependsOnItemNumber}:
+    delete:
+      operationId: removeDependency
+      tags: [dependencies]
+      summary: Remove a dependency from an item
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: itemNumber
+          required: true
+          schema:
+            type: integer
+        - in: path
+          name: dependsOnItemNumber
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  # ── Attachments ────────────────────────────────────────────────────────────
+  # Upload (POST multipart) and download (GET binary) are handled out-of-band by
+  # hand-written fetch helpers in the web app; only list + delete are generated.
+  # entityType + entityId are path params (not query) so orval doesn't emit a
+  # params type that would collide with the path-params const.
+  /projects/{slug}/attachments/{entityType}/{entityId}:
+    get:
+      operationId: listAttachments
+      tags: [attachments]
+      summary: List attachments for an entity
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: entityType
+          required: true
+          schema:
+            type: string
+            enum: [item, comment, scope, message]
+        - in: path
+          name: entityId
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Attachments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Attachment"
+
+  /projects/{slug}/attachments/{id}:
+    delete:
+      operationId: deleteAttachment
+      tags: [attachments]
+      summary: Delete an attachment
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: id
           required: true
           schema:
             type: integer
@@ -1461,6 +1577,61 @@ paths:
               schema:
                 $ref: "#/components/schemas/BurnDown"
 
+  # ── Notifications ──────────────────────────────────────────────────────────
+  /notifications:
+    get:
+      operationId: listNotifications
+      tags: [notifications]
+      summary: List notifications for the current user
+      parameters:
+        - in: query
+          name: unread
+          required: false
+          schema:
+            type: boolean
+        - in: query
+          name: limit
+          required: false
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Notifications
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Notification"
+
+  /notifications/unread-count:
+    get:
+      operationId: getUnreadCount
+      tags: [notifications]
+      summary: Count unread notifications
+      responses:
+        "200":
+          description: Unread count
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UnreadCount"
+
+  /notifications/read:
+    post:
+      operationId: markNotificationsRead
+      tags: [notifications]
+      summary: Mark notifications as read
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MarkReadInput"
+      responses:
+        "204":
+          description: Marked read
+
 components:
   schemas:
     HealthStatus:
@@ -1866,6 +2037,12 @@ components:
           nullable: true
         totalMinutesLogged:
           type: ["integer", "null"]
+        blockedBy:
+          type: array
+          items:
+            $ref: "#/components/schemas/ItemRef"
+        isBlocked:
+          type: boolean
 
     ItemDetail:
       type: object
@@ -1922,6 +2099,12 @@ components:
           nullable: true
         totalMinutesLogged:
           type: ["integer", "null"]
+        blockedBy:
+          type: array
+          items:
+            $ref: "#/components/schemas/ItemRef"
+        isBlocked:
+          type: boolean
         comments:
           type: array
           items:
@@ -1934,6 +2117,27 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Commit"
+
+    ItemRef:
+      type: object
+      required: [id, number, title, status]
+      properties:
+        id:
+          type: integer
+        number:
+          type: integer
+        title:
+          type: string
+        status:
+          type: string
+          enum: [open, in_progress, blocked, done, cancelled]
+
+    ItemDependencyInput:
+      type: object
+      required: [dependsOnItemNumber]
+      properties:
+        dependsOnItemNumber:
+          type: integer
 
     ItemInput:
       type: object
@@ -2178,6 +2382,90 @@ components:
       properties:
         body:
           type: string
+
+    # ── Attachments ───────────────────────────────────────────────────────
+    Attachment:
+      type: object
+      required: [id, projectId, entityType, entityId, filename, mimeType, sizeBytes, uploadedBy, createdAt]
+      properties:
+        id:
+          type: integer
+        projectId:
+          type: integer
+        entityType:
+          type: string
+          enum: [item, comment, scope, message]
+        entityId:
+          type: integer
+        filename:
+          type: string
+        mimeType:
+          type: string
+        sizeBytes:
+          type: integer
+        storageBackend:
+          type: string
+        storageKey:
+          type: string
+        uploadedBy:
+          type: string
+        uploader:
+          type: ["object", "null"]
+          properties:
+            id:
+              type: integer
+            displayName:
+              type: string
+            avatarUrl:
+              type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+
+    # ── Notifications ─────────────────────────────────────────────────────
+    Notification:
+      type: object
+      required: [id, recipientId, type, payload, createdAt]
+      properties:
+        id:
+          type: integer
+        recipientId:
+          type: string
+        actorId:
+          type: ["string", "null"]
+        type:
+          type: string
+          enum: [mention, assigned, status_changed, comment_on_watched, reply]
+        projectId:
+          type: ["integer", "null"]
+        itemId:
+          type: ["integer", "null"]
+        payload:
+          type: object
+          additionalProperties: true
+        readAt:
+          type: ["string", "null"]
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+
+    UnreadCount:
+      type: object
+      required: [count]
+      properties:
+        count:
+          type: integer
+
+    MarkReadInput:
+      type: object
+      properties:
+        ids:
+          type: array
+          items:
+            type: integer
+        all:
+          type: boolean
 
     CommentUpdate:
       type: object

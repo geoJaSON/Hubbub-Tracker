@@ -17,6 +17,7 @@ import {
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { CommandPalette } from "./command-palette";
+import { NotificationBell } from "./notification-bell";
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -304,7 +305,8 @@ export function Layout({ children, title, fluid }: LayoutProps) {
               // {title}
             </h1>
           )}
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto flex items-center gap-3">
+            <NotificationBell />
             <span className="hidden text-xs text-muted-foreground sm:block font-mono">
               {new Date().toISOString().split("T")[0]}
             </span>

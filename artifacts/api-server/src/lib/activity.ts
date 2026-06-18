@@ -9,7 +9,8 @@ type ActivityType =
   | "commit_linked"
   | "message_posted"
   | "cost_added"
-  | "decision_logged";
+  | "decision_logged"
+  | "attachment_added";
 
 export async function logActivity(
   type: ActivityType,

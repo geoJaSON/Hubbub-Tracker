@@ -47,3 +47,11 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+
+# Local environment & secrets (never commit real values)
+.env
+.env.*
+!.env.example
+
+# File-attachment uploads (local storage backend)
+.uploads/

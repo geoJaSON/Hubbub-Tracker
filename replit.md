@@ -9,12 +9,13 @@ _Replace the heading above with the project's name, and this line with one sente
 - `pnpm run build` — typecheck + build all packages
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- Required env: `DATABASE_URL` — Postgres connection string
+- Required env (copy `.env.example` → `.env`): `DATABASE_URL` (Postgres), `JWT_SECRET` (signs auth tokens), `ENCRYPTION_KEY` (32-byte hex, encrypts project GitHub tokens), `PORT`, `BASE_PATH`. Optional: `ALLOW_OPEN_SIGNUP`, `ALLOWED_EMAIL_DOMAIN`, `UPLOADS_DIR`, `GITHUB_TOKEN`. The API auto-loads a root `.env` in dev (`src/lib/env.ts`); Docker/Replit inject env directly.
 
 ## Stack
 
 - pnpm workspaces, Node.js 24, TypeScript 5.9
 - API: Express 5
+- Auth: local email+password, bcrypt hashes, JWT bearer tokens (`src/lib/auth.ts`, `src/routes/auth.ts`). First registered account becomes `admin`. No external auth provider.
 - DB: PostgreSQL + Drizzle ORM
 - Validation: Zod (`zod/v4`), `drizzle-zod`
 - API codegen: Orval (from OpenAPI spec)
