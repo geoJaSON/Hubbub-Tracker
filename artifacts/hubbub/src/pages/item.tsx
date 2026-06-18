@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { MarkdownRenderer } from "@/components/markdown-renderer";
 import { AttachmentsPanel } from "@/components/attachments-panel";
+import { LabelEditor, type ItemLabel } from "@/components/label-editor";
 
 const STATUS_LABELS: Record<string, string> = {
   open: "OPEN", in_progress: "IN PROGRESS", blocked: "BLOCKED",
@@ -393,6 +394,17 @@ export default function ItemPage() {
                 </Select>
               </div>
             )}
+
+            {/* LABELS */}
+            <div className="space-y-1 col-span-2 md:col-span-4">
+              <span className="text-muted-foreground tracking-wider">LABELS</span>
+              <LabelEditor
+                slug={slug!}
+                itemNumber={item.number}
+                labels={(item as typeof item & { labels?: ItemLabel[] }).labels ?? []}
+                onChanged={invalidate}
+              />
+            </div>
 
             {/* SCOPE + MILESTONE */}
             {(() => {

@@ -23,6 +23,7 @@ import attachmentsRouter from "./attachments";
 import dependenciesRouter from "./dependencies";
 import notificationsRouter from "./notifications";
 import apiKeysRouter from "./api-keys";
+import labelsRouter from "./labels";
 import { requireAuth, requireProjectMember } from "../lib/auth";
 
 const router: IRouter = Router();
@@ -39,6 +40,7 @@ const memberGuard: RequestHandler[] = [
   requireProjectMember as RequestHandler,
 ];
 
+router.use("/projects/:slug/labels", ...memberGuard, labelsRouter);
 router.use("/projects/:slug/scopes", ...memberGuard, scopesRouter);
 router.use("/projects/:slug/milestones", ...memberGuard, milestonesRouter);
 router.use("/projects/:slug/items", ...memberGuard, itemsRouter);

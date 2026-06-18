@@ -277,6 +277,39 @@ export const items = pgTable(
   }),
 );
 
+// ── Labels ───────────────────────────────────────────────────────────────────
+// Free-form, per-project tags. Many-to-many with items via `item_labels`.
+export const labels = pgTable(
+  "labels",
+  {
+    id: serial("id").primaryKey(),
+    projectId: integer("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    color: varchar("color", { length: 24 }).notNull().default("#22c55e"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => ({
+    projectNameIdx: uniqueIndex("labels_project_name_idx").on(t.projectId, t.name),
+  }),
+);
+
+export const itemLabels = pgTable(
+  "item_labels",
+  {
+    itemId: integer("item_id")
+      .notNull()
+      .references(() => items.id, { onDelete: "cascade" }),
+    labelId: integer("label_id")
+      .notNull()
+      .references(() => labels.id, { onDelete: "cascade" }),
+  },
+  (t) => ({
+    uniq: uniqueIndex("item_labels_unique_idx").on(t.itemId, t.labelId),
+  }),
+);
+
 // ── Comments ───────────────────────────────────────────────────────────────
 export const comments = pgTable("comments", {
   id: serial("id").primaryKey(),

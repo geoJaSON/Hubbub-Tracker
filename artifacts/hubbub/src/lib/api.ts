@@ -64,6 +64,49 @@ export async function revokeApiKey(id: number): Promise<void> {
   if (!res.ok) throw new Error(`Failed to revoke API key (${res.status})`);
 }
 
+// ── Labels ──────────────────────────────────────────────────────────────────
+export interface ProjectLabel {
+  id: number;
+  projectId: number;
+  name: string;
+  color: string;
+  createdAt: string;
+}
+
+export async function listLabels(slug: string): Promise<ProjectLabel[]> {
+  const res = await fetch(`/api/projects/${slug}/labels`, { headers: await authHeaders() });
+  if (!res.ok) throw new Error(`Failed to list labels (${res.status})`);
+  return res.json() as Promise<ProjectLabel[]>;
+}
+
+export async function createLabel(slug: string, name: string, color: string): Promise<ProjectLabel> {
+  const res = await fetch(`/api/projects/${slug}/labels`, {
+    method: "POST",
+    headers: await jsonHeaders(),
+    body: JSON.stringify({ name, color }),
+  });
+  if (!res.ok) throw new Error(`Failed to create label (${res.status})`);
+  return res.json() as Promise<ProjectLabel>;
+}
+
+export async function deleteLabel(slug: string, labelId: number): Promise<void> {
+  const res = await fetch(`/api/projects/${slug}/labels/${labelId}`, {
+    method: "DELETE",
+    headers: await authHeaders(),
+  });
+  if (!res.ok) throw new Error(`Failed to delete label (${res.status})`);
+}
+
+// Replace the full set of labels applied to an item.
+export async function setItemLabels(slug: string, itemNumber: number, labelIds: number[]): Promise<void> {
+  const res = await fetch(`/api/projects/${slug}/items/${itemNumber}`, {
+    method: "PATCH",
+    headers: await jsonHeaders(),
+    body: JSON.stringify({ labelIds }),
+  });
+  if (!res.ok) throw new Error(`Failed to update item labels (${res.status})`);
+}
+
 export type AttachmentEntityType = "item" | "comment" | "scope" | "message";
 
 // Uploads go through a hand-written multipart fetch (the generated client only

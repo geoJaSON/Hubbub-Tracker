@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { eq, and, sql, sum } from "drizzle-orm";
+import { eq, and, sql, sum, inArray } from "drizzle-orm";
 import { db } from "../lib/db";
 import {
   projects,
@@ -11,6 +11,8 @@ import {
   commitItems,
   projectComponents,
   itemDependencies,
+  labels,
+  itemLabels,
 } from "../lib/schema";
 import { requireAuth, AuthRequest } from "../lib/auth";
 import { logActivity } from "../lib/activity";
@@ -46,6 +48,30 @@ async function getDependencies(itemId: number) {
   return { blockedBy, isBlocked };
 }
 
+// Labels currently applied to an item.
+async function getItemLabels(itemId: number) {
+  return db
+    .select({ id: labels.id, name: labels.name, color: labels.color })
+    .from(itemLabels)
+    .innerJoin(labels, eq(itemLabels.labelId, labels.id))
+    .where(eq(itemLabels.itemId, itemId))
+    .orderBy(labels.name);
+}
+
+// Replace an item's labels with the given set (ignoring ids not in this project).
+async function syncItemLabels(itemId: number, projectId: number, labelIds: number[]) {
+  const valid = labelIds.length
+    ? await db
+        .select({ id: labels.id })
+        .from(labels)
+        .where(and(eq(labels.projectId, projectId), inArray(labels.id, labelIds)))
+    : [];
+  await db.delete(itemLabels).where(eq(itemLabels.itemId, itemId));
+  if (valid.length) {
+    await db.insert(itemLabels).values(valid.map((l) => ({ itemId, labelId: l.id })));
+  }
+}
+
 async function enrichItem(item: typeof items.$inferSelect) {
   const [timeSum] = await db
     .select({ total: sum(timeEntries.minutes) })
@@ -73,6 +99,7 @@ async function enrichItem(item: typeof items.$inferSelect) {
   }
 
   const { blockedBy, isBlocked } = await getDependencies(item.id);
+  const itemLabelRows = await getItemLabels(item.id);
 
   return {
     ...item,
@@ -81,6 +108,7 @@ async function enrichItem(item: typeof items.$inferSelect) {
     totalMinutesLogged: timeSum?.total ? Number(timeSum.total) : 0,
     blockedBy,
     isBlocked,
+    labels: itemLabelRows,
   };
 }
 
@@ -123,6 +151,7 @@ router.post("/", requireAuth, async (req: AuthRequest, res) => {
     decisionRationale,
     category,
     componentId,
+    labelIds,
   } = req.body;
 
   const [created] = await db
@@ -145,6 +174,10 @@ router.post("/", requireAuth, async (req: AuthRequest, res) => {
       componentId: componentId ?? null,
     })
     .returning();
+
+  if (Array.isArray(labelIds)) {
+    await syncItemLabels(created.id, project.id, labelIds.map(Number));
+  }
 
   await logActivity("item_created", req.userId!, project.id, {
     itemId: created.id,
@@ -242,6 +275,7 @@ router.get("/:itemNumber", requireAuth, async (req, res) => {
 
   const totalMinutesLogged = timeRows.reduce((acc, t) => acc + t.minutes, 0);
   const { blockedBy, isBlocked } = await getDependencies(item.id);
+  const itemLabelRows = await getItemLabels(item.id);
 
   return res.json({
     ...item,
@@ -249,6 +283,7 @@ router.get("/:itemNumber", requireAuth, async (req, res) => {
     totalMinutesLogged,
     blockedBy,
     isBlocked,
+    labels: itemLabelRows,
     comments: commentRows.map((c) => ({
       ...c,
       author: userRows.find((u) => u.clerkId === c.authorId) ?? null,
@@ -292,6 +327,7 @@ router.patch("/:itemNumber", requireAuth, async (req: AuthRequest, res) => {
     decisionRationale,
     category,
     componentId,
+    labelIds,
   } = req.body;
 
   const closedAt =
@@ -365,6 +401,10 @@ router.patch("/:itemNumber", requireAuth, async (req: AuthRequest, res) => {
     );
   } catch (e) {
     console.error("item notify failed", e);
+  }
+
+  if (Array.isArray(labelIds)) {
+    await syncItemLabels(existing.id, project.id, labelIds.map(Number));
   }
 
   return res.json(await enrichItem(updated));
