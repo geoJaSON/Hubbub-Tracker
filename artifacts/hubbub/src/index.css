@@ -546,6 +546,54 @@ html[data-theme="amber"] .terminal-glow {
   }
 }
 
+/* ── Global UI polish: scrollbars, selection, caret, autofill ─────────────── */
+@layer base {
+  /* Themed scrollbars (Firefox + WebKit). Transparent track; the thumb uses the
+     border color and lights up toward the theme's primary on hover. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--border)) transparent;
+  }
+  *::-webkit-scrollbar { width: 10px; height: 10px; }
+  *::-webkit-scrollbar-track,
+  *::-webkit-scrollbar-corner { background: transparent; }
+  *::-webkit-scrollbar-thumb {
+    background: hsl(var(--border));
+    border-radius: var(--radius);
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+  *::-webkit-scrollbar-thumb:hover {
+    background: color-mix(in srgb, hsl(var(--primary)) 55%, hsl(var(--border)));
+  }
+
+  /* Text selection in the theme's primary instead of browser blue */
+  ::selection {
+    background: color-mix(in srgb, hsl(var(--primary)) 30%, transparent);
+    color: hsl(var(--foreground));
+  }
+
+  /* Typing caret in phosphor (pairs with the .cursor-blink effect) */
+  input, textarea, [contenteditable] { caret-color: hsl(var(--primary)); }
+
+  /* Autofill: stop Chrome painting a white/blue box that ignores the theme */
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:focus {
+    -webkit-text-fill-color: hsl(var(--foreground));
+    -webkit-box-shadow: 0 0 0 1000px hsl(var(--input)) inset;
+    caret-color: hsl(var(--primary));
+    transition: background-color 9999s ease-out 0s;
+  }
+}
+
+/* Input focus glow — terminal themes only, leans into the CRT look */
+html:not([data-theme]) :is(input, textarea, select):focus-visible,
+html[data-theme="amber"] :is(input, textarea, select):focus-visible {
+  box-shadow: 0 0 0 1px hsl(var(--ring)),
+              0 0 10px color-mix(in srgb, hsl(var(--primary)) 25%, transparent);
+}
+
 @layer utilities {
   input[type="search"]::-webkit-search-cancel-button {
     @apply hidden;
