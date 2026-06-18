@@ -55,3 +55,7 @@ Thumbs.db
 
 # File-attachment uploads (local storage backend)
 .uploads/
+
+# Database dumps / migration data (contain real data — never commit)
+*.sql
+*.dump
