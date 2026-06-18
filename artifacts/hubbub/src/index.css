@@ -312,8 +312,183 @@
   --destructive-border: hsl(var(--destructive));
 }
 
+/* ── MODERN LIGHT THEME ─────────────────────────────────────────────────── */
+[data-theme="light"] {
+  --button-outline: rgba(0, 0, 0, 0.08);
+  --badge-outline: rgba(0, 0, 0, 0.04);
+  --elevate-1: rgba(0, 0, 0, 0.02);
+  --elevate-2: rgba(0, 0, 0, 0.05);
+  --opaque-button-border-intensity: 0;
+
+  --background: 220 20% 97%;
+  --foreground: 224 71% 4%;
+
+  --border: 220 13% 88%;
+  --input: 220 13% 93%;
+  --ring: 262 83% 58%;
+
+  --card: 0 0% 100%;
+  --card-foreground: 224 71% 4%;
+  --card-border: 220 13% 88%;
+
+  --popover: 0 0% 100%;
+  --popover-foreground: 224 71% 4%;
+  --popover-border: 220 13% 88%;
+
+  --primary: 262 83% 58%;
+  --primary-foreground: 0 0% 100%;
+
+  --secondary: 220 14% 93%;
+  --secondary-foreground: 224 71% 4%;
+
+  --muted: 220 14% 93%;
+  --muted-foreground: 220 8% 46%;
+
+  --accent: 262 83% 58%;
+  --accent-foreground: 0 0% 100%;
+
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 100%;
+
+  --chart-1: 262 83% 58%;
+  --chart-2: 199 89% 48%;
+  --chart-3: 160 84% 45%;
+  --chart-4: 47 96% 45%;
+  --chart-5: 0 84% 60%;
+
+  --sidebar: 220 14% 95%;
+  --sidebar-foreground: 224 71% 4%;
+  --sidebar-border: 220 13% 88%;
+  --sidebar-primary: 262 83% 58%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: 220 14% 92%;
+  --sidebar-accent-foreground: 224 71% 4%;
+  --sidebar-ring: 262 83% 58%;
+
+  --app-font-sans: 'Inter', system-ui, sans-serif;
+  --app-font-serif: 'Inter', system-ui, sans-serif;
+  --app-font-mono: 'Inter', system-ui, sans-serif;
+
+  --radius: 8px;
+
+  --shadow-2xs: 0 1px 2px rgba(0,0,0,0.03);
+  --shadow-xs: 0 1px 3px rgba(0,0,0,0.05);
+  --shadow-sm: 0 1px 4px rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.02);
+  --shadow: 0 2px 8px rgba(0,0,0,0.05);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.06);
+  --shadow-lg: 0 8px 20px rgba(0,0,0,0.06);
+  --shadow-xl: 0 12px 28px rgba(0,0,0,0.08);
+  --shadow-2xl: 0 20px 40px rgba(0,0,0,0.1);
+
+  --tracking-normal: 0em;
+  --spacing: 0.25rem;
+
+  --sidebar-primary-border: hsl(var(--sidebar-primary));
+  --sidebar-accent-border: hsl(var(--sidebar-accent));
+  --primary-border: hsl(var(--primary));
+  --secondary-border: hsl(var(--secondary));
+  --muted-border: hsl(var(--muted));
+  --accent-border: hsl(var(--accent));
+  --destructive-border: hsl(var(--destructive));
+}
+
+/* ── GLASSY DARK THEME ─────────────────────────────────────────────────── */
+[data-theme="glassy"] {
+  --button-outline: rgba(255, 255, 255, 0.08);
+  --badge-outline: rgba(255, 255, 255, 0.04);
+  --elevate-1: rgba(255, 255, 255, 0.03);
+  --elevate-2: rgba(255, 255, 255, 0.07);
+  --opaque-button-border-intensity: -8;
+
+  /* Deep dark violet space backdrop */
+  --background: 240 35% 6%;
+  --foreground: 210 40% 98%;
+
+  --border: 217 91% 60% / 0.15;
+  --input: 0 0% 0% / 0.25;
+  --ring: 199 89% 48%;
+
+  /* Translucent card backdrops */
+  --card: 0 0% 0% / 0.25;
+  --card-foreground: 210 40% 98%;
+  --card-border: 217 91% 65% / 0.18;
+
+  --popover: 240 30% 9% / 0.85;
+  --popover-foreground: 210 40% 98%;
+  --popover-border: 217 91% 65% / 0.2;
+
+  /* Vibrant cyan */
+  --primary: 199 89% 48%;
+  --primary-foreground: 210 40% 98%;
+
+  --secondary: 217 91% 60% / 0.1;
+  --secondary-foreground: 210 40% 98%;
+
+  --muted: 217 91% 60% / 0.08;
+  --muted-foreground: 215 20% 65%;
+
+  --accent: 262 83% 58%;
+  --accent-foreground: 210 40% 98%;
+
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 100%;
+
+  --chart-1: 199 89% 48%;
+  --chart-2: 262 83% 58%;
+  --chart-3: 160 84% 55%;
+  --chart-4: 47 96% 62%;
+  --chart-5: 0 84% 60%;
+
+  --sidebar: 0 0% 0% / 0.25;
+  --sidebar-foreground: 210 40% 98%;
+  --sidebar-border: 217 91% 60% / 0.12;
+  --sidebar-primary: 199 89% 48%;
+  --sidebar-primary-foreground: 210 40% 98%;
+  --sidebar-accent: 217 91% 60% / 0.08;
+  --sidebar-accent-foreground: 210 40% 98%;
+  --sidebar-ring: 199 89% 48%;
+
+  --app-font-sans: 'Inter', system-ui, sans-serif;
+  --app-font-serif: 'Inter', system-ui, sans-serif;
+  --app-font-mono: 'Inter', system-ui, sans-serif;
+
+  --radius: 12px;
+
+  --shadow-2xs: 0 1px 2px rgba(0,0,0,0.5);
+  --shadow-xs: 0 1px 3px rgba(0,0,0,0.5);
+  --shadow-sm: 0 1px 4px rgba(0,0,0,0.6);
+  --shadow: 0 4px 12px rgba(0,0,0,0.5);
+  --shadow-md: 0 8px 20px rgba(0,0,0,0.5);
+  --shadow-lg: 0 12px 28px rgba(0,0,0,0.6);
+  --shadow-xl: 0 16px 36px rgba(0,0,0,0.7);
+  --shadow-2xl: 0 24px 48px rgba(0,0,0,0.8);
+
+  --tracking-normal: 0em;
+  --spacing: 0.25rem;
+
+  --sidebar-primary-border: hsl(var(--sidebar-primary));
+  --sidebar-accent-border: hsl(var(--sidebar-accent));
+  --primary-border: hsl(var(--primary));
+  --secondary-border: hsl(var(--secondary));
+  --muted-border: hsl(var(--muted));
+  --accent-border: hsl(var(--accent));
+  --destructive-border: hsl(var(--destructive));
+}
+
+/* Glassmorphism backdrop blur filters */
+[data-theme="glassy"] .bg-card,
+[data-theme="glassy"] .bg-popover,
+[data-theme="glassy"] aside,
+[data-theme="glassy"] .bg-sidebar,
+[data-theme="glassy"] [role="dialog"],
+[data-theme="glassy"] .bg-background\/95 {
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+}
+
 /* ── Scanlines: terminal themes only ────────────────────────────────────── */
-:root:not([data-theme="dark"])  body::before {
+html:not([data-theme]) body::before,
+html[data-theme="amber"] body::before {
   content: '';
   position: fixed;
   top: 0; left: 0; right: 0; bottom: 0;
@@ -329,7 +504,8 @@
 }
 
 /* Subtle CRT glow on text (terminal themes only) */
-:root:not([data-theme="dark"]) .terminal-glow {
+html:not([data-theme]) .terminal-glow,
+html[data-theme="amber"] .terminal-glow {
   text-shadow: 0 0 8px color-mix(in srgb, hsl(var(--primary)) 60%, transparent), 0 0 16px color-mix(in srgb, hsl(var(--primary)) 30%, transparent);
 }
 
@@ -344,17 +520,26 @@
     letter-spacing: var(--tracking-normal, 0.03em);
   }
 
-  :root:not([data-theme="dark"]) h1,
-  :root:not([data-theme="dark"]) h2,
-  :root:not([data-theme="dark"]) h3 {
+  html:not([data-theme]) h1,
+  html:not([data-theme]) h2,
+  html:not([data-theme]) h3,
+  html[data-theme="amber"] h1,
+  html[data-theme="amber"] h2,
+  html[data-theme="amber"] h3 {
     font-family: var(--app-font-serif, 'VT323', monospace);
     text-shadow: 0 0 6px color-mix(in srgb, hsl(var(--primary)) 40%, transparent);
     letter-spacing: 0.08em;
   }
 
-  [data-theme="dark"] h1,
-  [data-theme="dark"] h2,
-  [data-theme="dark"] h3 {
+  html[data-theme="dark"] h1,
+  html[data-theme="dark"] h2,
+  html[data-theme="dark"] h3,
+  html[data-theme="light"] h1,
+  html[data-theme="light"] h2,
+  html[data-theme="light"] h3,
+  html[data-theme="glassy"] h1,
+  html[data-theme="glassy"] h2,
+  html[data-theme="glassy"] h3 {
     font-family: 'Inter', system-ui, sans-serif;
     font-weight: 600;
     letter-spacing: -0.01em;
@@ -456,30 +641,30 @@
     outline: none !important;
     box-shadow: none !important;
   }
-  /* Controls panel */
+  /* Controls panel (styled dynamically by theme variables) */
   .react-flow__controls {
-    background: #050f05 !important;
-    border: 1px solid rgba(0,255,65,0.3) !important;
-    border-radius: 0 !important;
-    box-shadow: none !important;
+    background: hsl(var(--popover)) !important;
+    border: 1px solid hsl(var(--border)) !important;
+    border-radius: var(--radius) !important;
+    box-shadow: var(--shadow-sm) !important;
   }
   .react-flow__controls-button {
     background: transparent !important;
     border: none !important;
-    border-bottom: 1px solid rgba(0,255,65,0.15) !important;
-    fill: rgba(0,255,65,0.6) !important;
+    border-bottom: 1px solid hsl(var(--border)) !important;
+    fill: hsl(var(--muted-foreground)) !important;
   }
   .react-flow__controls-button:hover {
-    background: rgba(0,255,65,0.08) !important;
-    fill: #00ff41 !important;
+    background: hsl(var(--muted)) !important;
+    fill: hsl(var(--primary)) !important;
   }
   .react-flow__controls-button:last-child {
     border-bottom: none !important;
   }
   /* MiniMap */
   .react-flow__minimap {
-    background: #050f05 !important;
-    border: 1px solid rgba(0,255,65,0.2) !important;
-    border-radius: 0 !important;
+    background: hsl(var(--popover)) !important;
+    border: 1px solid hsl(var(--border)) !important;
+    border-radius: var(--radius) !important;
   }
 }

@@ -22,17 +22,20 @@ import { NotificationBell } from "./notification-bell";
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 // ── Theme ─────────────────────────────────────────────────────────────────────
-type Theme = "green" | "amber" | "dark";
+type Theme = "green" | "amber" | "dark" | "light" | "glassy";
 
 const THEMES: { id: Theme; label: string; swatch: string; desc: string }[] = [
-  { id: "green",  label: "PHOSPHOR",  swatch: "#00ff41", desc: "Retro green terminal" },
-  { id: "amber",  label: "AMBER",     swatch: "#f59e0b", desc: "Warm amber terminal" },
-  { id: "dark",   label: "CLASSIC",   swatch: "#60a5fa", desc: "Classic dark UI" },
+  { id: "green",  label: "PHOSPHOR",     swatch: "#00ff41", desc: "Retro green terminal" },
+  { id: "amber",  label: "AMBER",        swatch: "#f59e0b", desc: "Warm amber terminal" },
+  { id: "dark",   label: "CLASSIC DARK", swatch: "#60a5fa", desc: "Classic dark UI" },
+  { id: "light",  label: "MODERN LIGHT", swatch: "#8b5cf6", desc: "Clean modern light" },
+  { id: "glassy", label: "GLASSY",       swatch: "#06b6d4", desc: "Glassmorphic dark" },
 ];
 
 function useTheme() {
   const [theme, setTheme] = useState<Theme>(() => {
-    return (localStorage.getItem("hubbub-theme") as Theme) ?? "green";
+    const saved = localStorage.getItem("hubbub-theme") as Theme;
+    return ["green", "amber", "dark", "light", "glassy"].includes(saved) ? saved : "green";
   });
 
   useEffect(() => {
@@ -52,10 +55,11 @@ function useTheme() {
 
   // Apply on mount without waiting for state update
   useEffect(() => {
-    const saved = (localStorage.getItem("hubbub-theme") as Theme) ?? "green";
+    const saved = localStorage.getItem("hubbub-theme") as Theme;
+    const active = ["green", "amber", "dark", "light", "glassy"].includes(saved) ? saved : "green";
     const root = document.documentElement;
-    if (saved === "green") root.removeAttribute("data-theme");
-    else root.setAttribute("data-theme", saved);
+    if (active === "green") root.removeAttribute("data-theme");
+    else root.setAttribute("data-theme", active);
   }, []);
 
   return { theme, setTheme };
@@ -155,7 +159,16 @@ export function Layout({ children, title, fluid }: LayoutProps) {
   useKeyboardChords(navigate, openPalette);
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background text-foreground">
+    <div className="flex h-screen overflow-hidden bg-background text-foreground relative">
+      {/* Background blobs for Glassy theme */}
+      {theme === "glassy" && (
+        <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
+          <div className="absolute top-[-10%] left-[-10%] w-[45vw] h-[45vw] min-w-[300px] min-h-[300px] rounded-full bg-purple-500/10 blur-[100px] animate-[pulse_8s_ease-in-out_infinite]" />
+          <div className="absolute bottom-[-10%] right-[-10%] w-[50vw] h-[50vw] min-w-[350px] min-h-[350px] rounded-full bg-cyan-500/10 blur-[120px] animate-[pulse_10s_ease-in-out_infinite_1s]" />
+          <div className="absolute top-[30%] right-[10%] w-[35vw] h-[35vw] min-w-[250px] min-h-[250px] rounded-full bg-indigo-500/8 blur-[90px] animate-[pulse_12s_ease-in-out_infinite_2s]" />
+        </div>
+      )}
+
       {/* Command Palette */}
       <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
 
@@ -170,7 +183,7 @@ export function Layout({ children, title, fluid }: LayoutProps) {
       {/* Sidebar */}
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-30 flex w-56 flex-col border-r border-border bg-sidebar transition-transform lg:relative lg:translate-x-0",
+          "fixed inset-y-0 left-0 z-30 flex w-56 flex-col border-r border-border bg-sidebar transition-transform lg:relative lg:translate-x-0 lg:z-10",
           sidebarOpen ? "translate-x-0" : "-translate-x-full",
         )}
       >
@@ -288,7 +301,7 @@ export function Layout({ children, title, fluid }: LayoutProps) {
       </aside>
 
       {/* Main */}
-      <div className="flex flex-1 flex-col overflow-hidden">
+      <div className="flex flex-1 flex-col overflow-hidden relative z-10">
         {/* Top bar */}
         <header className="flex h-14 items-center gap-3 border-b border-border px-4">
           <button
