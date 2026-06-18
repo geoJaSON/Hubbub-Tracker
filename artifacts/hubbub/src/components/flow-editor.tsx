@@ -55,6 +55,12 @@ const EDGE_OPTIONS = {
   labelBgPadding: [6, 3] as [number, number],
 } satisfies Partial<Edge>;
 
+function edgeLabelForConnection(connection: Connection) {
+  if (connection.sourceHandle === "yes") return "YES";
+  if (connection.sourceHandle === "no") return "NO";
+  return undefined;
+}
+
 function normalizeEdge(edge: Edge): Edge {
   return {
     ...EDGE_OPTIONS,
@@ -158,7 +164,14 @@ function DecisionNode({ data, selected }: NodeProps) {
 
   return (
     <div style={{ width: W, height: HT, position: "relative" }}>
-      <AllSideHandles />
+      <Handle type="target" position={Position.Top} id="target-top" className={TARGET_HANDLE_CLASS} style={{ top: 0, left: "42%" }} />
+      <Handle type="source" position={Position.Top} id="source-top" className={SOURCE_HANDLE_CLASS} style={{ top: 0, left: "58%" }} />
+      <Handle type="target" position={Position.Left} id="target-left" className={TARGET_HANDLE_CLASS} style={{ top: "42%", left: 0 }} />
+      <Handle type="source" position={Position.Left} id="source-left" className={SOURCE_HANDLE_CLASS} style={{ top: "58%", left: 0 }} />
+      <Handle type="target" position={Position.Right} id="target-right" className={TARGET_HANDLE_CLASS} style={{ top: "42%", right: 0 }} />
+      <Handle type="source" position={Position.Right} id="source-right" className={SOURCE_HANDLE_CLASS} style={{ top: "58%", right: 0 }} />
+      <Handle type="target" position={Position.Bottom} id="target-bottom" className={TARGET_HANDLE_CLASS} style={{ bottom: 0, left: "50%" }} />
+
       <svg
         width={W}
         height={HT}
@@ -166,6 +179,7 @@ function DecisionNode({ data, selected }: NodeProps) {
       >
         <polygon points={pts} fill={NODE_BG} stroke={stroke} strokeWidth={1.25} />
       </svg>
+
       <div
         style={{
           position: "absolute",
@@ -192,6 +206,15 @@ function DecisionNode({ data, selected }: NodeProps) {
           {String(data.label)}
         </span>
       </div>
+
+      <Handle type="source" position={Position.Bottom} id="yes" className={SOURCE_HANDLE_CLASS} style={{ bottom: 0, left: "34%" }} />
+      <Handle type="source" position={Position.Bottom} id="no" className={SOURCE_HANDLE_CLASS} style={{ bottom: 0, left: "66%" }} />
+      <span className="pointer-events-none absolute bottom-2 left-[30%] -translate-x-1/2 font-mono text-[9px] font-bold text-[#00ff41]/65">
+        YES
+      </span>
+      <span className="pointer-events-none absolute bottom-2 left-[70%] -translate-x-1/2 font-mono text-[9px] font-bold text-[#00ff41]/65">
+        NO
+      </span>
     </div>
   );
 }
@@ -243,13 +266,14 @@ function DataIoNode({ data, selected, tag }: NodeProps & { tag: string }) {
   );
 }
 
-// Kept for backward compat with saved flows that used the old input/output types
 function InputNode(props: NodeProps) {
   return <DataIoNode {...props} tag="INPUT" />;
 }
+
 function OutputNode(props: NodeProps) {
   return <DataIoNode {...props} tag="OUTPUT" />;
 }
+
 function IoNode(props: NodeProps) {
   return <DataIoNode {...props} tag="I/O" />;
 }
@@ -268,12 +292,13 @@ const NODE_TYPES = {
 // ── Palette ─────────────────────────────────────────────────────────────────
 
 const PALETTE: { type: string; label: string; display: string; description: string }[] = [
-  { type: "terminal", label: "Start / End",  display: "( START )",      description: "Terminal point"  },
-  { type: "process",  label: "Process",      display: "[ PROCESS ]",    description: "Step / action"   },
-  { type: "decision", label: "Decision",     display: "◇ BRANCH",       description: "Conditional"     },
-  { type: "io",       label: "Data I/O",     display: "/ DATA I/O /",   description: "Input or output" },
-  { type: "query",    label: "Query",        display: "[ SQL QUERY ]",  description: "DB read / write" },
-  { type: "db",       label: "Database",     display: "( DATA STORE )", description: "Database store"  },
+  { type: "terminal",  label: "Start / End",     display: "( START )",      description: "Terminal point"   },
+  { type: "process",   label: "Process",          display: "[ PROCESS ]",    description: "Step / action"    },
+  { type: "decision",  label: "Decision",         display: "◇ BRANCH",       description: "Yes / No branch"  },
+  { type: "input",     label: "Input",            display: "/ INPUT /",      description: "Incoming data"    },
+  { type: "output",    label: "Output",           display: "/ OUTPUT /",     description: "Returned data"    },
+  { type: "query",     label: "Query",            display: "[ SQL QUERY ]",  description: "DB read / write"  },
+  { type: "db",        label: "Database",         display: "( DATA STORE )", description: "Database store"   },
 ];
 
 type FlowTemplate = {
@@ -288,56 +313,56 @@ const FLOW_TEMPLATES: FlowTemplate[] = [
     label: "DEPLOYMENT",
     description: "Build, test, approve, release",
     nodes: [
-      { id: "start",    type: "terminal", position: { x: 80,  y: 40  }, data: { label: "Commit"           } },
-      { id: "build",    type: "process",  position: { x: 80,  y: 160 }, data: { label: "Build Artifact"   } },
-      { id: "test",     type: "process",  position: { x: 80,  y: 280 }, data: { label: "Run CI Tests"     } },
-      { id: "gate",     type: "decision", position: { x: 70,  y: 400 }, data: { label: "Release Approved?" } },
-      { id: "deploy",   type: "process",  position: { x: 80,  y: 540 }, data: { label: "Deploy to Prod"   } },
-      { id: "rollback", type: "process",  position: { x: 320, y: 540 }, data: { label: "Fix / Rollback"   } },
+      { id: "start", type: "terminal", position: { x: 80, y: 40 }, data: { label: "Commit" } },
+      { id: "build", type: "process", position: { x: 80, y: 160 }, data: { label: "Build Artifact" } },
+      { id: "test", type: "process", position: { x: 80, y: 280 }, data: { label: "Run CI Tests" } },
+      { id: "gate", type: "decision", position: { x: 70, y: 400 }, data: { label: "Release Approved?" } },
+      { id: "deploy", type: "process", position: { x: 80, y: 540 }, data: { label: "Deploy to Prod" } },
+      { id: "rollback", type: "process", position: { x: 320, y: 540 }, data: { label: "Fix / Rollback" } },
     ],
     edges: [
-      { id: "e-start-build",    source: "start",  target: "build"    },
-      { id: "e-build-test",     source: "build",  target: "test"     },
-      { id: "e-test-gate",      source: "test",   target: "gate"     },
-      { id: "e-gate-deploy",    source: "gate",   target: "deploy",   label: "YES" },
-      { id: "e-gate-rollback",  source: "gate",   target: "rollback", label: "NO"  },
+      { id: "e-start-build", source: "start", target: "build" },
+      { id: "e-build-test", source: "build", target: "test" },
+      { id: "e-test-gate", source: "test", target: "gate" },
+      { id: "e-gate-deploy", source: "gate", sourceHandle: "yes", target: "deploy", label: "YES" },
+      { id: "e-gate-rollback", source: "gate", sourceHandle: "no", target: "rollback", label: "NO" },
     ],
   },
   {
     label: "SERVICE MAP",
     description: "Client, API, DB, async worker",
     nodes: [
-      { id: "client",      type: "io",      position: { x: 80,  y: 80  }, data: { label: "Client App"        } },
-      { id: "api",         type: "process", position: { x: 80,  y: 220 }, data: { label: "API Service"        } },
-      { id: "query",       type: "query",   position: { x: 80,  y: 360 }, data: { label: "Read / Write Data"  } },
-      { id: "db",          type: "db",      position: { x: 80,  y: 500 }, data: { label: "Postgres"           } },
-      { id: "queue",       type: "process", position: { x: 320, y: 220 }, data: { label: "Queue Worker"       } },
-      { id: "third-party", type: "io",      position: { x: 320, y: 360 }, data: { label: "External API"       } },
+      { id: "client", type: "input", position: { x: 80, y: 80 }, data: { label: "Client App" } },
+      { id: "api", type: "process", position: { x: 80, y: 220 }, data: { label: "API Service" } },
+      { id: "query", type: "query", position: { x: 80, y: 360 }, data: { label: "Read / Write Data" } },
+      { id: "db", type: "db", position: { x: 80, y: 500 }, data: { label: "Postgres" } },
+      { id: "queue", type: "process", position: { x: 320, y: 220 }, data: { label: "Queue Worker" } },
+      { id: "third-party", type: "output", position: { x: 320, y: 360 }, data: { label: "External API" } },
     ],
     edges: [
-      { id: "e-client-api",      source: "client", target: "api",         label: "HTTPS"     },
-      { id: "e-api-query",       source: "api",    target: "query",       label: "CALLS"     },
-      { id: "e-query-db",        source: "query",  target: "db",          label: "READ/WRITE" },
-      { id: "e-api-queue",       source: "api",    target: "queue",       label: "ENQUEUE"   },
-      { id: "e-queue-external",  source: "queue",  target: "third-party", label: "SYNC"      },
+      { id: "e-client-api", source: "client", target: "api", label: "HTTPS" },
+      { id: "e-api-query", source: "api", target: "query", label: "CALLS" },
+      { id: "e-query-db", source: "query", target: "db", label: "READ/WRITE" },
+      { id: "e-api-queue", source: "api", target: "queue", label: "ENQUEUE" },
+      { id: "e-queue-external", source: "queue", target: "third-party", label: "SYNC" },
     ],
   },
   {
     label: "INCIDENT",
     description: "Detect, triage, mitigate",
     nodes: [
-      { id: "alert",      type: "terminal", position: { x: 80,  y: 60  }, data: { label: "Alert Fires"     } },
-      { id: "triage",     type: "process",  position: { x: 80,  y: 180 }, data: { label: "Triage Impact"   } },
-      { id: "sev",        type: "decision", position: { x: 70,  y: 300 }, data: { label: "Customer Impact?" } },
-      { id: "mitigate",   type: "process",  position: { x: 80,  y: 440 }, data: { label: "Mitigate / Patch" } },
-      { id: "monitor",    type: "process",  position: { x: 320, y: 440 }, data: { label: "Monitor Only"    } },
-      { id: "postmortem", type: "terminal", position: { x: 80,  y: 560 }, data: { label: "Postmortem"      } },
+      { id: "alert", type: "terminal", position: { x: 80, y: 60 }, data: { label: "Alert Fires" } },
+      { id: "triage", type: "process", position: { x: 80, y: 180 }, data: { label: "Triage Impact" } },
+      { id: "sev", type: "decision", position: { x: 70, y: 300 }, data: { label: "Customer Impact?" } },
+      { id: "mitigate", type: "process", position: { x: 80, y: 440 }, data: { label: "Mitigate / Patch" } },
+      { id: "monitor", type: "process", position: { x: 320, y: 440 }, data: { label: "Monitor Only" } },
+      { id: "postmortem", type: "terminal", position: { x: 80, y: 560 }, data: { label: "Postmortem" } },
     ],
     edges: [
-      { id: "e-alert-triage",        source: "alert",    target: "triage"     },
-      { id: "e-triage-sev",          source: "triage",   target: "sev"        },
-      { id: "e-sev-mitigate",        source: "sev",      target: "mitigate",  label: "YES" },
-      { id: "e-sev-monitor",         source: "sev",      target: "monitor",   label: "NO"  },
+      { id: "e-alert-triage", source: "alert", target: "triage" },
+      { id: "e-triage-sev", source: "triage", target: "sev" },
+      { id: "e-sev-mitigate", source: "sev", sourceHandle: "yes", target: "mitigate", label: "YES" },
+      { id: "e-sev-monitor", source: "sev", sourceHandle: "no", target: "monitor", label: "NO" },
       { id: "e-mitigate-postmortem", source: "mitigate", target: "postmortem" },
     ],
   },
@@ -361,8 +386,6 @@ export function FlowEditor({ initialData, onSave, saving }: FlowEditorProps) {
   );
   const [selectedNode, setSelectedNode] = useState<Node | null>(null);
   const [labelInput, setLabelInput] = useState("");
-  const [selectedEdge, setSelectedEdge] = useState<Edge | null>(null);
-  const [edgeLabelInput, setEdgeLabelInput] = useState("");
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
   const [rfInstance, setRfInstance] = useState<Parameters<NonNullable<React.ComponentProps<typeof ReactFlow>["onInit"]>>[0] | null>(null);
 
@@ -377,7 +400,15 @@ export function FlowEditor({ initialData, onSave, saving }: FlowEditorProps) {
   const onConnect = useCallback(
     (connection: Connection) =>
       setEdges((eds) =>
-        addEdge({ ...EDGE_OPTIONS, ...connection, animated: false }, eds),
+        addEdge(
+          {
+            ...EDGE_OPTIONS,
+            ...connection,
+            label: edgeLabelForConnection(connection),
+            animated: false,
+          },
+          eds,
+        ),
       ),
     [],
   );
@@ -385,22 +416,11 @@ export function FlowEditor({ initialData, onSave, saving }: FlowEditorProps) {
   const onNodeClick = useCallback((_: React.MouseEvent, node: Node) => {
     setSelectedNode(node);
     setLabelInput(String(node.data.label ?? ""));
-    setSelectedEdge(null);
-    setEdgeLabelInput("");
-  }, []);
-
-  const onEdgeClick = useCallback((_: React.MouseEvent, edge: Edge) => {
-    setSelectedEdge(edge);
-    setEdgeLabelInput(String(edge.label ?? ""));
-    setSelectedNode(null);
-    setLabelInput("");
   }, []);
 
   const onPaneClick = useCallback(() => {
     setSelectedNode(null);
     setLabelInput("");
-    setSelectedEdge(null);
-    setEdgeLabelInput("");
   }, []);
 
   const handleLabelSave = () => {
@@ -415,31 +435,6 @@ export function FlowEditor({ initialData, onSave, saving }: FlowEditorProps) {
     );
   };
 
-  const handleEdgeLabelSave = () => {
-    if (!selectedEdge) return;
-    const label = edgeLabelInput.trim() || undefined;
-    setEdges((eds) =>
-      eds.map((e) => (e.id === selectedEdge.id ? { ...e, label } : e)),
-    );
-    setSelectedEdge((prev) => (prev ? { ...prev, label } : null));
-  };
-
-  const handleDeleteSelected = useCallback(() => {
-    if (!selectedNode) return;
-    setNodes((nds) => nds.filter((n) => n.id !== selectedNode.id));
-    setEdges((eds) =>
-      eds.filter((e) => e.source !== selectedNode.id && e.target !== selectedNode.id),
-    );
-    setSelectedNode(null);
-  }, [selectedNode]);
-
-  const handleEdgeDelete = useCallback(() => {
-    if (!selectedEdge) return;
-    setEdges((eds) => eds.filter((e) => e.id !== selectedEdge.id));
-    setSelectedEdge(null);
-    setEdgeLabelInput("");
-  }, [selectedEdge]);
-
   const onDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = "move";
@@ -452,7 +447,9 @@ export function FlowEditor({ initialData, onSave, saving }: FlowEditorProps) {
       const type = e.dataTransfer.getData("application/reactflow-type");
       const label = e.dataTransfer.getData("application/reactflow-label");
       if (!type) return;
+      // screenToFlowPosition takes raw screen (viewport) coords
       const position = rfInstance.screenToFlowPosition({ x: e.clientX, y: e.clientY });
+      // Snap to grid
       position.x = Math.round(position.x / SNAP[0]) * SNAP[0];
       position.y = Math.round(position.y / SNAP[1]) * SNAP[1];
       setNodes((nds) => [...nds, { id: nextId(), type, position, data: { label } }]);
@@ -483,6 +480,15 @@ export function FlowEditor({ initialData, onSave, saving }: FlowEditorProps) {
       ),
     ]);
   }, [nodes.length]);
+
+  const handleDeleteSelected = useCallback(() => {
+    if (!selectedNode) return;
+    setNodes((nds) => nds.filter((n) => n.id !== selectedNode.id));
+    setEdges((eds) =>
+      eds.filter((e) => e.source !== selectedNode.id && e.target !== selectedNode.id),
+    );
+    setSelectedNode(null);
+  }, [selectedNode]);
 
   return (
     <div className="flex h-full min-h-0">
@@ -558,39 +564,6 @@ export function FlowEditor({ initialData, onSave, saving }: FlowEditorProps) {
           </div>
         )}
 
-        {/* Selected edge panel */}
-        {selectedEdge && (
-          <div className="mt-3 border-t border-[#00ff41]/20 pt-3 flex flex-col gap-2">
-            <p className="font-mono text-[9px] tracking-widest text-[#00ff41]/50">
-              // SELECTED CONNECTION
-            </p>
-            <Input
-              value={edgeLabelInput}
-              onChange={(e) => setEdgeLabelInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") handleEdgeLabelSave();
-              }}
-              className="h-7 bg-[#050f05] border-[#00ff41]/50 focus-visible:border-[#00ff41] font-mono text-xs text-[#00ff41] rounded-none focus-visible:ring-0 focus-visible:ring-offset-0"
-              placeholder="label (optional)..."
-            />
-            <Button
-              size="sm"
-              onClick={handleEdgeLabelSave}
-              className="h-7 font-mono text-[10px] rounded-none bg-[#00ff41]/10 border border-[#00ff41]/50 text-[#00ff41] hover:bg-[#00ff41]/20"
-            >
-              APPLY LABEL
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={handleEdgeDelete}
-              className="h-7 font-mono text-[10px] rounded-none border border-red-900/50 text-red-400 hover:bg-red-900/20 hover:text-red-300"
-            >
-              DELETE
-            </Button>
-          </div>
-        )}
-
         <div className="mt-auto pt-3 border-t border-[#00ff41]/20">
           <Button
             size="sm"
@@ -618,7 +591,6 @@ export function FlowEditor({ initialData, onSave, saving }: FlowEditorProps) {
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
           onNodeClick={onNodeClick}
-          onEdgeClick={onEdgeClick}
           onPaneClick={onPaneClick}
           onInit={setRfInstance}
           fitView
