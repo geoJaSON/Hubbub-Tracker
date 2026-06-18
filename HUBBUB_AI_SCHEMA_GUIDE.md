@@ -8,53 +8,61 @@ live schema and routes.
 
 ## 1. Base URL
 
-The API is served under the `/api` prefix on the same domain as the app.
+The API is served under the `/api` prefix on the same origin as the app.
 
 | Environment | Base URL |
 | --- | --- |
-| Production (published) | `https://YOUR-DEPLOYED-DOMAIN/api` |
-| Development | `https://9b766254-6b69-434b-8d70-260d4fd989b9-00-22m43aml1idwg.picard.replit.dev/api` |
+| Production | `https://YOUR-DOMAIN/api` (e.g. `https://hubbub.372geo.com/api`) |
+| Local dev | `http://localhost:8080/api` (API direct), or `http://localhost:5173/api` via the Vite proxy |
 
-Replace `YOUR-DEPLOYED-DOMAIN` with your actual `.replit.app` (or custom)
-domain. All paths below are relative to the base URL, e.g. the full URL to
-create an item is:
-
-```
-https://YOUR-DEPLOYED-DOMAIN/api/projects/{slug}/items
-```
+All paths below are relative to the base URL, e.g. the full URL to create an
+item is `https://YOUR-DOMAIN/api/projects/{slug}/items`.
 
 ---
 
 ## 2. Authentication
 
-Every endpoint (except `/api/healthz`) requires a **Clerk session token** sent
-as a Bearer header:
+Every endpoint (except `/api/healthz`) requires a **Bearer token**:
 
 ```
-Authorization: Bearer <CLERK_SESSION_TOKEN>
+Authorization: Bearer <TOKEN>
 Content-Type: application/json
 ```
 
-Rules enforced server-side, in order:
-1. The token must be a valid Clerk session for a signed-in user.
-2. That user must already exist in Hubbub (i.e. you have logged in at least
-   once with that `@372geomedia.com` account).
-3. For any `/projects/{slug}/...` route, the user must be a **member** of that
-   project.
+Two kinds of token are accepted:
 
-### How to get a token (quick method, for testing)
-1. Open Hubbub in your browser and log in.
-2. Open DevTools → Console and run:
-   ```js
-   await window.Clerk.session.getToken()
-   ```
-3. Copy the printed JWT and use it as the Bearer token.
+### A. API key — recommended for assistants / automation
 
-> ⚠️ **Token expiry:** Clerk session tokens are short-lived (they refresh
-> automatically in the browser, but a copied token expires within ~1 minute by
-> default). This is fine for one-off pushes and testing. If you want your AI
-> assistant to run unattended over time, ask the Hubbub maintainer to add a
-> long-lived API-key mechanism — the current auth is browser-session based.
+A long-lived, revocable key that acts as a specific user. Create one in the app
+under **Admin → Users → KEYS** (an admin can mint a key for any user — e.g. a
+dedicated `ai-bot` service account). The key is shown **once** at creation, so
+store it securely. It looks like `hbk_…`:
+
+```
+Authorization: Bearer hbk_xxxxxxxxxxxxxxxxxxxxxxxx
+```
+
+This is the right choice for unattended use: it doesn't expire (unless you set an
+expiry) and can be revoked anytime from the same screen.
+
+### B. Session token (JWT) — fine for quick tests
+
+A 7-day token from logging in:
+
+```bash
+curl -s https://YOUR-DOMAIN/api/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"you@example.com","password":"YOUR_PASSWORD"}'
+# → {"token":"eyJ...","user":{...}}
+```
+
+Use the returned `token` as the Bearer value.
+
+### Authorization rules (enforced server-side, in order)
+1. The token (API key or JWT) must resolve to an existing, **active** user.
+2. For any `/projects/{slug}/...` route, that user must be a **member** of the
+   project — add the service account as a member of each project it manages.
+3. Admin-only routes require the user's role to be `admin`.
 
 ---
 
@@ -75,7 +83,7 @@ slugs and IDs.
 | `status` | string (enum) | No | `open` | `open`, `in_progress`, `blocked`, `done`, `cancelled` |
 | `priority` | string (enum) | No | `medium` | `low`, `medium`, `high`, `urgent` |
 | `category` | string (enum) | No | `null` | See category list below |
-| `assigneeId` | string | No | `null` | A Clerk user ID (see §5 members) |
+| `assigneeId` | string | No | `null` | A user ID / `clerkId` (see §5 members) |
 | `scopeId` | integer | No | `null` | Foreign key → a scope in the project |
 | `milestoneId` | integer | No | `null` | Foreign key → a milestone in the project |
 | `componentId` | integer | No | `null` | Foreign key → a project component |
@@ -128,8 +136,8 @@ project-scoped `number`.
 
 ```bash
 curl -X POST \
-  "https://YOUR-DEPLOYED-DOMAIN/api/projects/big-dog-roofing/items" \
-  -H "Authorization: Bearer $CLERK_TOKEN" \
+  "https://YOUR-DOMAIN/api/projects/big-dog-roofing/items" \
+  -H "Authorization: Bearer $HUBBUB_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "type": "todo",
@@ -144,7 +152,7 @@ curl -X POST \
 ```js
 async function pushTodo(slug, todo, token) {
   const res = await fetch(
-    `https://YOUR-DEPLOYED-DOMAIN/api/projects/${slug}/items`,
+    `https://YOUR-DOMAIN/api/projects/${slug}/items`,
     {
       method: "POST",
       headers: {
@@ -161,7 +169,7 @@ async function pushTodo(slug, todo, token) {
 await pushTodo(
   "big-dog-roofing",
   { type: "todo", title: "Schedule inspection", priority: "medium" },
-  process.env.CLERK_TOKEN,
+  process.env.HUBBUB_TOKEN,
 );
 ```
 
@@ -172,7 +180,7 @@ import requests
 
 def push_todo(slug, todo, token):
     r = requests.post(
-        f"https://YOUR-DEPLOYED-DOMAIN/api/projects/{slug}/items",
+        f"https://YOUR-DOMAIN/api/projects/{slug}/items",
         headers={
             "Authorization": f"Bearer {token}",
             "Content-Type": "application/json",
@@ -186,7 +194,7 @@ def push_todo(slug, todo, token):
 push_todo(
     "big-dog-roofing",
     {"type": "todo", "title": "Call supplier", "priority": "low"},
-    CLERK_TOKEN,
+    HUBBUB_TOKEN,
 )
 ```
 
@@ -201,7 +209,7 @@ assistant can fill in `scopeId`, `milestoneId`, `componentId`, or `assigneeId`.
 | --- | --- |
 | List projects you can access (gives `slug`) | `GET /api/projects` |
 | Get one project's details | `GET /api/projects/{slug}` |
-| List project members (gives Clerk user IDs for `assigneeId`) | `GET /api/projects/{slug}/members` |
+| List project members (gives user IDs for `assigneeId`) | `GET /api/projects/{slug}/members` |
 | List scopes (gives `scopeId`) | `GET /api/projects/{slug}/scopes` |
 | List milestones (gives `milestoneId`) | `GET /api/projects/{slug}/milestones` |
 | List components (gives `componentId`) | `GET /api/projects/{slug}/components` |

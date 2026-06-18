@@ -6,7 +6,7 @@ import {
   getListUsersQueryKey,
 } from "@workspace/api-client-react";
 import type { UserAdminUpdate, UserAdminUpdateRole, UserInput } from "@workspace/api-client-react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery, useMutation } from "@tanstack/react-query";
 import { Layout } from "../components/layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,9 +14,10 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Shield, User, DollarSign, UserPlus, Plus } from "lucide-react";
+import { Shield, User, DollarSign, UserPlus, Plus, KeyRound, Copy, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { listApiKeys, createApiKey, revokeApiKey } from "@/lib/api";
 
 type UserRow = {
   id: number;
@@ -25,6 +26,7 @@ type UserRow = {
   email?: string | null;
   role: string;
   active: boolean;
+  pending?: boolean;
   hourlyRateCents?: number | null;
 };
 
@@ -40,6 +42,7 @@ export default function AdminPage() {
   const [editingRate, setEditingRate] = useState<Record<string, string>>({});
   const [createOpen, setCreateOpen] = useState(false);
   const [newUser, setNewUser] = useState(EMPTY_FORM);
+  const [keysUser, setKeysUser] = useState<UserRow | null>(null);
 
   const patch = async (userId: string, data: UserAdminUpdate) => {
     try {
@@ -123,7 +126,7 @@ export default function AdminPage() {
                 u.hourlyRateCents != null
                   ? `$${(u.hourlyRateCents / 100).toFixed(2)}/hr`
                   : "—";
-              const isPending = u.clerkId.startsWith("manual_");
+              const isPending = u.pending ?? u.clerkId.startsWith("manual_");
 
               return (
                 <div key={u.id} className="flex items-center gap-3 px-4 py-3 flex-wrap">
@@ -211,6 +214,17 @@ export default function AdminPage() {
                     {u.role.toUpperCase()}
                   </Button>
 
+                  {/* API keys */}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="font-mono text-xs border border-border h-7 px-2 shrink-0 text-muted-foreground hover:text-primary gap-1"
+                    onClick={() => setKeysUser(u)}
+                    title="Manage API keys"
+                  >
+                    <KeyRound className="h-3 w-3" /> KEYS
+                  </Button>
+
                   {/* Active toggle */}
                   <div className="flex items-center gap-1.5 shrink-0">
                     <span className="text-xs font-mono text-muted-foreground">
@@ -296,6 +310,153 @@ export default function AdminPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <ApiKeysDialog user={keysUser} onClose={() => setKeysUser(null)} />
     </Layout>
+  );
+}
+
+function ApiKeysDialog({
+  user,
+  onClose,
+}: {
+  user: UserRow | null;
+  onClose: () => void;
+}) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [name, setName] = useState("");
+  const [createdKey, setCreatedKey] = useState<string | null>(null);
+
+  const open = user !== null;
+  const userId = user?.clerkId;
+  const keysKey = ["api-keys", userId];
+
+  const { data: keys = [], isLoading } = useQuery({
+    queryKey: keysKey,
+    queryFn: () => listApiKeys(userId),
+    enabled: open,
+  });
+
+  const create = useMutation({
+    mutationFn: () => createApiKey({ name: name.trim(), userId }),
+    onSuccess: (res) => {
+      setCreatedKey(res.key);
+      setName("");
+      qc.invalidateQueries({ queryKey: keysKey });
+    },
+    onError: () => toast({ title: "Failed to create key", variant: "destructive" }),
+  });
+
+  const revoke = useMutation({
+    mutationFn: (id: number) => revokeApiKey(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keysKey }),
+    onError: () => toast({ title: "Failed to revoke key", variant: "destructive" }),
+  });
+
+  const close = () => {
+    setCreatedKey(null);
+    setName("");
+    onClose();
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { if (!o) close(); }}>
+      <DialogContent className="bg-card border-border max-w-md">
+        <DialogHeader>
+          <DialogTitle className="font-['VT323'] tracking-widest text-xl text-primary">
+            // API KEYS — {user?.displayName}
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          {createdKey && (
+            <div className="border border-primary/50 bg-primary/5 p-3 space-y-2">
+              <p className="text-[10px] font-mono text-muted-foreground">
+                Copy this key now — it will not be shown again.
+              </p>
+              <div className="flex items-center gap-2">
+                <code className="flex-1 break-all font-mono text-xs text-primary">{createdKey}</code>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 px-2 text-muted-foreground hover:text-primary"
+                  onClick={() => {
+                    void navigator.clipboard.writeText(createdKey);
+                    toast({ title: "Copied to clipboard" });
+                  }}
+                >
+                  <Copy className="h-3 w-3" />
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Create */}
+          <div className="flex gap-2">
+            <Input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Key name (e.g. ci-bot)"
+              className="bg-background border-border font-mono text-xs h-8 rounded-none"
+              onKeyDown={(e) => { if (e.key === "Enter" && name.trim()) create.mutate(); }}
+            />
+            <Button
+              size="sm"
+              onClick={() => create.mutate()}
+              disabled={!name.trim() || create.isPending}
+              className="font-mono text-xs bg-primary text-primary-foreground hover:bg-primary/90 h-8"
+            >
+              {create.isPending ? "..." : "CREATE"}
+            </Button>
+          </div>
+
+          {/* List */}
+          <div className="border border-border divide-y divide-border max-h-64 overflow-auto">
+            {isLoading ? (
+              <div className="p-3 text-xs font-mono text-muted-foreground animate-pulse">LOADING...</div>
+            ) : keys.length === 0 ? (
+              <div className="p-3 text-xs font-mono text-muted-foreground">no keys</div>
+            ) : (
+              keys.map((k) => (
+                <div key={k.id} className="flex items-center gap-2 px-3 py-2">
+                  <KeyRound
+                    className={cn("h-3 w-3 shrink-0", k.revoked ? "text-muted-foreground" : "text-primary")}
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className={cn("font-mono text-xs", k.revoked && "line-through text-muted-foreground")}>
+                        {k.name}
+                      </span>
+                      <code className="font-mono text-[10px] text-muted-foreground">{k.prefix}…</code>
+                      {k.revoked && <span className="text-[10px] font-mono text-destructive">REVOKED</span>}
+                    </div>
+                    <p className="text-[10px] font-mono text-muted-foreground">
+                      {k.lastUsedAt ? `last used ${new Date(k.lastUsedAt).toLocaleDateString()}` : "never used"}
+                      {k.expiresAt ? ` · expires ${new Date(k.expiresAt).toLocaleDateString()}` : ""}
+                    </p>
+                  </div>
+                  {!k.revoked && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 px-2 text-muted-foreground hover:text-destructive"
+                      onClick={() => revoke.mutate(k.id)}
+                      disabled={revoke.isPending}
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  )}
+                </div>
+              ))
+            )}
+          </div>
+
+          <p className="text-[10px] font-mono text-muted-foreground">
+            Keys act as this user — same role and project access. Send as{" "}
+            <code className="text-primary">Authorization: Bearer hbk_…</code>
+          </p>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }

@@ -116,6 +116,30 @@ export const users = pgTable(
   }),
 );
 
+// ── API Keys ─────────────────────────────────────────────────────────────────
+// Long-lived bearer credentials for programmatic / automation access. The key
+// is shown once at creation; only its sha256 hash is stored. A key resolves to
+// its owning user (by clerk_id) and inherits that user's role and project
+// memberships — see `resolvePrincipal` in api-server/src/lib/auth.ts.
+export const apiKeys = pgTable(
+  "api_keys",
+  {
+    id: serial("id").primaryKey(),
+    userId: varchar("user_id", { length: 128 }).notNull(),
+    name: text("name").notNull(),
+    keyHash: text("key_hash").notNull(),
+    prefix: varchar("prefix", { length: 24 }).notNull(),
+    lastUsedAt: timestamp("last_used_at"),
+    expiresAt: timestamp("expires_at"),
+    revoked: boolean("revoked").notNull().default(false),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => ({
+    keyHashIdx: uniqueIndex("api_keys_key_hash_idx").on(t.keyHash),
+    userIdx: index("api_keys_user_id_idx").on(t.userId),
+  }),
+);
+
 // ── Projects ───────────────────────────────────────────────────────────────
 export const projects = pgTable(
   "projects",

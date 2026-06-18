@@ -6,6 +6,15 @@ import { requireAuth, requireAdmin, AuthRequest } from "../lib/auth";
 
 const router = Router();
 
+// Strip the password hash and expose a derived `pending` flag: a user is
+// "pending sign-in" until they set a password (claim an admin-invited record or
+// register). This replaces the old, brittle `clerkId.startsWith("manual_")`
+// heuristic, which never cleared after a user claimed their account.
+function toPublic(user: typeof users.$inferSelect) {
+  const { passwordHash, ...rest } = user;
+  return { ...rest, pending: !passwordHash };
+}
+
 // GET /users/me
 router.get("/me", requireAuth, async (req: AuthRequest, res) => {
   const [user] = await db
@@ -14,8 +23,7 @@ router.get("/me", requireAuth, async (req: AuthRequest, res) => {
     .where(eq(users.clerkId, req.userId!))
     .limit(1);
   if (!user) return res.status(404).json({ error: "Not found" });
-  const { passwordHash: _, ...rest } = user;
-  return res.json(rest);
+  return res.json(toPublic(user));
 });
 
 // PATCH /users/me
@@ -30,14 +38,13 @@ router.patch("/me", requireAuth, async (req: AuthRequest, res) => {
     })
     .where(eq(users.clerkId, req.userId!))
     .returning();
-  const { passwordHash: _, ...rest } = updated;
-  return res.json(rest);
+  return res.json(toPublic(updated));
 });
 
 // GET /users
 router.get("/", requireAdmin, async (_req, res) => {
   const all = await db.select().from(users).orderBy(users.displayName);
-  return res.json(all.map(({ passwordHash: _, ...u }) => u));
+  return res.json(all.map(toPublic));
 });
 
 // POST /users — admin creates a user with no password. The person later claims
@@ -57,8 +64,7 @@ router.post("/", requireAdmin, async (req, res) => {
       hourlyRateCents,
     })
     .returning();
-  const { passwordHash: _, ...rest } = created;
-  return res.status(201).json(rest);
+  return res.status(201).json(toPublic(created));
 });
 
 // PATCH /users/:userId
@@ -75,8 +81,7 @@ router.patch("/:userId", requireAdmin, async (req, res) => {
     .where(eq(users.clerkId, String(req.params.userId)))
     .returning();
   if (!updated) return res.status(404).json({ error: "Not found" });
-  const { passwordHash: _, ...rest } = updated;
-  return res.json(rest);
+  return res.json(toPublic(updated));
 });
 
 // GET /users/setup — returns whether any users have been provisioned
@@ -94,8 +99,7 @@ router.post("/sync", requireAuth, async (req: AuthRequest, res) => {
     .where(eq(users.clerkId, req.userId!))
     .limit(1);
   if (!user) return res.status(404).json({ error: "User not found" });
-  const { passwordHash: _, ...rest } = user;
-  return res.json(rest);
+  return res.json(toPublic(user));
 });
 
 export default router;

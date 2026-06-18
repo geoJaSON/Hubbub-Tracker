@@ -27,6 +27,22 @@ export function encrypt(plaintext: string): string | null {
   return Buffer.concat([iv, encrypted, tag]).toString(ENCODING);
 }
 
+// ── API keys ──────────────────────────────────────────────────────────────────
+// API keys are random bearer tokens. Only the sha256 hash is persisted; the
+// plaintext is shown to the caller exactly once at creation.
+const API_KEY_PREFIX = "hbk_";
+
+/** Deterministic sha256 (hex) of an API key, for storage and lookup. */
+export function hashApiKey(key: string): string {
+  return createHash("sha256").update(key).digest("hex");
+}
+
+/** Mint a new API key: `{ key }` is the secret (returned once), plus its stored hash and display prefix. */
+export function generateApiKey(): { key: string; prefix: string; hash: string } {
+  const key = API_KEY_PREFIX + randomBytes(24).toString("base64url");
+  return { key, prefix: key.slice(0, 12), hash: hashApiKey(key) };
+}
+
 /**
  * Decrypt a ciphertext produced by `encrypt`.
  * Returns null if decryption fails (wrong key, corrupted data, or plain-text legacy value).

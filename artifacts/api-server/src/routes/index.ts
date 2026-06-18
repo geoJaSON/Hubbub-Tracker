@@ -22,6 +22,7 @@ import flowsRouter from "./flows";
 import attachmentsRouter from "./attachments";
 import dependenciesRouter from "./dependencies";
 import notificationsRouter from "./notifications";
+import apiKeysRouter from "./api-keys";
 import { requireAuth, requireProjectMember } from "../lib/auth";
 
 const router: IRouter = Router();
@@ -29,6 +30,7 @@ const router: IRouter = Router();
 router.use(healthRouter);
 router.use("/auth", authRouter);
 router.use("/users", usersRouter);
+router.use("/api-keys", apiKeysRouter);
 router.use("/projects", projectsRouter);
 
 // All project-slug-scoped routes enforce membership after requireAuth
