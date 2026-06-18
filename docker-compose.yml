@@ -18,28 +18,30 @@ services:
       timeout: 5s
       retries: 12
 
-  app:
-    build:
-      context: .
-    restart: unless-stopped
-    depends_on:
-      db:
-        condition: service_healthy
-    # Brings in JWT_SECRET, ENCRYPTION_KEY, ALLOW_OPEN_SIGNUP, ALLOWED_EMAIL_DOMAIN,
-    # GITHUB_TOKEN from .env. The `environment:` block below overrides the rest.
-    env_file:
-      - .env
-    environment:
-      DATABASE_URL: postgres://hubbub:${POSTGRES_PASSWORD:-hubbub}@db:5432/hubbub
-      NODE_ENV: production
-      PORT: 8080
-      BASE_PATH: /
-      WEB_DIST: /app/artifacts/hubbub/dist/public
-      UPLOADS_DIR: /data/uploads
-    ports:
-      - "${APP_PORT:-3000}:8080"
-    volumes:
-      - uploads:/data/uploads
+app:
+      build:
+        context: .
+      restart: unless-stopped
+      depends_on:
+        db:
+          condition: service_healthy
+      env_file:
+        - .env
+      environment:
+        DATABASE_URL: postgres://hubbub:${POSTGRES_PASSWORD:-hubbub}@db:5432/hubbub
+        NODE_ENV: production
+        PORT: 8080
+        BASE_PATH: /
+        WEB_DIST: /app/artifacts/hubbub/dist/public
+        UPLOADS_DIR: /data/uploads
+      volumes:
+        - uploads:/data/uploads
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.hubbub.rule=Host(`${HUBBUB_DOMAIN}`)"
+        - "traefik.http.routers.hubbub.entrypoints=websecure"
+        - "traefik.http.routers.hubbub.tls.certresolver=letsencrypt"
+        - "traefik.http.services.hubbub.loadbalancer.server.port=8080"
 
 volumes:
   pgdata:
