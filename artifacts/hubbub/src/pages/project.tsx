@@ -268,6 +268,11 @@ export default function ProjectPage() {
   const [itemScopeFilter, setItemScopeFilter] = useState<Set<number>>(new Set());
   const [itemMilestoneFilter, setItemMilestoneFilter] = useState<Set<number>>(new Set());
   const [itemLabelFilter, setItemLabelFilter] = useState<Set<number>>(new Set());
+  const [selectedItems, setSelectedItems] = useState<Set<number>>(new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulk, setBulk] = useState<{ milestoneId: string; componentId: string; scopeId: string; category: string }>(
+    { milestoneId: "", componentId: "", scopeId: "", category: "" },
+  );
   const [hideDone, setHideDone] = useState(true);
   const [componentNewName, setComponentNewName] = useState("");
   const [componentEditId, setComponentEditId] = useState<number | null>(null);
@@ -952,6 +957,39 @@ export default function ProjectPage() {
     qc.invalidateQueries({ queryKey: getListMilestonesQueryKey(slug!) });
   };
 
+  // Apply the chosen field(s) to every selected item. "" = leave unchanged,
+  // "__none__" = clear the field, otherwise set it.
+  const applyBulk = async () => {
+    const patch: Record<string, unknown> = {};
+    if (bulk.milestoneId) patch.milestoneId = bulk.milestoneId === "__none__" ? null : Number(bulk.milestoneId);
+    if (bulk.componentId) patch.componentId = bulk.componentId === "__none__" ? null : Number(bulk.componentId);
+    if (bulk.scopeId) patch.scopeId = bulk.scopeId === "__none__" ? null : Number(bulk.scopeId);
+    if (bulk.category) patch.category = bulk.category === "__none__" ? null : bulk.category;
+    if (Object.keys(patch).length === 0) {
+      toast({ title: "Pick at least one field to set" });
+      return;
+    }
+    setBulkBusy(true);
+    try {
+      for (const num of selectedItems) {
+        await updateItem.mutateAsync({
+          slug,
+          itemNumber: num,
+          data: patch as Parameters<typeof updateItem.mutateAsync>[0]["data"],
+        });
+      }
+      qc.invalidateQueries({ queryKey: getListItemsQueryKey(slug!) });
+      qc.invalidateQueries({ queryKey: getListMilestonesQueryKey(slug!) });
+      toast({ title: `Updated ${selectedItems.size} item(s)` });
+      setSelectedItems(new Set());
+      setBulk({ milestoneId: "", componentId: "", scopeId: "", category: "" });
+    } catch {
+      toast({ title: "Bulk update failed", variant: "destructive" });
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
   const handleLogTime = async () => {
     const mins = parseInt(newTimeEntry.minutes, 10);
     if (!newTimeEntry.itemNumber) {
@@ -1325,7 +1363,60 @@ export default function ProjectPage() {
                 itemMilestoneFilter.size > 0 ||
                 itemLabelFilter.size > 0 ||
                 hideDone;
-              return filtered.length === 0 ? (
+              const allSelected = filtered.length > 0 && filtered.every((i) => selectedItems.has(i.number));
+              return (
+                <div className="space-y-2">
+                  {filtered.length > 0 && (
+                    <div className="flex flex-wrap items-center gap-2 border border-border bg-card/50 px-3 py-2">
+                      <label className="flex items-center gap-1.5 text-[10px] font-mono text-muted-foreground cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={allSelected}
+                          onChange={(e) =>
+                            setSelectedItems((prev) => {
+                              const n = new Set(prev);
+                              filtered.forEach((i) => (e.target.checked ? n.add(i.number) : n.delete(i.number)));
+                              return n;
+                            })
+                          }
+                          className="h-3.5 w-3.5 accent-primary"
+                        />
+                        {selectedItems.size > 0 ? `${selectedItems.size} SELECTED` : "SELECT ALL"}
+                      </label>
+                      {selectedItems.size > 0 && (
+                        <>
+                          <span className="border-l border-border h-4" />
+                          <select value={bulk.milestoneId} onChange={(e) => setBulk((b) => ({ ...b, milestoneId: e.target.value }))} className="bg-background border border-border font-mono text-[10px] h-6 px-1">
+                            <option value="">milestone…</option>
+                            <option value="__none__">— clear —</option>
+                            {(milestonesData as Milestone[]).map((m) => (<option key={m.id} value={m.id}>{m.name}</option>))}
+                          </select>
+                          <select value={bulk.componentId} onChange={(e) => setBulk((b) => ({ ...b, componentId: e.target.value }))} className="bg-background border border-border font-mono text-[10px] h-6 px-1">
+                            <option value="">component…</option>
+                            <option value="__none__">— clear —</option>
+                            {components.map((c) => (<option key={c.id} value={c.id}>{c.name}</option>))}
+                          </select>
+                          <select value={bulk.scopeId} onChange={(e) => setBulk((b) => ({ ...b, scopeId: e.target.value }))} className="bg-background border border-border font-mono text-[10px] h-6 px-1">
+                            <option value="">scope…</option>
+                            <option value="__none__">— clear —</option>
+                            {projectScopes.map((s) => (<option key={s.id} value={s.id}>{s.name}</option>))}
+                          </select>
+                          <select value={bulk.category} onChange={(e) => setBulk((b) => ({ ...b, category: e.target.value }))} className="bg-background border border-border font-mono text-[10px] h-6 px-1">
+                            <option value="">category…</option>
+                            <option value="__none__">— clear —</option>
+                            {Object.entries(CATEGORY_LABELS).map(([id, label]) => (<option key={id} value={id}>{label}</option>))}
+                          </select>
+                          <button onClick={() => void applyBulk()} disabled={bulkBusy} className="text-[10px] font-mono border border-primary text-primary bg-primary/10 px-2 py-0.5 hover:bg-primary/20 disabled:opacity-50">
+                            {bulkBusy ? "APPLYING…" : "APPLY"}
+                          </button>
+                          <button onClick={() => { setSelectedItems(new Set()); setBulk({ milestoneId: "", componentId: "", scopeId: "", category: "" }); }} className="text-[10px] font-mono border border-border text-muted-foreground px-2 py-0.5 hover:text-foreground">
+                            CLEAR
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  )}
+                  {filtered.length === 0 ? (
                 <div className="border border-border bg-card p-8 text-center">
                   <p className="text-muted-foreground font-mono text-sm">
                     {anyFilterActive ? "no matching items" : "no items yet"}
@@ -1334,8 +1425,23 @@ export default function ProjectPage() {
               ) : (
                 <div className="divide-y divide-border border border-border bg-card">
                   {filtered.map((item) => (
-                    <Link key={item.id} href={`/projects/${slug}/items/${item.number}`}>
-                      <a className="flex items-center gap-3 px-4 py-3 hover:bg-muted/30 transition-colors group">
+                    <div key={item.id} className="flex items-center hover:bg-muted/30 transition-colors group">
+                      <input
+                        type="checkbox"
+                        checked={selectedItems.has(item.number)}
+                        onChange={(e) =>
+                          setSelectedItems((prev) => {
+                            const n = new Set(prev);
+                            if (e.target.checked) n.add(item.number);
+                            else n.delete(item.number);
+                            return n;
+                          })
+                        }
+                        className="ml-3 h-3.5 w-3.5 accent-primary shrink-0 cursor-pointer"
+                        aria-label={`select #${item.number}`}
+                      />
+                      <Link href={`/projects/${slug}/items/${item.number}`}>
+                        <a className="flex-1 min-w-0 flex items-center gap-3 px-3 py-3">
                         {(() => {
                           const Icon = TYPE_ICONS[item.type] ?? CheckSquare;
                           return <Icon className={cn("h-3.5 w-3.5 shrink-0", PRIORITY_COLORS[item.priority])} />;
@@ -1384,8 +1490,11 @@ export default function ProjectPage() {
                         <span className="text-xs text-muted-foreground font-mono hidden sm:block">{item.type}</span>
                         <ArrowRight className="h-3.5 w-3.5 text-muted-foreground group-hover:text-primary transition-colors" />
                       </a>
-                    </Link>
+                      </Link>
+                    </div>
                   ))}
+                </div>
+                  )}
                 </div>
               );
             })()}
