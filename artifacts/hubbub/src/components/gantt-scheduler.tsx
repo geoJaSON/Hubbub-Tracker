@@ -31,7 +31,8 @@ function daysBetween(a: Date, b: Date): number {
 }
 
 function monthLabel(d: Date): string {
-  return d.toLocaleDateString("en-US", { month: "short", year: "2-digit" });
+  // "Jun '26" — the apostrophe makes the 2-digit year unambiguous (not a day).
+  return d.toLocaleDateString("en-US", { month: "short" }) + " '" + String(d.getFullYear()).slice(-2);
 }
 
 // ── Gantt grid constants ──────────────────────────────────────────────────────
@@ -78,6 +79,10 @@ export function GanttScheduler({
   const [viewStart, setViewStart] = useState<Date>(() => addDays(today, -14));
 
   const viewEnd = useMemo(() => addDays(viewStart, viewDays), [viewStart, viewDays]);
+
+  // Cursor-follow date readout
+  const [hoverDay, setHoverDay] = useState<number | null>(null);
+  const gridRef = useRef<HTMLDivElement>(null);
 
   // Dialogs
   const [createOpen, setCreateOpen] = useState(false);
@@ -426,13 +431,24 @@ export function GanttScheduler({
           </div>
 
           {/* Right scrollable grid */}
-          <div className="relative" style={{ width: gridW }}>
+          <div
+            ref={gridRef}
+            className="relative"
+            style={{ width: gridW }}
+            onMouseMove={(e) => {
+              const r = gridRef.current?.getBoundingClientRect();
+              if (!r) return;
+              const day = Math.floor((e.clientX - r.left) / DAY_PX);
+              setHoverDay(day >= 0 && day <= viewDays ? day : null);
+            }}
+            onMouseLeave={() => setHoverDay(null)}
+          >
             {/* Month headers row */}
             <div className="h-8 border-b border-border sticky top-0 z-10 bg-card/95 flex">
               {monthHeaders.map((mh, i) => (
                 <div
                   key={i}
-                  className="border-r border-border/50 flex items-center px-2 shrink-0 overflow-hidden"
+                  className="border-r border-border/50 flex items-center justify-center px-2 shrink-0 overflow-hidden"
                   style={{ width: mh.spanDays * DAY_PX, marginLeft: i === 0 ? mh.startDay * DAY_PX : 0 }}
                 >
                   <span className="text-[9px] tracking-widest text-muted-foreground uppercase whitespace-nowrap">
@@ -458,6 +474,18 @@ export function GanttScheduler({
                 style={{ left: todayOffset * DAY_PX }}
               >
                 <span className="absolute top-0 left-1 text-[8px] text-primary/70 font-mono">TODAY</span>
+              </div>
+            )}
+
+            {/* Hover date readout */}
+            {hoverDay !== null && (
+              <div
+                className="absolute top-8 bottom-0 border-l border-accent/60 pointer-events-none z-20"
+                style={{ left: hoverDay * DAY_PX }}
+              >
+                <span className="absolute top-0 left-1 bg-accent text-accent-foreground text-[8px] font-mono px-1 whitespace-nowrap rounded-sm">
+                  {addDays(viewStart, hoverDay).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
+                </span>
               </div>
             )}
 
