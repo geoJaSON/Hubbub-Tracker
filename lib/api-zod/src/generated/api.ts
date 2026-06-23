@@ -1883,3 +1883,265 @@ export const MarkNotificationsReadBody = zod.object({
 })
 
 
+/**
+ * Returns every suite with its cases, and every case with its run history plus server-derived fields: `currentStatus` (the newest run's result, or `untested`), `lastTestedAt`, and the distinct `devices` it has run on.
+
+ * @summary Get the project's full test plan (suites → cases → runs)
+ */
+export const GetTestPlanParams = zod.object({
+  "slug": zod.coerce.string()
+})
+
+export const GetTestPlanResponse = zod.object({
+  "suites": zod.array(zod.object({
+  "id": zod.number(),
+  "projectId": zod.number(),
+  "code": zod.string().nullish(),
+  "title": zod.string(),
+  "warn": zod.boolean().describe('Marks a high-risk area.'),
+  "order": zod.number(),
+  "createdAt": zod.coerce.date(),
+  "cases": zod.array(zod.object({
+  "id": zod.number(),
+  "suiteId": zod.number(),
+  "code": zod.string().nullish(),
+  "title": zod.string(),
+  "expected": zod.string().nullish().describe('The expected result \/ pass condition.'),
+  "owner": zod.string().nullish(),
+  "order": zod.number(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "runs": zod.array(zod.object({
+  "id": zod.number(),
+  "caseId": zod.number(),
+  "result": zod.enum(['pass', 'fail', 'skip', 'blocked']).describe('The outcome of a single test run.'),
+  "device": zod.string().nullish().describe('Free-form device label, e.g. \"iPhone 14\", \"Pixel 7\".'),
+  "note": zod.string().nullish(),
+  "testedAt": zod.coerce.date(),
+  "createdById": zod.string().nullish().describe('User id (clerkId) of whoever logged the run.'),
+  "createdAt": zod.coerce.date()
+})).describe('Run history, newest first.'),
+  "currentStatus": zod.enum(['pass', 'fail', 'skip', 'blocked', 'untested']).describe('A case\'s current status — its newest run\'s result, or `untested`.'),
+  "lastTestedAt": zod.coerce.date().nullish(),
+  "devices": zod.array(zod.string()).describe('Distinct devices this case has run on.')
+}))
+}))
+})
+
+
+/**
+ * Suites (and their cases) are appended after any existing suites.
+ * @summary Bulk-create suites and cases
+ */
+export const ImportTestPlanParams = zod.object({
+  "slug": zod.coerce.string()
+})
+
+export const ImportTestPlanBody = zod.object({
+  "suites": zod.array(zod.object({
+  "code": zod.string().optional(),
+  "title": zod.string(),
+  "warn": zod.boolean().optional(),
+  "cases": zod.array(zod.object({
+  "code": zod.string().optional(),
+  "title": zod.string(),
+  "expected": zod.string().optional(),
+  "owner": zod.string().optional()
+}))
+}))
+})
+
+
+/**
+ * @summary Create a test suite
+ */
+export const CreateTestSuiteParams = zod.object({
+  "slug": zod.coerce.string()
+})
+
+export const CreateTestSuiteBody = zod.object({
+  "title": zod.string(),
+  "code": zod.string().nullish(),
+  "warn": zod.boolean().optional()
+})
+
+
+/**
+ * @summary Update a test suite
+ */
+export const UpdateTestSuiteParams = zod.object({
+  "slug": zod.coerce.string(),
+  "suiteId": zod.coerce.number()
+})
+
+export const UpdateTestSuiteBody = zod.object({
+  "title": zod.string().optional(),
+  "code": zod.string().nullish(),
+  "warn": zod.boolean().optional(),
+  "order": zod.number().optional()
+})
+
+export const UpdateTestSuiteResponse = zod.object({
+  "id": zod.number(),
+  "projectId": zod.number(),
+  "code": zod.string().nullish(),
+  "title": zod.string(),
+  "warn": zod.boolean().describe('Marks a high-risk area.'),
+  "order": zod.number(),
+  "createdAt": zod.coerce.date(),
+  "cases": zod.array(zod.object({
+  "id": zod.number(),
+  "suiteId": zod.number(),
+  "code": zod.string().nullish(),
+  "title": zod.string(),
+  "expected": zod.string().nullish().describe('The expected result \/ pass condition.'),
+  "owner": zod.string().nullish(),
+  "order": zod.number(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "runs": zod.array(zod.object({
+  "id": zod.number(),
+  "caseId": zod.number(),
+  "result": zod.enum(['pass', 'fail', 'skip', 'blocked']).describe('The outcome of a single test run.'),
+  "device": zod.string().nullish().describe('Free-form device label, e.g. \"iPhone 14\", \"Pixel 7\".'),
+  "note": zod.string().nullish(),
+  "testedAt": zod.coerce.date(),
+  "createdById": zod.string().nullish().describe('User id (clerkId) of whoever logged the run.'),
+  "createdAt": zod.coerce.date()
+})).describe('Run history, newest first.'),
+  "currentStatus": zod.enum(['pass', 'fail', 'skip', 'blocked', 'untested']).describe('A case\'s current status — its newest run\'s result, or `untested`.'),
+  "lastTestedAt": zod.coerce.date().nullish(),
+  "devices": zod.array(zod.string()).describe('Distinct devices this case has run on.')
+}))
+})
+
+
+/**
+ * @summary Delete a test suite (cascades to its cases and runs)
+ */
+export const DeleteTestSuiteParams = zod.object({
+  "slug": zod.coerce.string(),
+  "suiteId": zod.coerce.number()
+})
+
+
+/**
+ * @summary Create a test case in a suite
+ */
+export const CreateTestCaseParams = zod.object({
+  "slug": zod.coerce.string(),
+  "suiteId": zod.coerce.number()
+})
+
+export const CreateTestCaseBody = zod.object({
+  "title": zod.string(),
+  "code": zod.string().nullish(),
+  "expected": zod.string().nullish(),
+  "owner": zod.string().nullish()
+})
+
+
+/**
+ * @summary Update a test case (may move it to another suite in the same project)
+ */
+export const UpdateTestCaseParams = zod.object({
+  "slug": zod.coerce.string(),
+  "caseId": zod.coerce.number()
+})
+
+export const UpdateTestCaseBody = zod.object({
+  "title": zod.string().optional(),
+  "code": zod.string().nullish(),
+  "expected": zod.string().nullish(),
+  "owner": zod.string().nullish(),
+  "order": zod.number().optional(),
+  "suiteId": zod.number().optional().describe('Move the case to another suite in the same project.')
+})
+
+export const UpdateTestCaseResponse = zod.object({
+  "id": zod.number(),
+  "suiteId": zod.number(),
+  "code": zod.string().nullish(),
+  "title": zod.string(),
+  "expected": zod.string().nullish().describe('The expected result \/ pass condition.'),
+  "owner": zod.string().nullish(),
+  "order": zod.number(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "runs": zod.array(zod.object({
+  "id": zod.number(),
+  "caseId": zod.number(),
+  "result": zod.enum(['pass', 'fail', 'skip', 'blocked']).describe('The outcome of a single test run.'),
+  "device": zod.string().nullish().describe('Free-form device label, e.g. \"iPhone 14\", \"Pixel 7\".'),
+  "note": zod.string().nullish(),
+  "testedAt": zod.coerce.date(),
+  "createdById": zod.string().nullish().describe('User id (clerkId) of whoever logged the run.'),
+  "createdAt": zod.coerce.date()
+})).describe('Run history, newest first.'),
+  "currentStatus": zod.enum(['pass', 'fail', 'skip', 'blocked', 'untested']).describe('A case\'s current status — its newest run\'s result, or `untested`.'),
+  "lastTestedAt": zod.coerce.date().nullish(),
+  "devices": zod.array(zod.string()).describe('Distinct devices this case has run on.')
+})
+
+
+/**
+ * @summary Delete a test case (cascades to its runs)
+ */
+export const DeleteTestCaseParams = zod.object({
+  "slug": zod.coerce.string(),
+  "caseId": zod.coerce.number()
+})
+
+
+/**
+ * @summary Log a test run against a case
+ */
+export const CreateTestRunParams = zod.object({
+  "slug": zod.coerce.string(),
+  "caseId": zod.coerce.number()
+})
+
+export const CreateTestRunBody = zod.object({
+  "result": zod.enum(['pass', 'fail', 'skip', 'blocked']).describe('The outcome of a single test run.'),
+  "device": zod.string().nullish(),
+  "note": zod.string().nullish(),
+  "testedAt": zod.coerce.date().optional().describe('Defaults to now when omitted.')
+})
+
+
+/**
+ * @summary Update a test run
+ */
+export const UpdateTestRunParams = zod.object({
+  "slug": zod.coerce.string(),
+  "runId": zod.coerce.number()
+})
+
+export const UpdateTestRunBody = zod.object({
+  "result": zod.enum(['pass', 'fail', 'skip', 'blocked']).optional().describe('The outcome of a single test run.'),
+  "device": zod.string().nullish(),
+  "note": zod.string().nullish(),
+  "testedAt": zod.coerce.date().optional()
+})
+
+export const UpdateTestRunResponse = zod.object({
+  "id": zod.number(),
+  "caseId": zod.number(),
+  "result": zod.enum(['pass', 'fail', 'skip', 'blocked']).describe('The outcome of a single test run.'),
+  "device": zod.string().nullish().describe('Free-form device label, e.g. \"iPhone 14\", \"Pixel 7\".'),
+  "note": zod.string().nullish(),
+  "testedAt": zod.coerce.date(),
+  "createdById": zod.string().nullish().describe('User id (clerkId) of whoever logged the run.'),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Delete a test run
+ */
+export const DeleteTestRunParams = zod.object({
+  "slug": zod.coerce.string(),
+  "runId": zod.coerce.number()
+})
+
+

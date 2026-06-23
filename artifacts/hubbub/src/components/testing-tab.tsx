@@ -1,24 +1,23 @@
 import { useMemo, useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import {
-  getTestPlan,
-  importTestPlan,
-  createTestSuite,
-  updateTestSuite,
-  deleteTestSuite,
-  createTestCase,
-  updateTestCase,
-  deleteTestCase,
-  logTestRun,
-  deleteTestRun,
-  type TestPlan,
+  useGetTestPlan,
+  useImportTestPlan,
+  useCreateTestSuite,
+  useUpdateTestSuite,
+  useDeleteTestSuite,
+  useCreateTestCase,
+  useUpdateTestCase,
+  useDeleteTestCase,
+  useCreateTestRun,
+  useDeleteTestRun,
+  getGetTestPlanQueryKey,
   type TestSuite,
   type TestCase,
   type TestRun,
   type TestRunResult,
   type TestCaseStatus,
-  type TestPlanImport,
-} from "@/lib/api";
+} from "@workspace/api-client-react";
 import { MOBILE_TEST_PLAN } from "@/lib/test-plan-seed";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -60,7 +59,7 @@ const RESULT_META: Record<
 
 const RUN_RESULTS: TestRunResult[] = ["pass", "fail", "skip", "blocked"];
 
-function fmtDate(iso: string | null): string {
+function fmtDate(iso: string | null | undefined): string {
   if (!iso) return "—";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "—";
@@ -78,45 +77,38 @@ function StatusBadge({ status }: { status: TestCaseStatus }) {
   );
 }
 
-// ── Shared mutation wrapper (these routes live outside the generated client) ───
-function useTestMutation<TArgs>(slug: string, fn: (args: TArgs) => Promise<unknown>) {
-  const qc = useQueryClient();
-  const { toast } = useToast();
-  return useMutation({
-    mutationFn: fn,
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["test-plan", slug] }),
-    onError: (err: unknown) =>
-      toast({
-        title: "Error",
-        description: err instanceof Error ? err.message : "Request failed",
-        variant: "destructive",
-      }),
-  });
-}
-
 interface TestingTabProps {
   slug: string;
 }
 
 export function TestingTab({ slug }: TestingTabProps) {
   const { toast } = useToast();
-  const { data, isLoading } = useQuery<TestPlan>({
-    queryKey: ["test-plan", slug],
-    queryFn: () => getTestPlan(slug),
-  });
+  const qc = useQueryClient();
+  const { data, isLoading } = useGetTestPlan(slug);
 
   const suites = data?.suites ?? [];
 
-  // ── Mutations ───────────────────────────────────────────────────────────────
-  const importMut = useTestMutation(slug, (plan: TestPlanImport) => importTestPlan(slug, plan));
-  const createSuiteMut = useTestMutation(slug, (i: { title: string; code?: string; warn?: boolean }) => createTestSuite(slug, i));
-  const updateSuiteMut = useTestMutation(slug, (a: { id: number; input: Parameters<typeof updateTestSuite>[2] }) => updateTestSuite(slug, a.id, a.input));
-  const deleteSuiteMut = useTestMutation(slug, (id: number) => deleteTestSuite(slug, id));
-  const createCaseMut = useTestMutation(slug, (a: { suiteId: number; input: Parameters<typeof createTestCase>[2] }) => createTestCase(slug, a.suiteId, a.input));
-  const updateCaseMut = useTestMutation(slug, (a: { id: number; input: Parameters<typeof updateTestCase>[2] }) => updateTestCase(slug, a.id, a.input));
-  const deleteCaseMut = useTestMutation(slug, (id: number) => deleteTestCase(slug, id));
-  const logRunMut = useTestMutation(slug, (a: { caseId: number; input: Parameters<typeof logTestRun>[2] }) => logTestRun(slug, a.caseId, a.input));
-  const deleteRunMut = useTestMutation(slug, (id: number) => deleteTestRun(slug, id));
+  // Shared mutation behavior: refresh the plan on success, surface errors as toasts.
+  const mutation = {
+    onSuccess: () => qc.invalidateQueries({ queryKey: getGetTestPlanQueryKey(slug) }),
+    onError: (err: unknown) =>
+      toast({
+        title: "Error",
+        description: err instanceof Error ? err.message : "Request failed",
+        variant: "destructive",
+      }),
+  };
+
+  // ── Mutations (generated typed hooks) ─────────────────────────────────────────
+  const importMut = useImportTestPlan({ mutation });
+  const createSuiteMut = useCreateTestSuite({ mutation });
+  const updateSuiteMut = useUpdateTestSuite({ mutation });
+  const deleteSuiteMut = useDeleteTestSuite({ mutation });
+  const createCaseMut = useCreateTestCase({ mutation });
+  const updateCaseMut = useUpdateTestCase({ mutation });
+  const deleteCaseMut = useDeleteTestCase({ mutation });
+  const createRunMut = useCreateTestRun({ mutation });
+  const deleteRunMut = useDeleteTestRun({ mutation });
 
   // ── UI state ─────────────────────────────────────────────────────────────────
   const [collapsed, setCollapsed] = useState<Set<number>>(new Set());
@@ -164,12 +156,14 @@ export function TestingTab({ slug }: TestingTabProps) {
     });
 
   const handleImport = () => {
-    importMut.mutate(MOBILE_TEST_PLAN, {
-      onSuccess: (r) => {
-        const res = r as { suites: number; cases: number };
-        toast({ title: "Imported", description: `${res.suites} suites · ${res.cases} cases added.` });
+    importMut.mutate(
+      { slug, data: MOBILE_TEST_PLAN },
+      {
+        onSuccess: (r) => {
+          toast({ title: "Imported", description: `${r.suites} suites · ${r.cases} cases added.` });
+        },
       },
-    });
+    );
   };
 
   if (isLoading) {
@@ -216,8 +210,8 @@ export function TestingTab({ slug }: TestingTabProps) {
           <SuiteDialog
             dialog={suiteDialog}
             onClose={() => setSuiteDialog(null)}
-            onCreate={(input) => createSuiteMut.mutate(input, { onSuccess: () => setSuiteDialog(null) })}
-            onUpdate={(id, input) => updateSuiteMut.mutate({ id, input }, { onSuccess: () => setSuiteDialog(null) })}
+            onCreate={(input) => createSuiteMut.mutate({ slug, data: input }, { onSuccess: () => setSuiteDialog(null) })}
+            onUpdate={(id, input) => updateSuiteMut.mutate({ slug, suiteId: id, data: input }, { onSuccess: () => setSuiteDialog(null) })}
             pending={createSuiteMut.isPending || updateSuiteMut.isPending}
           />
         )}
@@ -335,7 +329,7 @@ export function TestingTab({ slug }: TestingTabProps) {
                       className="text-destructive focus:text-destructive"
                       onClick={() => {
                         if (confirm(`Delete suite "${suite.title}" and its ${suite.cases.length} case(s)? This cannot be undone.`)) {
-                          deleteSuiteMut.mutate(suite.id);
+                          deleteSuiteMut.mutate({ slug, suiteId: suite.id });
                         }
                       }}
                     >
@@ -362,10 +356,10 @@ export function TestingTab({ slug }: TestingTabProps) {
                     onEdit={() => setCaseDialog({ mode: "edit", suiteId: suite.id, testCase: c })}
                     onDelete={() => {
                       if (confirm(`Delete case "${c.code ?? c.title}" and its ${c.runs.length} run(s)?`)) {
-                        deleteCaseMut.mutate(c.id);
+                        deleteCaseMut.mutate({ slug, caseId: c.id });
                       }
                     }}
-                    onDeleteRun={(runId) => deleteRunMut.mutate(runId)}
+                    onDeleteRun={(runId) => deleteRunMut.mutate({ slug, runId })}
                   />
                 ))}
               </div>
@@ -379,8 +373,8 @@ export function TestingTab({ slug }: TestingTabProps) {
         <SuiteDialog
           dialog={suiteDialog}
           onClose={() => setSuiteDialog(null)}
-          onCreate={(input) => createSuiteMut.mutate(input, { onSuccess: () => setSuiteDialog(null) })}
-          onUpdate={(id, input) => updateSuiteMut.mutate({ id, input }, { onSuccess: () => setSuiteDialog(null) })}
+          onCreate={(input) => createSuiteMut.mutate({ slug, data: input }, { onSuccess: () => setSuiteDialog(null) })}
+          onUpdate={(id, input) => updateSuiteMut.mutate({ slug, suiteId: id, data: input }, { onSuccess: () => setSuiteDialog(null) })}
           pending={createSuiteMut.isPending || updateSuiteMut.isPending}
         />
       )}
@@ -388,8 +382,8 @@ export function TestingTab({ slug }: TestingTabProps) {
         <CaseDialog
           dialog={caseDialog}
           onClose={() => setCaseDialog(null)}
-          onCreate={(suiteId, input) => createCaseMut.mutate({ suiteId, input }, { onSuccess: () => setCaseDialog(null) })}
-          onUpdate={(id, input) => updateCaseMut.mutate({ id, input }, { onSuccess: () => setCaseDialog(null) })}
+          onCreate={(suiteId, input) => createCaseMut.mutate({ slug, suiteId, data: input }, { onSuccess: () => setCaseDialog(null) })}
+          onUpdate={(id, input) => updateCaseMut.mutate({ slug, caseId: id, data: input }, { onSuccess: () => setCaseDialog(null) })}
           pending={createCaseMut.isPending || updateCaseMut.isPending}
         />
       )}
@@ -397,8 +391,8 @@ export function TestingTab({ slug }: TestingTabProps) {
         <RunDialog
           testCase={runDialog.testCase}
           onClose={() => setRunDialog(null)}
-          onSubmit={(input) => logRunMut.mutate({ caseId: runDialog.testCase.id, input }, { onSuccess: () => setRunDialog(null) })}
-          pending={logRunMut.isPending}
+          onSubmit={(input) => createRunMut.mutate({ slug, caseId: runDialog.testCase.id, data: input }, { onSuccess: () => setRunDialog(null) })}
+          pending={createRunMut.isPending}
         />
       )}
     </div>

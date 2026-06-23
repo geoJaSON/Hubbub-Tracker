@@ -69,6 +69,18 @@ import type {
   SearchResults,
   SetupStatus,
   Standup,
+  TestCase,
+  TestCaseInput,
+  TestCaseUpdate,
+  TestPlan,
+  TestPlanImport,
+  TestPlanImportResult,
+  TestRun,
+  TestRunInput,
+  TestRunUpdate,
+  TestSuite,
+  TestSuiteInput,
+  TestSuiteUpdate,
   TimeEntry,
   TimeEntryInput,
   UnreadCount,
@@ -5579,5 +5591,815 @@ export const useMarkNotificationsRead = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getMarkNotificationsReadMutationOptions(options));
+    }
+
+export const getGetTestPlanUrl = (slug: string,) => {
+
+
+
+
+  return `/api/projects/${slug}/testing`
+}
+
+/**
+ * Returns every suite with its cases, and every case with its run history plus server-derived fields: `currentStatus` (the newest run's result, or `untested`), `lastTestedAt`, and the distinct `devices` it has run on.
+
+ * @summary Get the project's full test plan (suites → cases → runs)
+ */
+export const getTestPlan = async (slug: string, options?: RequestInit): Promise<TestPlan> => {
+
+  return customFetch<TestPlan>(getGetTestPlanUrl(slug),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetTestPlanQueryKey = (slug: string,) => {
+    return [
+    `/api/projects/${slug}/testing`
+    ] as const;
+    }
+
+
+export const getGetTestPlanQueryOptions = <TData = Awaited<ReturnType<typeof getTestPlan>>, TError = ErrorType<unknown>>(slug: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getTestPlan>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetTestPlanQueryKey(slug);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getTestPlan>>> = ({ signal }) => getTestPlan(slug, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(slug), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getTestPlan>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetTestPlanQueryResult = NonNullable<Awaited<ReturnType<typeof getTestPlan>>>
+export type GetTestPlanQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get the project's full test plan (suites → cases → runs)
+ */
+
+export function useGetTestPlan<TData = Awaited<ReturnType<typeof getTestPlan>>, TError = ErrorType<unknown>>(
+ slug: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getTestPlan>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetTestPlanQueryOptions(slug,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getImportTestPlanUrl = (slug: string,) => {
+
+
+
+
+  return `/api/projects/${slug}/testing/import`
+}
+
+/**
+ * Suites (and their cases) are appended after any existing suites.
+ * @summary Bulk-create suites and cases
+ */
+export const importTestPlan = async (slug: string,
+    testPlanImport: TestPlanImport, options?: RequestInit): Promise<TestPlanImportResult> => {
+
+  return customFetch<TestPlanImportResult>(getImportTestPlanUrl(slug),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      testPlanImport,)
+  }
+);}
+
+
+
+
+export const getImportTestPlanMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof importTestPlan>>, TError,{slug: string;data: BodyType<TestPlanImport>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof importTestPlan>>, TError,{slug: string;data: BodyType<TestPlanImport>}, TContext> => {
+
+const mutationKey = ['importTestPlan'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof importTestPlan>>, {slug: string;data: BodyType<TestPlanImport>}> = (props) => {
+          const {slug,data} = props ?? {};
+
+          return  importTestPlan(slug,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ImportTestPlanMutationResult = NonNullable<Awaited<ReturnType<typeof importTestPlan>>>
+    export type ImportTestPlanMutationBody = BodyType<TestPlanImport>
+    export type ImportTestPlanMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Bulk-create suites and cases
+ */
+export const useImportTestPlan = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof importTestPlan>>, TError,{slug: string;data: BodyType<TestPlanImport>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof importTestPlan>>,
+        TError,
+        {slug: string;data: BodyType<TestPlanImport>},
+        TContext
+      > => {
+      return useMutation(getImportTestPlanMutationOptions(options));
+    }
+
+export const getCreateTestSuiteUrl = (slug: string,) => {
+
+
+
+
+  return `/api/projects/${slug}/testing/suites`
+}
+
+/**
+ * @summary Create a test suite
+ */
+export const createTestSuite = async (slug: string,
+    testSuiteInput: TestSuiteInput, options?: RequestInit): Promise<TestSuite> => {
+
+  return customFetch<TestSuite>(getCreateTestSuiteUrl(slug),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      testSuiteInput,)
+  }
+);}
+
+
+
+
+export const getCreateTestSuiteMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createTestSuite>>, TError,{slug: string;data: BodyType<TestSuiteInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createTestSuite>>, TError,{slug: string;data: BodyType<TestSuiteInput>}, TContext> => {
+
+const mutationKey = ['createTestSuite'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createTestSuite>>, {slug: string;data: BodyType<TestSuiteInput>}> = (props) => {
+          const {slug,data} = props ?? {};
+
+          return  createTestSuite(slug,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateTestSuiteMutationResult = NonNullable<Awaited<ReturnType<typeof createTestSuite>>>
+    export type CreateTestSuiteMutationBody = BodyType<TestSuiteInput>
+    export type CreateTestSuiteMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Create a test suite
+ */
+export const useCreateTestSuite = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createTestSuite>>, TError,{slug: string;data: BodyType<TestSuiteInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createTestSuite>>,
+        TError,
+        {slug: string;data: BodyType<TestSuiteInput>},
+        TContext
+      > => {
+      return useMutation(getCreateTestSuiteMutationOptions(options));
+    }
+
+export const getUpdateTestSuiteUrl = (slug: string,
+    suiteId: number,) => {
+
+
+
+
+  return `/api/projects/${slug}/testing/suites/${suiteId}`
+}
+
+/**
+ * @summary Update a test suite
+ */
+export const updateTestSuite = async (slug: string,
+    suiteId: number,
+    testSuiteUpdate: TestSuiteUpdate, options?: RequestInit): Promise<TestSuite> => {
+
+  return customFetch<TestSuite>(getUpdateTestSuiteUrl(slug,suiteId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      testSuiteUpdate,)
+  }
+);}
+
+
+
+
+export const getUpdateTestSuiteMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateTestSuite>>, TError,{slug: string;suiteId: number;data: BodyType<TestSuiteUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateTestSuite>>, TError,{slug: string;suiteId: number;data: BodyType<TestSuiteUpdate>}, TContext> => {
+
+const mutationKey = ['updateTestSuite'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateTestSuite>>, {slug: string;suiteId: number;data: BodyType<TestSuiteUpdate>}> = (props) => {
+          const {slug,suiteId,data} = props ?? {};
+
+          return  updateTestSuite(slug,suiteId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateTestSuiteMutationResult = NonNullable<Awaited<ReturnType<typeof updateTestSuite>>>
+    export type UpdateTestSuiteMutationBody = BodyType<TestSuiteUpdate>
+    export type UpdateTestSuiteMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Update a test suite
+ */
+export const useUpdateTestSuite = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateTestSuite>>, TError,{slug: string;suiteId: number;data: BodyType<TestSuiteUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateTestSuite>>,
+        TError,
+        {slug: string;suiteId: number;data: BodyType<TestSuiteUpdate>},
+        TContext
+      > => {
+      return useMutation(getUpdateTestSuiteMutationOptions(options));
+    }
+
+export const getDeleteTestSuiteUrl = (slug: string,
+    suiteId: number,) => {
+
+
+
+
+  return `/api/projects/${slug}/testing/suites/${suiteId}`
+}
+
+/**
+ * @summary Delete a test suite (cascades to its cases and runs)
+ */
+export const deleteTestSuite = async (slug: string,
+    suiteId: number, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getDeleteTestSuiteUrl(slug,suiteId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+export const getDeleteTestSuiteMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteTestSuite>>, TError,{slug: string;suiteId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteTestSuite>>, TError,{slug: string;suiteId: number}, TContext> => {
+
+const mutationKey = ['deleteTestSuite'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteTestSuite>>, {slug: string;suiteId: number}> = (props) => {
+          const {slug,suiteId} = props ?? {};
+
+          return  deleteTestSuite(slug,suiteId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteTestSuiteMutationResult = NonNullable<Awaited<ReturnType<typeof deleteTestSuite>>>
+
+    export type DeleteTestSuiteMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Delete a test suite (cascades to its cases and runs)
+ */
+export const useDeleteTestSuite = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteTestSuite>>, TError,{slug: string;suiteId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteTestSuite>>,
+        TError,
+        {slug: string;suiteId: number},
+        TContext
+      > => {
+      return useMutation(getDeleteTestSuiteMutationOptions(options));
+    }
+
+export const getCreateTestCaseUrl = (slug: string,
+    suiteId: number,) => {
+
+
+
+
+  return `/api/projects/${slug}/testing/suites/${suiteId}/cases`
+}
+
+/**
+ * @summary Create a test case in a suite
+ */
+export const createTestCase = async (slug: string,
+    suiteId: number,
+    testCaseInput: TestCaseInput, options?: RequestInit): Promise<TestCase> => {
+
+  return customFetch<TestCase>(getCreateTestCaseUrl(slug,suiteId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      testCaseInput,)
+  }
+);}
+
+
+
+
+export const getCreateTestCaseMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createTestCase>>, TError,{slug: string;suiteId: number;data: BodyType<TestCaseInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createTestCase>>, TError,{slug: string;suiteId: number;data: BodyType<TestCaseInput>}, TContext> => {
+
+const mutationKey = ['createTestCase'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createTestCase>>, {slug: string;suiteId: number;data: BodyType<TestCaseInput>}> = (props) => {
+          const {slug,suiteId,data} = props ?? {};
+
+          return  createTestCase(slug,suiteId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateTestCaseMutationResult = NonNullable<Awaited<ReturnType<typeof createTestCase>>>
+    export type CreateTestCaseMutationBody = BodyType<TestCaseInput>
+    export type CreateTestCaseMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Create a test case in a suite
+ */
+export const useCreateTestCase = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createTestCase>>, TError,{slug: string;suiteId: number;data: BodyType<TestCaseInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createTestCase>>,
+        TError,
+        {slug: string;suiteId: number;data: BodyType<TestCaseInput>},
+        TContext
+      > => {
+      return useMutation(getCreateTestCaseMutationOptions(options));
+    }
+
+export const getUpdateTestCaseUrl = (slug: string,
+    caseId: number,) => {
+
+
+
+
+  return `/api/projects/${slug}/testing/cases/${caseId}`
+}
+
+/**
+ * @summary Update a test case (may move it to another suite in the same project)
+ */
+export const updateTestCase = async (slug: string,
+    caseId: number,
+    testCaseUpdate: TestCaseUpdate, options?: RequestInit): Promise<TestCase> => {
+
+  return customFetch<TestCase>(getUpdateTestCaseUrl(slug,caseId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      testCaseUpdate,)
+  }
+);}
+
+
+
+
+export const getUpdateTestCaseMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateTestCase>>, TError,{slug: string;caseId: number;data: BodyType<TestCaseUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateTestCase>>, TError,{slug: string;caseId: number;data: BodyType<TestCaseUpdate>}, TContext> => {
+
+const mutationKey = ['updateTestCase'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateTestCase>>, {slug: string;caseId: number;data: BodyType<TestCaseUpdate>}> = (props) => {
+          const {slug,caseId,data} = props ?? {};
+
+          return  updateTestCase(slug,caseId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateTestCaseMutationResult = NonNullable<Awaited<ReturnType<typeof updateTestCase>>>
+    export type UpdateTestCaseMutationBody = BodyType<TestCaseUpdate>
+    export type UpdateTestCaseMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Update a test case (may move it to another suite in the same project)
+ */
+export const useUpdateTestCase = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateTestCase>>, TError,{slug: string;caseId: number;data: BodyType<TestCaseUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateTestCase>>,
+        TError,
+        {slug: string;caseId: number;data: BodyType<TestCaseUpdate>},
+        TContext
+      > => {
+      return useMutation(getUpdateTestCaseMutationOptions(options));
+    }
+
+export const getDeleteTestCaseUrl = (slug: string,
+    caseId: number,) => {
+
+
+
+
+  return `/api/projects/${slug}/testing/cases/${caseId}`
+}
+
+/**
+ * @summary Delete a test case (cascades to its runs)
+ */
+export const deleteTestCase = async (slug: string,
+    caseId: number, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getDeleteTestCaseUrl(slug,caseId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+export const getDeleteTestCaseMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteTestCase>>, TError,{slug: string;caseId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteTestCase>>, TError,{slug: string;caseId: number}, TContext> => {
+
+const mutationKey = ['deleteTestCase'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteTestCase>>, {slug: string;caseId: number}> = (props) => {
+          const {slug,caseId} = props ?? {};
+
+          return  deleteTestCase(slug,caseId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteTestCaseMutationResult = NonNullable<Awaited<ReturnType<typeof deleteTestCase>>>
+
+    export type DeleteTestCaseMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Delete a test case (cascades to its runs)
+ */
+export const useDeleteTestCase = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteTestCase>>, TError,{slug: string;caseId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteTestCase>>,
+        TError,
+        {slug: string;caseId: number},
+        TContext
+      > => {
+      return useMutation(getDeleteTestCaseMutationOptions(options));
+    }
+
+export const getCreateTestRunUrl = (slug: string,
+    caseId: number,) => {
+
+
+
+
+  return `/api/projects/${slug}/testing/cases/${caseId}/runs`
+}
+
+/**
+ * @summary Log a test run against a case
+ */
+export const createTestRun = async (slug: string,
+    caseId: number,
+    testRunInput: TestRunInput, options?: RequestInit): Promise<TestRun> => {
+
+  return customFetch<TestRun>(getCreateTestRunUrl(slug,caseId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      testRunInput,)
+  }
+);}
+
+
+
+
+export const getCreateTestRunMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createTestRun>>, TError,{slug: string;caseId: number;data: BodyType<TestRunInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createTestRun>>, TError,{slug: string;caseId: number;data: BodyType<TestRunInput>}, TContext> => {
+
+const mutationKey = ['createTestRun'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createTestRun>>, {slug: string;caseId: number;data: BodyType<TestRunInput>}> = (props) => {
+          const {slug,caseId,data} = props ?? {};
+
+          return  createTestRun(slug,caseId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateTestRunMutationResult = NonNullable<Awaited<ReturnType<typeof createTestRun>>>
+    export type CreateTestRunMutationBody = BodyType<TestRunInput>
+    export type CreateTestRunMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Log a test run against a case
+ */
+export const useCreateTestRun = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createTestRun>>, TError,{slug: string;caseId: number;data: BodyType<TestRunInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createTestRun>>,
+        TError,
+        {slug: string;caseId: number;data: BodyType<TestRunInput>},
+        TContext
+      > => {
+      return useMutation(getCreateTestRunMutationOptions(options));
+    }
+
+export const getUpdateTestRunUrl = (slug: string,
+    runId: number,) => {
+
+
+
+
+  return `/api/projects/${slug}/testing/runs/${runId}`
+}
+
+/**
+ * @summary Update a test run
+ */
+export const updateTestRun = async (slug: string,
+    runId: number,
+    testRunUpdate: TestRunUpdate, options?: RequestInit): Promise<TestRun> => {
+
+  return customFetch<TestRun>(getUpdateTestRunUrl(slug,runId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      testRunUpdate,)
+  }
+);}
+
+
+
+
+export const getUpdateTestRunMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateTestRun>>, TError,{slug: string;runId: number;data: BodyType<TestRunUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateTestRun>>, TError,{slug: string;runId: number;data: BodyType<TestRunUpdate>}, TContext> => {
+
+const mutationKey = ['updateTestRun'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateTestRun>>, {slug: string;runId: number;data: BodyType<TestRunUpdate>}> = (props) => {
+          const {slug,runId,data} = props ?? {};
+
+          return  updateTestRun(slug,runId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateTestRunMutationResult = NonNullable<Awaited<ReturnType<typeof updateTestRun>>>
+    export type UpdateTestRunMutationBody = BodyType<TestRunUpdate>
+    export type UpdateTestRunMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Update a test run
+ */
+export const useUpdateTestRun = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateTestRun>>, TError,{slug: string;runId: number;data: BodyType<TestRunUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateTestRun>>,
+        TError,
+        {slug: string;runId: number;data: BodyType<TestRunUpdate>},
+        TContext
+      > => {
+      return useMutation(getUpdateTestRunMutationOptions(options));
+    }
+
+export const getDeleteTestRunUrl = (slug: string,
+    runId: number,) => {
+
+
+
+
+  return `/api/projects/${slug}/testing/runs/${runId}`
+}
+
+/**
+ * @summary Delete a test run
+ */
+export const deleteTestRun = async (slug: string,
+    runId: number, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getDeleteTestRunUrl(slug,runId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+export const getDeleteTestRunMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteTestRun>>, TError,{slug: string;runId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteTestRun>>, TError,{slug: string;runId: number}, TContext> => {
+
+const mutationKey = ['deleteTestRun'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteTestRun>>, {slug: string;runId: number}> = (props) => {
+          const {slug,runId} = props ?? {};
+
+          return  deleteTestRun(slug,runId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteTestRunMutationResult = NonNullable<Awaited<ReturnType<typeof deleteTestRun>>>
+
+    export type DeleteTestRunMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Delete a test run
+ */
+export const useDeleteTestRun = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteTestRun>>, TError,{slug: string;runId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteTestRun>>,
+        TError,
+        {slug: string;runId: number},
+        TContext
+      > => {
+      return useMutation(getDeleteTestRunMutationOptions(options));
     }
 

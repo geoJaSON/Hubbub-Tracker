@@ -1,7 +1,7 @@
 // AUTO-GENERATED from mobile-test-plan.html — the starter "Field App" manual
 // test plan. Imported on demand from the Testing tab's empty state; edit there,
 // not here. Regenerate with `node scripts/gen-seed.mjs` if the source changes.
-import type { TestPlanImport } from "./api";
+import type { TestPlanImport } from "@workspace/api-client-react";
 
 export const MOBILE_TEST_PLAN: TestPlanImport = {
   "suites": [

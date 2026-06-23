@@ -223,7 +223,79 @@ assistant can fill in `scopeId`, `milestoneId`, `componentId`, or `assigneeId`.
 
 ---
 
-## 6. Errors
+## 6. Manage the test plan (suites → cases → runs)
+
+Each project has a manual **test plan**: a list of **suites** (sections), each
+holding **cases** (scenarios), each with a history of **runs** (one execution on
+one device). A case's *current status* is derived from its newest run.
+
+All routes are under `/api/projects/{slug}/testing` and require the same
+`Authorization: Bearer` header + project membership as everything else.
+
+### Read the whole plan
+
+**`GET /api/projects/{slug}/testing`** → `{ "suites": [ … ] }`
+
+Every suite includes its `cases`; every case includes its `runs` (newest first)
+plus server-derived fields: `currentStatus`, `lastTestedAt`, and `devices`
+(distinct device labels it has run on).
+
+```jsonc
+{
+  "suites": [
+    {
+      "id": 1, "code": "B", "title": "Auth & session", "warn": false, "order": 1,
+      "cases": [
+        {
+          "id": 7, "code": "B2", "title": "Login with no network",
+          "expected": "Graceful offline message, not a hang", "owner": "You",
+          "currentStatus": "pass",            // pass | fail | skip | blocked | untested
+          "lastTestedAt": "2026-06-20T14:02:00.000Z",
+          "devices": ["iPhone 14", "Pixel 7"],
+          "runs": [ { "id": 31, "result": "pass", "device": "Pixel 7", "testedAt": "2026-06-20T14:02:00.000Z", "note": null } ]
+        }
+      ]
+    }
+  ]
+}
+```
+
+### Endpoints
+
+| Purpose | Method & path | Body |
+| --- | --- | --- |
+| Get the full plan | `GET /api/projects/{slug}/testing` | — |
+| Bulk-import suites+cases | `POST /api/projects/{slug}/testing/import` | `{ suites: [{ code?, title, warn?, cases: [{ code?, title, expected?, owner? }] }] }` |
+| Create a suite | `POST /api/projects/{slug}/testing/suites` | `{ title, code?, warn? }` |
+| Update a suite | `PATCH /api/projects/{slug}/testing/suites/{suiteId}` | `{ title?, code?, warn?, order? }` |
+| Delete a suite (cascades) | `DELETE /api/projects/{slug}/testing/suites/{suiteId}` | — |
+| Create a case | `POST /api/projects/{slug}/testing/suites/{suiteId}/cases` | `{ title, code?, expected?, owner? }` |
+| Update a case | `PATCH /api/projects/{slug}/testing/cases/{caseId}` | `{ title?, code?, expected?, owner?, order?, suiteId? }` |
+| Delete a case (cascades) | `DELETE /api/projects/{slug}/testing/cases/{caseId}` | — |
+| Log a run | `POST /api/projects/{slug}/testing/cases/{caseId}/runs` | `{ result, device?, note?, testedAt? }` |
+| Update a run | `PATCH /api/projects/{slug}/testing/runs/{runId}` | `{ result?, device?, note?, testedAt? }` |
+| Delete a run | `DELETE /api/projects/{slug}/testing/runs/{runId}` | — |
+
+**`result` enum (required when logging a run):** `pass`, `fail`, `skip`, `blocked`.
+`testedAt` is an ISO date-time and defaults to now when omitted.
+
+### Example — log a passing run
+
+```bash
+curl -X POST \
+  "https://YOUR-DOMAIN/api/projects/field-app/testing/cases/7/runs" \
+  -H "Authorization: Bearer $HUBBUB_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{ "result": "pass", "device": "Pixel 7", "note": "offline banner cleared on reconnect" }'
+```
+
+> Tip for assistants: `GET …/testing` first to discover suite/case IDs, then log
+> runs against the case IDs you find. Use `…/import` to seed a brand-new plan in
+> one call.
+
+---
+
+## 7. Errors
 
 | Status | Meaning |
 | --- | --- |

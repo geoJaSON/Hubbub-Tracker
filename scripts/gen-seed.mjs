@@ -52,7 +52,7 @@ const banner = `// AUTO-GENERATED from mobile-test-plan.html — the starter "Fi
 
 const out =
   banner +
-  `import type { TestPlanImport } from "./api";\n\n` +
+  `import type { TestPlanImport } from "@workspace/api-client-react";\n\n` +
   `export const MOBILE_TEST_PLAN: TestPlanImport = ${JSON.stringify({ suites }, null, 2)};\n`;
 
 writeFileSync(outFile, out, "utf8");

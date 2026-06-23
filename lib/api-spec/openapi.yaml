@@ -30,6 +30,7 @@ tags:
   - name: attachments
   - name: notifications
   - name: dependencies
+  - name: testing
 
 paths:
   /healthz:
@@ -1632,6 +1633,285 @@ paths:
         "204":
           description: Marked read
 
+  # ── Testing (per-project manual test plan) ─────────────────────────────────
+  /projects/{slug}/testing:
+    get:
+      operationId: getTestPlan
+      tags: [testing]
+      summary: Get the project's full test plan (suites → cases → runs)
+      description: >
+        Returns every suite with its cases, and every case with its run history
+        plus server-derived fields: `currentStatus` (the newest run's result, or
+        `untested`), `lastTestedAt`, and the distinct `devices` it has run on.
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The test plan
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TestPlan"
+
+  /projects/{slug}/testing/import:
+    post:
+      operationId: importTestPlan
+      tags: [testing]
+      summary: Bulk-create suites and cases
+      description: Suites (and their cases) are appended after any existing suites.
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TestPlanImport"
+      responses:
+        "201":
+          description: Imported
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TestPlanImportResult"
+
+  /projects/{slug}/testing/suites:
+    post:
+      operationId: createTestSuite
+      tags: [testing]
+      summary: Create a test suite
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TestSuiteInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TestSuite"
+
+  /projects/{slug}/testing/suites/{suiteId}:
+    patch:
+      operationId: updateTestSuite
+      tags: [testing]
+      summary: Update a test suite
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: suiteId
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TestSuiteUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TestSuite"
+    delete:
+      operationId: deleteTestSuite
+      tags: [testing]
+      summary: Delete a test suite (cascades to its cases and runs)
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: suiteId
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /projects/{slug}/testing/suites/{suiteId}/cases:
+    post:
+      operationId: createTestCase
+      tags: [testing]
+      summary: Create a test case in a suite
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: suiteId
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TestCaseInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TestCase"
+
+  /projects/{slug}/testing/cases/{caseId}:
+    patch:
+      operationId: updateTestCase
+      tags: [testing]
+      summary: Update a test case (may move it to another suite in the same project)
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: caseId
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TestCaseUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TestCase"
+    delete:
+      operationId: deleteTestCase
+      tags: [testing]
+      summary: Delete a test case (cascades to its runs)
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: caseId
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /projects/{slug}/testing/cases/{caseId}/runs:
+    post:
+      operationId: createTestRun
+      tags: [testing]
+      summary: Log a test run against a case
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: caseId
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TestRunInput"
+      responses:
+        "201":
+          description: Logged
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TestRun"
+
+  /projects/{slug}/testing/runs/{runId}:
+    patch:
+      operationId: updateTestRun
+      tags: [testing]
+      summary: Update a test run
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: runId
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TestRunUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TestRun"
+    delete:
+      operationId: deleteTestRun
+      tags: [testing]
+      summary: Delete a test run
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: runId
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
 components:
   schemas:
     HealthStatus:
@@ -2874,3 +3154,239 @@ components:
         laborCents:
           type: integer
           description: Sum of (billable minutes × user hourly rate) for items linked to this scope.
+
+    # ── Testing ────────────────────────────────────────────────────────────
+    TestRunResult:
+      type: string
+      enum: [pass, fail, skip, blocked]
+      description: The outcome of a single test run.
+
+    TestCaseStatus:
+      type: string
+      enum: [pass, fail, skip, blocked, untested]
+      description: A case's current status — its newest run's result, or `untested`.
+
+    TestRun:
+      type: object
+      required: [id, caseId, result, testedAt, createdAt]
+      properties:
+        id:
+          type: integer
+        caseId:
+          type: integer
+        result:
+          $ref: "#/components/schemas/TestRunResult"
+        device:
+          type: ["string", "null"]
+          description: Free-form device label, e.g. "iPhone 14", "Pixel 7".
+        note:
+          type: ["string", "null"]
+        testedAt:
+          type: string
+          format: date-time
+        createdById:
+          type: ["string", "null"]
+          description: User id (clerkId) of whoever logged the run.
+        createdAt:
+          type: string
+          format: date-time
+
+    TestCase:
+      type: object
+      required: [id, suiteId, title, order, createdAt, updatedAt, runs, currentStatus, devices]
+      properties:
+        id:
+          type: integer
+        suiteId:
+          type: integer
+        code:
+          type: ["string", "null"]
+        title:
+          type: string
+        expected:
+          type: ["string", "null"]
+          description: The expected result / pass condition.
+        owner:
+          type: ["string", "null"]
+        order:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        runs:
+          type: array
+          description: Run history, newest first.
+          items:
+            $ref: "#/components/schemas/TestRun"
+        currentStatus:
+          $ref: "#/components/schemas/TestCaseStatus"
+        lastTestedAt:
+          type: ["string", "null"]
+          format: date-time
+        devices:
+          type: array
+          description: Distinct devices this case has run on.
+          items:
+            type: string
+
+    TestSuite:
+      type: object
+      required: [id, projectId, title, warn, order, createdAt, cases]
+      properties:
+        id:
+          type: integer
+        projectId:
+          type: integer
+        code:
+          type: ["string", "null"]
+        title:
+          type: string
+        warn:
+          type: boolean
+          description: Marks a high-risk area.
+        order:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        cases:
+          type: array
+          items:
+            $ref: "#/components/schemas/TestCase"
+
+    TestPlan:
+      type: object
+      required: [suites]
+      properties:
+        suites:
+          type: array
+          items:
+            $ref: "#/components/schemas/TestSuite"
+
+    TestSuiteInput:
+      type: object
+      required: [title]
+      properties:
+        title:
+          type: string
+        code:
+          type: ["string", "null"]
+        warn:
+          type: boolean
+
+    TestSuiteUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+        code:
+          type: ["string", "null"]
+        warn:
+          type: boolean
+        order:
+          type: integer
+
+    TestCaseInput:
+      type: object
+      required: [title]
+      properties:
+        title:
+          type: string
+        code:
+          type: ["string", "null"]
+        expected:
+          type: ["string", "null"]
+        owner:
+          type: ["string", "null"]
+
+    TestCaseUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+        code:
+          type: ["string", "null"]
+        expected:
+          type: ["string", "null"]
+        owner:
+          type: ["string", "null"]
+        order:
+          type: integer
+        suiteId:
+          type: integer
+          description: Move the case to another suite in the same project.
+
+    TestRunInput:
+      type: object
+      required: [result]
+      properties:
+        result:
+          $ref: "#/components/schemas/TestRunResult"
+        device:
+          type: ["string", "null"]
+        note:
+          type: ["string", "null"]
+        testedAt:
+          type: string
+          format: date-time
+          description: Defaults to now when omitted.
+
+    TestRunUpdate:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/TestRunResult"
+        device:
+          type: ["string", "null"]
+        note:
+          type: ["string", "null"]
+        testedAt:
+          type: string
+          format: date-time
+
+    TestPlanImport:
+      type: object
+      required: [suites]
+      properties:
+        suites:
+          type: array
+          items:
+            type: object
+            required: [title, cases]
+            properties:
+              code:
+                type: string
+              title:
+                type: string
+              warn:
+                type: boolean
+              cases:
+                type: array
+                items:
+                  type: object
+                  required: [title]
+                  properties:
+                    code:
+                      type: string
+                    title:
+                      type: string
+                    expected:
+                      type: string
+                    owner:
+                      type: string
+
+    TestPlanImportResult:
+      type: object
+      required: [ok, suites, cases]
+      properties:
+        ok:
+          type: boolean
+        suites:
+          type: integer
+          description: Number of suites created.
+        cases:
+          type: integer
+          description: Number of cases created.

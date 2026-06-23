@@ -1036,6 +1036,178 @@ export interface BurnDown {
   scopes: ScopeBurnDown[];
 }
 
+/**
+ * The outcome of a single test run.
+ */
+export type TestRunResult = typeof TestRunResult[keyof typeof TestRunResult];
+
+
+export const TestRunResult = {
+  pass: 'pass',
+  fail: 'fail',
+  skip: 'skip',
+  blocked: 'blocked',
+} as const;
+
+/**
+ * A case's current status — its newest run's result, or `untested`.
+ */
+export type TestCaseStatus = typeof TestCaseStatus[keyof typeof TestCaseStatus];
+
+
+export const TestCaseStatus = {
+  pass: 'pass',
+  fail: 'fail',
+  skip: 'skip',
+  blocked: 'blocked',
+  untested: 'untested',
+} as const;
+
+export interface TestRun {
+  id: number;
+  caseId: number;
+  result: TestRunResult;
+  /**
+     * Free-form device label, e.g. "iPhone 14", "Pixel 7".
+     * @nullable
+     */
+  device?: string | null;
+  /** @nullable */
+  note?: string | null;
+  testedAt: string;
+  /**
+     * User id (clerkId) of whoever logged the run.
+     * @nullable
+     */
+  createdById?: string | null;
+  createdAt: string;
+}
+
+export interface TestCase {
+  id: number;
+  suiteId: number;
+  /** @nullable */
+  code?: string | null;
+  title: string;
+  /**
+     * The expected result / pass condition.
+     * @nullable
+     */
+  expected?: string | null;
+  /** @nullable */
+  owner?: string | null;
+  order: number;
+  createdAt: string;
+  updatedAt: string;
+  /** Run history, newest first. */
+  runs: TestRun[];
+  currentStatus: TestCaseStatus;
+  /** @nullable */
+  lastTestedAt?: string | null;
+  /** Distinct devices this case has run on. */
+  devices: string[];
+}
+
+export interface TestSuite {
+  id: number;
+  projectId: number;
+  /** @nullable */
+  code?: string | null;
+  title: string;
+  /** Marks a high-risk area. */
+  warn: boolean;
+  order: number;
+  createdAt: string;
+  cases: TestCase[];
+}
+
+export interface TestPlan {
+  suites: TestSuite[];
+}
+
+export interface TestSuiteInput {
+  title: string;
+  /** @nullable */
+  code?: string | null;
+  warn?: boolean;
+}
+
+export interface TestSuiteUpdate {
+  title?: string;
+  /** @nullable */
+  code?: string | null;
+  warn?: boolean;
+  order?: number;
+}
+
+export interface TestCaseInput {
+  title: string;
+  /** @nullable */
+  code?: string | null;
+  /** @nullable */
+  expected?: string | null;
+  /** @nullable */
+  owner?: string | null;
+}
+
+export interface TestCaseUpdate {
+  title?: string;
+  /** @nullable */
+  code?: string | null;
+  /** @nullable */
+  expected?: string | null;
+  /** @nullable */
+  owner?: string | null;
+  order?: number;
+  /** Move the case to another suite in the same project. */
+  suiteId?: number;
+}
+
+export interface TestRunInput {
+  result: TestRunResult;
+  /** @nullable */
+  device?: string | null;
+  /** @nullable */
+  note?: string | null;
+  /** Defaults to now when omitted. */
+  testedAt?: string;
+}
+
+export interface TestRunUpdate {
+  result?: TestRunResult;
+  /** @nullable */
+  device?: string | null;
+  /** @nullable */
+  note?: string | null;
+  testedAt?: string;
+}
+
+export type TestPlanImportSuitesItemCasesItem = {
+  code?: string;
+  title: string;
+  expected?: string;
+  owner?: string;
+};
+
+export type TestPlanImportSuitesItem = {
+  code?: string;
+  title: string;
+  warn?: boolean;
+  cases: TestPlanImportSuitesItemCasesItem[];
+};
+
+export interface TestPlanImport {
+  suites: TestPlanImportSuitesItem[];
+}
+
+export interface TestPlanImportResult {
+  ok: boolean;
+  /** Number of suites created. */
+  suites: number;
+  /** Number of cases created. */
+  cases: number;
+}
+
 export type SearchParams = {
 q: string;
 };
