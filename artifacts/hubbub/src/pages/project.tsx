@@ -60,6 +60,7 @@ import { cn } from "@/lib/utils";
 import { MarkdownRenderer } from "@/components/markdown-renderer";
 import { FlowEditor } from "@/components/flow-editor";
 import { GanttScheduler } from "@/components/gantt-scheduler";
+import { TestingTab } from "@/components/testing-tab";
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -1080,6 +1081,7 @@ export default function ProjectPage() {
               { value: "docs", label: "DOCS" },
               { value: "flows", label: "FLOWS" },
               { value: "schedule", label: "SCHEDULE" },
+              { value: "testing", label: "TESTING" },
               { value: "activity", label: "ACTIVITY" },
               { value: "standup", label: "STANDUP" },
               { value: "members", label: "MEMBERS" },
@@ -1773,6 +1775,11 @@ export default function ProjectPage() {
                 toast({ title: "Milestone deleted" });
               }}
             />
+          </TabsContent>
+
+          {/* TESTING TAB — per-project manual test plan */}
+          <TabsContent value="testing" className="mt-3">
+            {slug && <TestingTab slug={slug} />}
           </TabsContent>
 
           {/* ACTIVITY TAB */}

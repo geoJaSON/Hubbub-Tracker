@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Field App — Manual Test Plan</title>
+<style>
+  :root {
+    --bg: #0f1115; --panel: #171a21; --panel2: #1d212b; --line: #2a2f3a;
+    --text: #e6e9ef; --muted: #9aa3b2; --accent: #4f9cff;
+    --pass: #3fb950; --fail: #f85149; --skip: #d29922; --todo: #6e7681;
+    --who-you: #a371f7; --who-me: #2dd4bf; --who-both: #f0883e;
+    --warn-bg: #2b1d1d;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 14px/1.5 -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  header {
+    position: sticky; top: 0; z-index: 10; background: rgba(15,17,21,.92);
+    backdrop-filter: blur(8px); border-bottom: 1px solid var(--line);
+    padding: 16px 24px;
+  }
+  h1 { margin: 0 0 4px; font-size: 20px; }
+  .sub { color: var(--muted); font-size: 13px; }
+  .bar { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; margin-top: 12px; }
+  .legend { display: flex; gap: 12px; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
+  .legend span { display: inline-flex; align-items: center; gap: 5px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  .who-tag {
+    font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 10px;
+    border: 1px solid currentColor; white-space: nowrap;
+  }
+  .you { color: var(--who-you); } .me { color: var(--who-me); } .both { color: var(--who-both); }
+  .controls { display: flex; gap: 8px; align-items: center; margin-left: auto; flex-wrap: wrap; }
+  select, button, input {
+    background: var(--panel2); color: var(--text); border: 1px solid var(--line);
+    border-radius: 7px; padding: 6px 10px; font-size: 13px;
+  }
+  button { cursor: pointer; }
+  button:hover { border-color: var(--accent); }
+  .progress-wrap { display:flex; align-items:center; gap:10px; }
+  .progress { width: 200px; height: 8px; background: var(--panel2); border-radius: 5px; overflow: hidden; }
+  .progress > i { display: block; height: 100%; background: var(--pass); width: 0; transition: width .3s; }
+  main { max-width: 1100px; margin: 0 auto; padding: 20px 24px 80px; }
+  section { margin-bottom: 28px; }
+  .sec-head {
+    display: flex; align-items: center; gap: 10px; cursor: pointer;
+    padding: 10px 14px; background: var(--panel); border: 1px solid var(--line);
+    border-radius: 10px; user-select: none;
+  }
+  .sec-head:hover { border-color: var(--accent); }
+  .sec-head h2 { margin: 0; font-size: 15px; flex: 1; }
+  .sec-head .count { font-size: 12px; color: var(--muted); }
+  .sec-head .chev { transition: transform .2s; color: var(--muted); }
+  section.collapsed .chev { transform: rotate(-90deg); }
+  section.collapsed .rows { display: none; }
+  .warn { color: var(--fail); font-weight: 600; }
+  .rows { margin-top: 8px; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  .row {
+    display: grid; grid-template-columns: 54px 1fr 70px 130px;
+    gap: 12px; align-items: center; padding: 10px 14px;
+    border-top: 1px solid var(--line); background: var(--panel);
+  }
+  .row:first-child { border-top: none; }
+  .row:hover { background: var(--panel2); }
+  .row.warn-row { background: var(--warn-bg); }
+  .row.warn-row:hover { filter: brightness(1.12); }
+  .id { color: var(--muted); font-variant-numeric: tabular-nums; font-weight: 600; font-size: 12px; }
+  .desc strong { color: #fff; }
+  .desc .exp { color: var(--muted); font-size: 12.5px; display: block; margin-top: 2px; }
+  .status-btn {
+    width: 100%; padding: 5px 0; border-radius: 6px; font-size: 16px; text-align: center;
+    border: 1px solid var(--line); background: var(--panel2); cursor: pointer;
+  }
+  .status-btn[data-s="pass"] { background: rgba(63,185,80,.15); border-color: var(--pass); }
+  .status-btn[data-s="fail"] { background: rgba(248,81,73,.15); border-color: var(--fail); }
+  .status-btn[data-s="skip"] { background: rgba(210,153,34,.15); border-color: var(--skip); }
+  .note {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+    padding: 14px 18px; color: var(--muted); font-size: 13px; margin-top: 8px;
+  }
+  .note strong { color: var(--text); }
+  .hidden { display: none !important; }
+  @media (max-width: 680px) {
+    .row { grid-template-columns: 40px 1fr; }
+    .row .status-btn, .row .who-cell { grid-column: 2; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Field App — Manual Test Plan</h1>
+  <div class="sub"><code>MOBILE_APP/artifacts/field-app</code> (Expo SDK 54) · click a status to cycle 🔲→✅→❌→⏭️ · progress saved in this browser</div>
+  <div class="bar">
+    <div class="legend">
+      <span class="who-tag you">You</span> device / network / camera
+      <span class="who-tag me">Me</span> code &amp; mock-server
+      <span class="who-tag both">Both</span> you drive, I inject failures
+    </div>
+    <div class="controls">
+      <input id="search" type="search" placeholder="Filter scenarios…" style="width:180px">
+      <select id="filterWho">
+        <option value="">All owners</option>
+        <option value="You">You</option>
+        <option value="Me">Me</option>
+        <option value="Both">Both</option>
+      </select>
+      <select id="filterStatus">
+        <option value="">All statuses</option>
+        <option value="todo">Not run</option>
+        <option value="pass">Pass</option>
+        <option value="fail">Fail</option>
+        <option value="skip">Skipped</option>
+      </select>
+      <button id="expandAll">Expand all</button>
+      <button id="resetAll">Reset</button>
+    </div>
+  </div>
+  <div class="bar">
+    <div class="progress-wrap">
+      <div class="progress"><i id="progFill"></i></div>
+      <span id="progText" class="sub">0 / 0 run</span>
+    </div>
+  </div>
+</header>
+
+<main id="app"></main>
+
+<script>
+const DATA = [
+  { id: "A", title: "Account & identity lifecycle", rows: [
+    ["A1","Create &amp; log in each account type: <strong>crew_member, roe_manager, safety_inspector</strong>","crew/roe_manager → crew home; inspector → inspector home","You"],
+    ["A2","Log in as unsupported role (sub_admin, primary_*)","Routed to <code>/use-the-portal</code>, not crew screens","You"],
+    ["A3","Account exists but onboarding incomplete","Routed to <code>/onboarding-incomplete</code>","You"],
+    ["A4","<strong>Password change</strong> from portal while crew logged in","Old session works until refresh, then forces re-login; no silent 401 loop","Both"],
+    ["A5","<strong>Password reset</strong> (forgot password) end-to-end","New password works; old one rejected","You"],
+    ["A6","<strong>Crew moves to a different company</strong> — log in after","Sees only new company's WOs; roster cache refreshes (not stale)","Both"],
+    ["A7","Crew moves companies <strong>while holding unsynced work</strong> for old company","Decide intended behavior: flush under old scope vs orphaned (tenant-isolation risk)","Both"],
+    ["A8","Account <strong>deactivated/suspended</strong> mid-session","Next /api/me or sync 401/403 → involuntary sign-out, photos preserved","Both"],
+    ["A9","Role changed mid-session (crew_member → roe_manager)","New permissions on next boot; no stuck UI","Both"],
+    ["A10","Same person, <strong>two devices</strong> — submit on #1, open WO on #2","No duplicate work record; #2 reflects submitted state after refresh","You"],
+  ]},
+  { id: "B", title: "Auth & session", rows: [
+    ["B1","Login with wrong password","Clear error, no crash","You"],
+    ["B2","Login with no network","Graceful offline message, not a hang","You"],
+    ["B3","Token expiry <strong>while online</strong>","Supabase auto-refreshes silently; user notices nothing","You"],
+    ["B4","Token expiry <strong>while offline</strong>, within 24h grace","Boots on cached identity, 'server unreachable' banner, sync gated off","Both"],
+    ["B5","Offline <strong>beyond 24h grace</strong> → relaunch","Forced to login even offline","Both"],
+    ["B6","Reconnect after running on grace identity","resync() re-verifies, clears banner — or signs out if token invalid","Both"],
+    ["B7","<strong>Explicit sign-out with unsynced work</strong>","Confirm dialog warns; 'Sync now' flushes first; cancel keeps work","You"],
+    ["B8","<strong>Involuntary sign-out</strong> (token revoked) with unsynced work","Photos+attendance+queue preserved; only identity caches cleared","Both"],
+    ["B9","<strong>Shared device</strong> — user A out, user B in","A's photos/attendance/outbox purged (multi-user barrier #216)","You"],
+    ["B10","Shared device — A out, A back in (no B between)","A's unsynced work still there","You"],
+  ]},
+  { id: "C", title: "Connectivity & sync — interruption seams", warn: true, rows: [
+    ["C1","<strong>Full offline submit</strong>: airplane mode → check in → photos → submit","All queued; banner shows pending; nothing lost","You"],
+    ["C2","Offline submit → <strong>go online</strong>","Flushes record→photos→attendance→done; record+photos land","Both"],
+    ["C3","Cut off <strong>mid-record</strong> (drop net right after submit)","Retries from record; server dedup on (deviceId, clientTempId) → no dup","Both"],
+    ["C4","Cut off <strong>between record and photos</strong>","Resumes at photos using saved workRecordId; no second record","Both"],
+    ["C5","Cut off <strong>mid-photo upload</strong> (one of N done)","Resumes; uploaded photos not re-sent; attempts reset per landed photo","Both"],
+    ["C6","Cut off <strong>between photos and attendance</strong>","Resumes at attendance; photos not re-uploaded","Both"],
+    ["C7","<strong>attendance step returns 429/500</strong>","Retries w/ backoff; does NOT lose completed record+photos","Me"],
+    ["C8","attendance returns <strong>409 (already checked in)</strong>","Treated as success → done","Me"],
+    ["C9","<strong>App killed mid-flush</strong> (in_flight, lease held)","reclaimInFlight() re-queues after lease expiry; completes","Both"],
+    ["C10","App killed mid-flush, then <strong>8+ retry failures</strong>","Row → failed (no relaunch loop), surfaces in Settings","Me"],
+    ["C11","<strong>Backoff reset on reconnect</strong>: ~10 fails offline → reconnect","flushNow() fires immediately on connectivity, not after long backoff","Both"],
+    ["C12","<strong>Concurrent flush guard</strong>: spam 'Sync now' mid-flush","Only one flush in flight (running gate); no double-execute","Both"],
+    ["C13","Flaky network (rapid online/offline flips during submit)","Eventually consistent, exactly-once record; no orphaned in_flight","Me"],
+    ["C14","15s periodic flush picks up stuck pending row","Auto-flushes when online","You"],
+    ["C15","App <strong>backgrounded offline → foregrounded online</strong>","resync() runs on foreground, flushes","You"],
+  ]},
+  { id: "D", title: "Core field workflow (happy paths + gates)", rows: [
+    ["D1","Self check-in on-site (within range)","One tap, queued immediately","You"],
+    ["D2","Self check-in <strong>&gt;200ft from WO</strong>","Confirm dialog warns; confirm → queued","You"],
+    ["D3","<strong>QR badge scan</strong> valid (BDR:{rosterMemberId} on roster)","Member added, attendance queued, shown live","You"],
+    ["D4","QR scan invalid / not a Big Dog badge","'Not a Big Dog badge' message, no queue row","You"],
+    ["D5","QR scan member not on this crew's roster","Rejected","You"],
+    ["D6","QR scanner rapid re-scan of same code","1.5s cooldown prevents double-fire","You"],
+    ["D7","<strong>Photos/disputes blocked until check-in</strong> (#203)","Actions unavailable until a check-in row exists","You"],
+    ["D8","Failed check-in (status=failed) does NOT unlock gates","Gates stay locked","Both"],
+    ["D9","Submit with 0 crew hours / no member","Validation blocks","You"],
+    ["D10","Submit with a required photo slot empty","Validation blocks","You"],
+    ["D11","<strong>Dispute</strong> each reason code; 'other' requires notes","Queued; 'other' w/o notes blocked","You"],
+    ["D12","Cancel/rework/incident-ack from notification → WO banner","Queued; caches invalidated so banner clears","You"],
+    ["D13","Rework-ack reopens job for resubmit","Submit re-enabled; fresh clientTempId issued","Both"],
+    ["D14","Inspector files incident (type/severity/description)","Queued","You"],
+  ]},
+  { id: "E", title: "Photos & camera", rows: [
+    ["E1","<strong>Multi-photo slot</strong>: add 3 → badge → delete 1 → submit","Only 2 uploaded; manifest matches","You"],
+    ["E2","<strong>Delete photo before upload</strong>, then submit","Parked failed 'Photos missing'; retake → submit succeeds (#181/#293)","Both"],
+    ["E3","Before/After prerequisite: After locked until Before captured","After slot disabled with reason until Before exists","You"],
+    ["E4","<strong>Watermark</strong> correctness","WO#, slot label, GPS, user name, timestamp burned in","You"],
+    ["E5","Photo with GPS off / no fix","geo_flagged set; still capturable (verify intended)","You"],
+    ["E6","Camera permission denied","Graceful prompt, no crash","You"],
+    ["E7","Capture many photos → <strong>device storage full</strong>","Graceful error, queue not corrupted","You"],
+    ["E8","Local file reclaimed after upload (remote_id set)","Storage freed; thumbnail resolves from remote","You"],
+  ]},
+  { id: "F", title: "Idempotency & dedupe — the 'duplicate work record' class", warn: true, rows: [
+    ["F1","<strong>Double-tap submit</strong> rapidly","busy flag + clientTempId idempotency → one outbox row","Both"],
+    ["F2","Submit → kill app before done persists → relaunch","Resumes, no duplicate record (durable submit-key:{woId})","Both"],
+    ["F3","Submit succeeds server-side but ack lost (response dropped)","Retry → server returns existing record, marks done","Me"],
+    ["F4","Resubmit <strong>after rework-ack</strong>","New clientTempId (old cleared at done) → new record, no collision","Both"],
+    ["F5","Same (kind, clientTempId) enqueued twice","enqueue() returns existing row id, no second row","Me"],
+    ["F6","Ack kinds re-sent after success","409 treated as success (idempotent)","Me"],
+    ["F7","CrewMap duplicate 'enters' from GPS jitter at same site","Bucketed per-day coalesces (cosmetic; #335)","You"],
+  ]},
+  { id: "G", title: "Roles, permissions & tenant isolation", rows: [
+    ["G1","crew_member sees only their crew's WOs","No cross-company leakage","You"],
+    ["G2","roe_manager extra capabilities vs crew_member","Manager-only actions visible only to manager","You"],
+    ["G3","Inspector can't access crew submit flows (and vice versa)","Route separation enforced","You"],
+    ["G4","Crew roster cache scoped to user's crew (not global)","Manual check-in picker shows only own crew","You"],
+    ["G5","Open a WO id not in scope (deep link / stale cache)","Blocked / not-found, no data leak","Both"],
+  ]},
+  { id: "H", title: "Push notifications", rows: [
+    ["H1","Device token registers on login","Settings shows 'Active'","You"],
+    ["H2","Push permission denied","Settings shows 'Permission denied', app still works","You"],
+    ["H3","Portal sends cancel/rework/incident push","Notification arrives, deep-links to WO","You"],
+    ["H4","Sign-out unregisters device token (while session valid)","Old user stops receiving pushes","Both"],
+    ["H5","Notification tap while app killed (cold start)","Routes to correct WO after boot","You"],
+  ]},
+  { id: "I", title: "Data integrity & device edge cases", rows: [
+    ["I1","<strong>Clock skew</strong> — device time wrong","created_at/next_attempt_at/backoff sane; no permanently-future rows","Both"],
+    ["I2","<strong>App update / schema migration</strong> with queued rows","Outbox/photos survive upgrade; no data loss","Both"],
+    ["I3","Low memory — OS kills app during photo processing","Photo fully saved or absent (no half-written row)","You"],
+    ["I4","Timezone change (travel) mid-job","Timestamps consistent (UTC server-side)","You"],
+    ["I5","Very large queue (50+ pending)","Flush handles batch without UI freeze","Both"],
+    ["I6","Corrupt/partial SQLite recovery","App boots, doesn't brick","Me"],
+  ]},
+  { id: "J", title: "UI / UX states", rows: [
+    ["J1","Empty states (no WOs, no photos, no failed items)","Friendly empty UI","You"],
+    ["J2","Submit status card: step/attempts/next-retry/error","Accurate live state","You"],
+    ["J3","Settings queue counts (pending/in-flight/failed/retrying)","Matches DB","Both"],
+    ["J4","Failed item Retry / Discard buttons","Retry re-enqueues; Discard removes","You"],
+    ["J5","Connectivity banner appears/clears correctly","Tracks real network state","You"],
+  ]},
+];
+
+const STATUSES = ["todo","pass","fail","skip"];
+const ICON = { todo:"🔲", pass:"✅", fail:"❌", skip:"⏭️" };
+const WHO_CLASS = { You:"you", Me:"me", Both:"both" };
+const STORE_KEY = "fieldAppTestPlan.v1";
+let state = JSON.parse(localStorage.getItem(STORE_KEY) || "{}");
+
+function save(){ localStorage.setItem(STORE_KEY, JSON.stringify(state)); }
+
+function render(){
+  const app = document.getElementById("app");
+  app.innerHTML = "";
+  for (const sec of DATA){
+    const section = document.createElement("section");
+    section.dataset.sec = sec.id;
+    const done = sec.rows.filter(r => (state[r[0]]||"todo") !== "todo").length;
+    section.innerHTML = `
+      <div class="sec-head">
+        <span class="chev">▾</span>
+        <h2>${sec.id}. ${sec.title} ${sec.warn?'<span class="warn">⚠️</span>':''}</h2>
+        <span class="count">${done}/${sec.rows.length}</span>
+      </div>
+      <div class="rows">
+        ${sec.rows.map(r => {
+          const st = state[r[0]] || "todo";
+          return `<div class="row ${sec.warn?'warn-row':''}" data-id="${r[0]}" data-who="${r[3]}" data-status="${st}" data-text="${(r[1]+' '+r[2]).replace(/<[^>]+>/g,'').replace(/"/g,'&quot;').toLowerCase()}">
+            <div class="id">${r[0]}</div>
+            <div class="desc">${r[1]}<span class="exp">${r[2]}</span></div>
+            <button class="status-btn" data-s="${st}" title="cycle status">${ICON[st]}</button>
+            <div class="who-cell"><span class="who-tag ${WHO_CLASS[r[3]]}">${r[3]}</span></div>
+          </div>`;
+        }).join("")}
+      </div>`;
+    app.appendChild(section);
+  }
+  bind();
+  applyFilters();
+  updateProgress();
+}
+
+function bind(){
+  document.querySelectorAll(".sec-head").forEach(h => {
+    h.onclick = e => { if(e.target.closest(".status-btn"))return; h.parentElement.classList.toggle("collapsed"); };
+  });
+  document.querySelectorAll(".status-btn").forEach(b => {
+    b.onclick = e => {
+      e.stopPropagation();
+      const row = b.closest(".row");
+      const id = row.dataset.id;
+      const cur = state[id] || "todo";
+      const next = STATUSES[(STATUSES.indexOf(cur)+1) % STATUSES.length];
+      if(next === "todo") delete state[id]; else state[id] = next;
+      b.dataset.s = next; b.textContent = ICON[next]; row.dataset.status = next;
+      save(); updateProgress(); updateCounts(); applyFilters();
+    };
+  });
+}
+
+function updateCounts(){
+  document.querySelectorAll("section").forEach(section => {
+    const sec = DATA.find(s => s.id === section.dataset.sec);
+    const done = sec.rows.filter(r => (state[r[0]]||"todo") !== "todo").length;
+    section.querySelector(".count").textContent = `${done}/${sec.rows.length}`;
+  });
+}
+
+function updateProgress(){
+  const all = DATA.flatMap(s => s.rows);
+  const run = all.filter(r => (state[r[0]]||"todo") !== "todo").length;
+  const pass = all.filter(r => state[r[0]] === "pass").length;
+  document.getElementById("progFill").style.width = (run/all.length*100)+"%";
+  document.getElementById("progText").textContent = `${run} / ${all.length} run · ${pass} pass`;
+}
+
+function applyFilters(){
+  const q = document.getElementById("search").value.trim().toLowerCase();
+  const who = document.getElementById("filterWho").value;
+  const st = document.getElementById("filterStatus").value;
+  document.querySelectorAll(".row").forEach(row => {
+    let show = true;
+    if(q && !row.dataset.text.includes(q)) show = false;
+    if(who && row.dataset.who !== who) show = false;
+    if(st && row.dataset.status !== st) show = false;
+    row.classList.toggle("hidden", !show);
+  });
+  document.querySelectorAll("section").forEach(section => {
+    const anyVisible = section.querySelectorAll(".row:not(.hidden)").length > 0;
+    section.classList.toggle("hidden", !anyVisible);
+  });
+}
+
+document.getElementById("search").oninput = applyFilters;
+document.getElementById("filterWho").onchange = applyFilters;
+document.getElementById("filterStatus").onchange = applyFilters;
+document.getElementById("expandAll").onclick = () => document.querySelectorAll("section").forEach(s => s.classList.remove("collapsed"));
+document.getElementById("resetAll").onclick = () => { if(confirm("Clear all recorded statuses?")){ state={}; save(); render(); } };
+
+render();
+</script>
+</body>
+</html>

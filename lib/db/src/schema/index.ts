@@ -92,6 +92,13 @@ export const notificationTypeEnum = pgEnum("notification_type", [
   "comment_on_watched",
   "reply",
 ]);
+// Result of a single execution of a test case on a device.
+export const testRunResultEnum = pgEnum("test_run_result", [
+  "pass",
+  "fail",
+  "skip",
+  "blocked",
+]);
 
 // ── Users ──────────────────────────────────────────────────────────────────
 export const users = pgTable(
@@ -582,9 +589,94 @@ export const activityEvents = pgTable(
   }),
 );
 
+// ── Test Plan ──────────────────────────────────────────────────────────────
+// Per-project manual test plan. A project has many suites (sections like
+// "Auth & session"); a suite has many cases (scenarios); a case has many runs —
+// each run is one execution on one device, so a case's "current status" and
+// "last tested" are derived from its most recent run.
+export const testSuites = pgTable(
+  "test_suites",
+  {
+    id: serial("id").primaryKey(),
+    projectId: integer("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    code: varchar("code", { length: 8 }),
+    title: text("title").notNull(),
+    warn: boolean("warn").notNull().default(false),
+    order: integer("order").notNull().default(0),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => ({
+    projectIdx: index("test_suites_project_idx").on(t.projectId, t.order),
+  }),
+);
+
+export const testCases = pgTable(
+  "test_cases",
+  {
+    id: serial("id").primaryKey(),
+    suiteId: integer("suite_id")
+      .notNull()
+      .references(() => testSuites.id, { onDelete: "cascade" }),
+    code: varchar("code", { length: 16 }),
+    title: text("title").notNull(),
+    expected: text("expected"),
+    owner: varchar("owner", { length: 32 }),
+    order: integer("order").notNull().default(0),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => ({
+    suiteIdx: index("test_cases_suite_idx").on(t.suiteId, t.order),
+  }),
+);
+
+export const testRuns = pgTable(
+  "test_runs",
+  {
+    id: serial("id").primaryKey(),
+    caseId: integer("case_id")
+      .notNull()
+      .references(() => testCases.id, { onDelete: "cascade" }),
+    result: testRunResultEnum("result").notNull(),
+    device: text("device"),
+    note: text("note"),
+    testedAt: timestamp("tested_at").notNull().defaultNow(),
+    createdById: varchar("created_by_id", { length: 128 }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => ({
+    caseIdx: index("test_runs_case_idx").on(t.caseId, t.testedAt),
+  }),
+);
+
 // ── Relations ──────────────────────────────────────────────────────────────
 export const usersRelations = relations(users, ({ many }) => ({
   projectMembers: many(projectMembers),
+}));
+
+export const testSuitesRelations = relations(testSuites, ({ one, many }) => ({
+  project: one(projects, {
+    fields: [testSuites.projectId],
+    references: [projects.id],
+  }),
+  cases: many(testCases),
+}));
+
+export const testCasesRelations = relations(testCases, ({ one, many }) => ({
+  suite: one(testSuites, {
+    fields: [testCases.suiteId],
+    references: [testSuites.id],
+  }),
+  runs: many(testRuns),
+}));
+
+export const testRunsRelations = relations(testRuns, ({ one }) => ({
+  case: one(testCases, {
+    fields: [testRuns.caseId],
+    references: [testCases.id],
+  }),
 }));
 
 export const flows = pgTable("flows", {
@@ -611,6 +703,7 @@ export const projectsRelations = relations(projects, ({ many }) => ({
   costEntries: many(costEntries),
   timeEntries: many(timeEntries),
   activityEvents: many(activityEvents),
+  testSuites: many(testSuites),
 }));
 
 export const flowsRelations = relations(flows, ({ one }) => ({
