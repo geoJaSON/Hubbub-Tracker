@@ -999,6 +999,10 @@ export interface SearchResults {
 
 export type DashboardItemsByStatus = {[key: string]: number};
 
+export type DashboardActionItem = Item & {
+  projectSlug: string;
+};
+
 export interface Dashboard {
   projects: Project[];
   openItems: number;
@@ -1006,6 +1010,9 @@ export interface Dashboard {
   itemsByStatus?: DashboardItemsByStatus;
   teamPresence: Presence[];
   recentActivity: ActivityEvent[];
+  myOpenItems?: DashboardActionItem[];
+  blockedItems?: DashboardActionItem[];
+  dueSoonItems?: DashboardActionItem[];
 }
 
 export interface BurnDownPoint {
@@ -1207,6 +1214,13 @@ export interface TestPlanImportResult {
   /** Number of cases created. */
   cases: number;
 }
+
+export type ListItemsParams = {
+/**
+ * Include items with done or cancelled status.
+ */
+includeClosed?: boolean;
+};
 
 export type SearchParams = {
 q: string;

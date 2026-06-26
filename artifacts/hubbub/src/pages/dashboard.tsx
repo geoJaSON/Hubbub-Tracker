@@ -1,7 +1,62 @@
 import { useGetDashboard } from "@workspace/api-client-react";
+import type { DashboardActionItem } from "@workspace/api-client-react";
 import { Layout } from "../components/layout";
 import { Link } from "wouter";
-import { Activity, Clock, AlertTriangle, FolderKanban, ChevronRight } from "lucide-react";
+import { Activity, Clock, AlertTriangle, FolderKanban, ChevronRight, UserCheck, ShieldAlert, CalendarClock } from "lucide-react";
+import { cn } from "@/lib/utils";
+
+const STATUS_COLORS: Record<string, string> = {
+  open: "text-foreground border-border",
+  in_progress: "text-accent border-accent/50",
+  blocked: "text-destructive border-destructive/50",
+  done: "text-primary border-primary/50",
+  cancelled: "text-muted-foreground border-muted",
+};
+
+function ActionQueue({
+  title,
+  icon: Icon,
+  items,
+}: {
+  title: string;
+  icon: typeof Activity;
+  items: DashboardActionItem[];
+}) {
+  return (
+    <div className="border border-border bg-card">
+      <div className="flex items-center gap-2 border-b border-border px-4 py-2">
+        <Icon className="h-3.5 w-3.5 text-primary" />
+        <span className="text-xs font-mono tracking-widest text-foreground">{title}</span>
+        <span className="ml-auto text-[10px] font-mono text-muted-foreground">{items.length}</span>
+      </div>
+      <div className="divide-y divide-border">
+        {items.length === 0 ? (
+          <p className="px-4 py-4 text-xs text-muted-foreground font-mono">clear</p>
+        ) : (
+          items.map((item) => (
+            <Link
+              key={`${item.projectSlug}-${item.number}`}
+              href={`/projects/${item.projectSlug}/items/${item.number}`}
+              className="flex items-center gap-3 px-4 py-3 hover:bg-muted/30 transition-colors group"
+            >
+              <span className="text-xs text-muted-foreground font-mono w-10">#{item.number}</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-mono text-foreground truncate">{item.title}</p>
+                <p className="text-[10px] text-muted-foreground font-mono">{item.projectSlug}</p>
+              </div>
+              {item.dueDate && (
+                <span className="hidden sm:block text-[10px] text-muted-foreground font-mono">{item.dueDate}</span>
+              )}
+              <span className={cn("text-[10px] font-mono border px-1.5 py-0.5", STATUS_COLORS[item.status])}>
+                {item.status.replace("_", " ").toUpperCase()}
+              </span>
+            </Link>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
 
 export default function Dashboard() {
   const { data, isLoading } = useGetDashboard();
@@ -56,6 +111,12 @@ export default function Dashboard() {
                 </p>
               </div>
             ))}
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <ActionQueue title="MY OPEN ITEMS" icon={UserCheck} items={data?.myOpenItems ?? []} />
+            <ActionQueue title="BLOCKED" icon={ShieldAlert} items={data?.blockedItems ?? []} />
+            <ActionQueue title="DUE SOON" icon={CalendarClock} items={data?.dueSoonItems ?? []} />
           </div>
 
           {/* Projects + Activity */}

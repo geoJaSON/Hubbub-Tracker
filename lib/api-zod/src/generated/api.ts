@@ -494,6 +494,12 @@ export const ListItemsParams = zod.object({
   "slug": zod.coerce.string()
 })
 
+export const listItemsQueryIncludeClosedDefault = true;
+
+export const ListItemsQueryParams = zod.object({
+  "includeClosed": zod.coerce.boolean().default(listItemsQueryIncludeClosedDefault).describe('Include items with done or cancelled status.')
+})
+
 export const ListItemsResponseItem = zod.object({
   "id": zod.number(),
   "projectId": zod.number(),
@@ -1813,7 +1819,154 @@ export const GetDashboardResponse = zod.object({
   "type": zod.enum(['item_created', 'item_status_changed', 'item_assigned', 'comment_added', 'commit_linked', 'message_posted', 'cost_added', 'decision_logged']),
   "payload": zod.record(zod.string(), zod.unknown()).optional(),
   "createdAt": zod.coerce.date()
-}))
+})),
+  "myOpenItems": zod.array(zod.object({
+  "id": zod.number(),
+  "projectId": zod.number(),
+  "number": zod.number(),
+  "type": zod.enum(['todo', 'bug', 'request', 'decision']),
+  "title": zod.string(),
+  "description": zod.string().nullish(),
+  "status": zod.enum(['open', 'in_progress', 'blocked', 'done', 'cancelled']),
+  "priority": zod.enum(['low', 'medium', 'high', 'urgent']),
+  "category": zod.enum(['infrastructure_hosting', 'security_compliance', 'mobile_devops', 'web_devops', 'database_schema', 'monitoring_observability', 'deployment_release', 'third_party_integration', 'support_operations']).nullish(),
+  "assigneeId": zod.string().nullish(),
+  "assignee": zod.object({
+  "id": zod.number(),
+  "clerkId": zod.string(),
+  "email": zod.string().nullish(),
+  "displayName": zod.string(),
+  "username": zod.string().nullish(),
+  "avatarUrl": zod.string().nullish(),
+  "role": zod.enum(['admin', 'member']),
+  "hourlyRateCents": zod.number().nullish(),
+  "active": zod.boolean(),
+  "createdAt": zod.coerce.date().optional()
+}).nullish(),
+  "scopeId": zod.number().nullish(),
+  "milestoneId": zod.number().nullish(),
+  "estimateMinutes": zod.number().nullish(),
+  "dueDate": zod.coerce.date().nullish(),
+  "decisionRationale": zod.string().nullish(),
+  "closedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "componentId": zod.number().nullish(),
+  "component": zod.object({
+  "id": zod.number(),
+  "projectId": zod.number(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "createdAt": zod.coerce.date().optional()
+}).nullish(),
+  "totalMinutesLogged": zod.number().nullish(),
+  "blockedBy": zod.array(zod.object({
+  "id": zod.number(),
+  "number": zod.number(),
+  "title": zod.string(),
+  "status": zod.enum(['open', 'in_progress', 'blocked', 'done', 'cancelled'])
+})).optional(),
+  "isBlocked": zod.boolean().optional()
+}).and(zod.object({
+  "projectSlug": zod.string()
+}))).optional(),
+  "blockedItems": zod.array(zod.object({
+  "id": zod.number(),
+  "projectId": zod.number(),
+  "number": zod.number(),
+  "type": zod.enum(['todo', 'bug', 'request', 'decision']),
+  "title": zod.string(),
+  "description": zod.string().nullish(),
+  "status": zod.enum(['open', 'in_progress', 'blocked', 'done', 'cancelled']),
+  "priority": zod.enum(['low', 'medium', 'high', 'urgent']),
+  "category": zod.enum(['infrastructure_hosting', 'security_compliance', 'mobile_devops', 'web_devops', 'database_schema', 'monitoring_observability', 'deployment_release', 'third_party_integration', 'support_operations']).nullish(),
+  "assigneeId": zod.string().nullish(),
+  "assignee": zod.object({
+  "id": zod.number(),
+  "clerkId": zod.string(),
+  "email": zod.string().nullish(),
+  "displayName": zod.string(),
+  "username": zod.string().nullish(),
+  "avatarUrl": zod.string().nullish(),
+  "role": zod.enum(['admin', 'member']),
+  "hourlyRateCents": zod.number().nullish(),
+  "active": zod.boolean(),
+  "createdAt": zod.coerce.date().optional()
+}).nullish(),
+  "scopeId": zod.number().nullish(),
+  "milestoneId": zod.number().nullish(),
+  "estimateMinutes": zod.number().nullish(),
+  "dueDate": zod.coerce.date().nullish(),
+  "decisionRationale": zod.string().nullish(),
+  "closedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "componentId": zod.number().nullish(),
+  "component": zod.object({
+  "id": zod.number(),
+  "projectId": zod.number(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "createdAt": zod.coerce.date().optional()
+}).nullish(),
+  "totalMinutesLogged": zod.number().nullish(),
+  "blockedBy": zod.array(zod.object({
+  "id": zod.number(),
+  "number": zod.number(),
+  "title": zod.string(),
+  "status": zod.enum(['open', 'in_progress', 'blocked', 'done', 'cancelled'])
+})).optional(),
+  "isBlocked": zod.boolean().optional()
+}).and(zod.object({
+  "projectSlug": zod.string()
+}))).optional(),
+  "dueSoonItems": zod.array(zod.object({
+  "id": zod.number(),
+  "projectId": zod.number(),
+  "number": zod.number(),
+  "type": zod.enum(['todo', 'bug', 'request', 'decision']),
+  "title": zod.string(),
+  "description": zod.string().nullish(),
+  "status": zod.enum(['open', 'in_progress', 'blocked', 'done', 'cancelled']),
+  "priority": zod.enum(['low', 'medium', 'high', 'urgent']),
+  "category": zod.enum(['infrastructure_hosting', 'security_compliance', 'mobile_devops', 'web_devops', 'database_schema', 'monitoring_observability', 'deployment_release', 'third_party_integration', 'support_operations']).nullish(),
+  "assigneeId": zod.string().nullish(),
+  "assignee": zod.object({
+  "id": zod.number(),
+  "clerkId": zod.string(),
+  "email": zod.string().nullish(),
+  "displayName": zod.string(),
+  "username": zod.string().nullish(),
+  "avatarUrl": zod.string().nullish(),
+  "role": zod.enum(['admin', 'member']),
+  "hourlyRateCents": zod.number().nullish(),
+  "active": zod.boolean(),
+  "createdAt": zod.coerce.date().optional()
+}).nullish(),
+  "scopeId": zod.number().nullish(),
+  "milestoneId": zod.number().nullish(),
+  "estimateMinutes": zod.number().nullish(),
+  "dueDate": zod.coerce.date().nullish(),
+  "decisionRationale": zod.string().nullish(),
+  "closedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date(),
+  "componentId": zod.number().nullish(),
+  "component": zod.object({
+  "id": zod.number(),
+  "projectId": zod.number(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "createdAt": zod.coerce.date().optional()
+}).nullish(),
+  "totalMinutesLogged": zod.number().nullish(),
+  "blockedBy": zod.array(zod.object({
+  "id": zod.number(),
+  "number": zod.number(),
+  "title": zod.string(),
+  "status": zod.enum(['open', 'in_progress', 'blocked', 'done', 'cancelled'])
+})).optional(),
+  "isBlocked": zod.boolean().optional()
+}).and(zod.object({
+  "projectSlug": zod.string()
+}))).optional()
 })
 
 

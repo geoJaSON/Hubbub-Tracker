@@ -25,6 +25,7 @@ export * from './costEntryInputCategory';
 export * from './costEntryUpdate';
 export * from './costEntryUpdateCategory';
 export * from './dashboard';
+export * from './dashboardActionItem';
 export * from './dashboardItemsByStatus';
 export * from './doc';
 export * from './docInput';

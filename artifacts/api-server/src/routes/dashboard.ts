@@ -96,6 +96,11 @@ router.get("/", requireAuth, async (req: AuthRequest, res) => {
     sql`ARRAY[${sql.join(xs.map((x) => sql`${x}`), sql`, `)}]::int[]`;
   const textArray = (xs: string[]) =>
     sql`ARRAY[${sql.join(xs.map((x) => sql`${x}`), sql`, `)}]::text[]`;
+  const activeItemScope =
+    ids.length > 0
+      ? sql`${items.projectId} = ANY(${intArray(ids)}) AND ${items.status} NOT IN ('done','cancelled')`
+      : sql`FALSE`;
+  const projectSlugById = new Map(myProjects.map((p) => [p.id, p.slug]));
 
   const projectActorIds = [...new Set(recentActivity.filter((e) => e.actorId).map((e) => e.actorId!))];
   const actorRows =
@@ -138,6 +143,40 @@ router.get("/", requireAuth, async (req: AuthRequest, res) => {
     statusRows.map((r) => [r.status, Number(r.c)]),
   );
 
+  const dueSoonEnd = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+    .toISOString()
+    .split("T")[0];
+  const [myOpenRows, blockedRows, dueSoonRows] =
+    ids.length > 0
+      ? await Promise.all([
+          db
+            .select()
+            .from(items)
+            .where(sql`${activeItemScope} AND ${items.assigneeId} = ${req.userId!}`)
+            .orderBy(items.dueDate, items.createdAt)
+            .limit(6),
+          db
+            .select()
+            .from(items)
+            .where(sql`${activeItemScope} AND ${items.status} = 'blocked'`)
+            .orderBy(items.dueDate, items.createdAt)
+            .limit(6),
+          db
+            .select()
+            .from(items)
+            .where(
+              sql`${activeItemScope} AND ${items.dueDate} >= ${today} AND ${items.dueDate} <= ${dueSoonEnd}`,
+            )
+            .orderBy(items.dueDate, items.createdAt)
+            .limit(6),
+        ])
+      : [[], [], []];
+
+  const toActionItem = (item: typeof items.$inferSelect) => ({
+    ...item,
+    projectSlug: projectSlugById.get(item.projectId) ?? "",
+  });
+
   // Enrich presence rows with their user + the item they're working on
   const presenceUserRows =
     presenceRows.length > 0
@@ -161,6 +200,9 @@ router.get("/", requireAuth, async (req: AuthRequest, res) => {
     openItems: Number(openCount?.count ?? 0),
     overdueItems: Number(overdueCount?.count ?? 0),
     itemsByStatus,
+    myOpenItems: myOpenRows.map(toActionItem),
+    blockedItems: blockedRows.map(toActionItem),
+    dueSoonItems: dueSoonRows.map(toActionItem),
     teamPresence: presenceRows.map((p) => ({
       ...p,
       user: presenceUserRows.find((u) => u.clerkId === p.userId) ?? null,

@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { ActivityEvent } from './activityEvent';
+import type { DashboardActionItem } from './dashboardActionItem';
 import type { DashboardItemsByStatus } from './dashboardItemsByStatus';
 import type { Presence } from './presence';
 import type { Project } from './project';
@@ -17,4 +18,7 @@ export interface Dashboard {
   itemsByStatus?: DashboardItemsByStatus;
   teamPresence: Presence[];
   recentActivity: ActivityEvent[];
+  myOpenItems?: DashboardActionItem[];
+  blockedItems?: DashboardActionItem[];
+  dueSoonItems?: DashboardActionItem[];
 }

@@ -117,10 +117,19 @@ router.get("/", requireAuth, async (req, res) => {
   const project = await getProject(String(req.params.slug));
   if (!project) return res.status(404).json({ error: "Not found" });
 
+  const includeClosed = req.query.includeClosed !== "false";
+
   const rows = await db
     .select()
     .from(items)
-    .where(eq(items.projectId, project.id))
+    .where(
+      includeClosed
+        ? eq(items.projectId, project.id)
+        : and(
+            eq(items.projectId, project.id),
+            sql`${items.status} NOT IN ('done','cancelled')`,
+          ),
+    )
     .orderBy(items.createdAt);
 
   const enriched = await Promise.all(rows.map(enrichItem));

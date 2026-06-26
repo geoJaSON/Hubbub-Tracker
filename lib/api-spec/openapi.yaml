@@ -528,6 +528,13 @@ paths:
           required: true
           schema:
             type: string
+        - in: query
+          name: includeClosed
+          required: false
+          schema:
+            type: boolean
+            default: true
+          description: Include items with done or cancelled status.
       responses:
         "200":
           description: Items
@@ -3102,6 +3109,27 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ActivityEvent"
+        myOpenItems:
+          type: array
+          items:
+            $ref: "#/components/schemas/DashboardActionItem"
+        blockedItems:
+          type: array
+          items:
+            $ref: "#/components/schemas/DashboardActionItem"
+        dueSoonItems:
+          type: array
+          items:
+            $ref: "#/components/schemas/DashboardActionItem"
+
+    DashboardActionItem:
+      allOf:
+        - $ref: "#/components/schemas/Item"
+        - type: object
+          required: [projectSlug]
+          properties:
+            projectSlug:
+              type: string
 
     BurnDownPoint:
       type: object

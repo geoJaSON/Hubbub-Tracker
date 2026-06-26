@@ -43,6 +43,7 @@ import type {
   ItemDetail,
   ItemInput,
   ItemUpdate,
+  ListItemsParams,
   ListNotificationsParams,
   MarkReadInput,
   Message,
@@ -1874,20 +1875,29 @@ export const useDeleteMilestone = <TError = ErrorType<unknown>,
       return useMutation(getDeleteMilestoneMutationOptions(options));
     }
 
-export const getListItemsUrl = (slug: string,) => {
+export const getListItemsUrl = (slug: string,
+    params?: ListItemsParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/projects/${slug}/items`
+  return stringifiedParams.length > 0 ? `/api/projects/${slug}/items?${stringifiedParams}` : `/api/projects/${slug}/items`
 }
 
 /**
  * @summary List items for a project
  */
-export const listItems = async (slug: string, options?: RequestInit): Promise<Item[]> => {
+export const listItems = async (slug: string,
+    params?: ListItemsParams, options?: RequestInit): Promise<Item[]> => {
 
-  return customFetch<Item[]>(getListItemsUrl(slug),
+  return customFetch<Item[]>(getListItemsUrl(slug,params),
   {
     ...options,
     method: 'GET'
@@ -1900,23 +1910,25 @@ export const listItems = async (slug: string, options?: RequestInit): Promise<It
 
 
 
-export const getListItemsQueryKey = (slug: string,) => {
+export const getListItemsQueryKey = (slug: string,
+    params?: ListItemsParams,) => {
     return [
-    `/api/projects/${slug}/items`
+    `/api/projects/${slug}/items`, ...(params ? [params] : [])
     ] as const;
     }
 
 
-export const getListItemsQueryOptions = <TData = Awaited<ReturnType<typeof listItems>>, TError = ErrorType<unknown>>(slug: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listItems>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getListItemsQueryOptions = <TData = Awaited<ReturnType<typeof listItems>>, TError = ErrorType<unknown>>(slug: string,
+    params?: ListItemsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listItems>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getListItemsQueryKey(slug);
+  const queryKey =  queryOptions?.queryKey ?? getListItemsQueryKey(slug,params);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof listItems>>> = ({ signal }) => listItems(slug, { signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listItems>>> = ({ signal }) => listItems(slug,params, { signal, ...requestOptions });
 
 
 
@@ -1934,11 +1946,12 @@ export type ListItemsQueryError = ErrorType<unknown>
  */
 
 export function useListItems<TData = Awaited<ReturnType<typeof listItems>>, TError = ErrorType<unknown>>(
- slug: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listItems>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+ slug: string,
+    params?: ListItemsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listItems>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
-  const queryOptions = getListItemsQueryOptions(slug,options)
+  const queryOptions = getListItemsQueryOptions(slug,params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

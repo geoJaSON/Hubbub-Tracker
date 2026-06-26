@@ -118,6 +118,33 @@ function TeletypeText({ text, onDone }: { text: string; onDone: () => void }) {
 type RichItem = Item & { projectSlug: string };
 
 type ItemLabelChip = { id: number; name: string; color: string };
+type ItemView = "open" | "mine" | "blocked" | "overdue" | "closed" | "all";
+type BulkState = {
+  milestoneId: string;
+  componentId: string;
+  scopeId: string;
+  category: string;
+  status: string;
+};
+
+const DEFAULT_BULK_STATE: BulkState = {
+  milestoneId: "",
+  componentId: "",
+  scopeId: "",
+  category: "",
+  status: "",
+};
+
+const ITEM_VIEWS: { id: ItemView; label: string }[] = [
+  { id: "open", label: "OPEN" },
+  { id: "mine", label: "MINE" },
+  { id: "blocked", label: "BLOCKED" },
+  { id: "overdue", label: "OVERDUE" },
+  { id: "closed", label: "CLOSED" },
+  { id: "all", label: "ALL" },
+];
+
+const CLOSED_STATUSES = new Set(["done", "cancelled"]);
 
 function ItemCard({
   item,
@@ -192,7 +219,6 @@ export default function ProjectPage() {
   const { getToken, userId: clerkId } = useAuth();
 
   const { data: project, isLoading: projLoading } = useGetProject(slug!);
-  const { data: itemsData = [] } = useListItems(slug!);
   const { data: messagesData = [] } = useListMessages(slug!);
   const { data: activity = [] } = useListActivity(slug!);
   const { data: docs = [] } = useListDocs(slug!);
@@ -269,12 +295,13 @@ export default function ProjectPage() {
   const [itemScopeFilter, setItemScopeFilter] = useState<Set<number>>(new Set());
   const [itemMilestoneFilter, setItemMilestoneFilter] = useState<Set<number>>(new Set());
   const [itemLabelFilter, setItemLabelFilter] = useState<Set<number>>(new Set());
+  const [itemView, setItemView] = useState<ItemView>("open");
+  const [hideClosed, setHideClosed] = useState(true);
   const [selectedItems, setSelectedItems] = useState<Set<number>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
-  const [bulk, setBulk] = useState<{ milestoneId: string; componentId: string; scopeId: string; category: string }>(
-    { milestoneId: "", componentId: "", scopeId: "", category: "" },
-  );
-  const [hideDone, setHideDone] = useState(true);
+  const [bulk, setBulk] = useState<BulkState>(DEFAULT_BULK_STATE);
+  const includeClosedItems = !hideClosed || itemView === "closed" || itemView === "all";
+  const { data: itemsData = [] } = useListItems(slug!, { includeClosed: includeClosedItems });
   const [componentNewName, setComponentNewName] = useState("");
   const [componentEditId, setComponentEditId] = useState<number | null>(null);
   const [componentEditName, setComponentEditName] = useState("");
@@ -520,6 +547,12 @@ export default function ProjectPage() {
 
   const items: RichItem[] = itemsData.map((i) => ({ ...i, projectSlug: slug! }));
   const projectScopes = project?.scopes ?? [];
+  const applyItemView = (view: ItemView) => {
+    setItemView(view);
+    setSelectedItems(new Set());
+    if (view === "closed" || view === "all") setHideClosed(false);
+    if (view === "open" || view === "mine" || view === "blocked" || view === "overdue") setHideClosed(true);
+  };
   const scopeNameById = useMemo(
     () => new Map(projectScopes.map((scope) => [scope.id, scope.name])),
     [projectScopes],
@@ -539,6 +572,62 @@ export default function ProjectPage() {
   useEffect(() => {
     setActiveTab(tab ?? "items");
   }, [tab]);
+
+  useEffect(() => {
+    if (!slug) return;
+    try {
+      const raw = localStorage.getItem(`hubbub:item-view:${slug}`);
+      if (!raw) return;
+      const saved = JSON.parse(raw) as {
+        view?: ItemView;
+        hideClosed?: boolean;
+        type?: string[];
+        category?: string[];
+        component?: number[];
+        scope?: number[];
+        milestone?: number[];
+        label?: number[];
+      };
+      if (saved.view && ITEM_VIEWS.some((view) => view.id === saved.view)) setItemView(saved.view);
+      if (typeof saved.hideClosed === "boolean") setHideClosed(saved.hideClosed);
+      setItemTypeFilter(new Set(saved.type ?? []));
+      setItemCategoryFilter(new Set(saved.category ?? []));
+      setItemComponentFilter(new Set(saved.component ?? []));
+      setItemScopeFilter(new Set(saved.scope ?? []));
+      setItemMilestoneFilter(new Set(saved.milestone ?? []));
+      setItemLabelFilter(new Set(saved.label ?? []));
+      setSelectedItems(new Set());
+    } catch {
+      // Ignore stale local storage from older builds.
+    }
+  }, [slug]);
+
+  useEffect(() => {
+    if (!slug) return;
+    localStorage.setItem(
+      `hubbub:item-view:${slug}`,
+      JSON.stringify({
+        view: itemView,
+        hideClosed,
+        type: [...itemTypeFilter],
+        category: [...itemCategoryFilter],
+        component: [...itemComponentFilter],
+        scope: [...itemScopeFilter],
+        milestone: [...itemMilestoneFilter],
+        label: [...itemLabelFilter],
+      }),
+    );
+  }, [
+    slug,
+    itemView,
+    hideClosed,
+    itemTypeFilter,
+    itemCategoryFilter,
+    itemComponentFilter,
+    itemScopeFilter,
+    itemMilestoneFilter,
+    itemLabelFilter,
+  ]);
 
   useEffect(() => {
     if (!isDraggingDocRef.current) {
@@ -966,6 +1055,7 @@ export default function ProjectPage() {
     if (bulk.componentId) patch.componentId = bulk.componentId === "__none__" ? null : Number(bulk.componentId);
     if (bulk.scopeId) patch.scopeId = bulk.scopeId === "__none__" ? null : Number(bulk.scopeId);
     if (bulk.category) patch.category = bulk.category === "__none__" ? null : bulk.category;
+    if (bulk.status) patch.status = bulk.status;
     if (Object.keys(patch).length === 0) {
       toast({ title: "Pick at least one field to set" });
       return;
@@ -983,7 +1073,7 @@ export default function ProjectPage() {
       qc.invalidateQueries({ queryKey: getListMilestonesQueryKey(slug!) });
       toast({ title: `Updated ${selectedItems.size} item(s)` });
       setSelectedItems(new Set());
-      setBulk({ milestoneId: "", componentId: "", scopeId: "", category: "" });
+      setBulk(DEFAULT_BULK_STATE);
     } catch {
       toast({ title: "Bulk update failed", variant: "destructive" });
     } finally {
@@ -1102,6 +1192,25 @@ export default function ProjectPage() {
 
           {/* ITEMS TAB */}
           <TabsContent value="items" className="mt-3 space-y-2">
+            <div className="flex flex-wrap items-center gap-1 border border-border bg-card/60 px-2 py-2">
+              {ITEM_VIEWS.map((view) => {
+                const active = itemView === view.id;
+                return (
+                  <button
+                    key={view.id}
+                    onClick={() => applyItemView(view.id)}
+                    className={cn(
+                      "text-[10px] font-mono border px-2 py-1 tracking-widest transition-colors",
+                      active
+                        ? "border-primary text-primary bg-primary/10"
+                        : "border-transparent text-muted-foreground hover:text-foreground hover:border-border",
+                    )}
+                  >
+                    {view.label}
+                  </button>
+                );
+              })}
+            </div>
             {/* Filter row — multi-select dropdowns */}
             {(() => {
               const triggerCls = (active: boolean, accent: "primary" | "accent" = "primary") =>
@@ -1324,6 +1433,7 @@ export default function ProjectPage() {
                         setItemComponentFilter(new Set());
                         setItemScopeFilter(new Set());
                         setItemMilestoneFilter(new Set());
+                        setItemLabelFilter(new Set());
                       }}
                       className="text-[10px] font-mono border border-destructive/60 text-destructive hover:bg-destructive/10 px-2 py-0.5 transition-colors"
                     >
@@ -1333,30 +1443,40 @@ export default function ProjectPage() {
 
                   <span className="border-l border-border h-3 mx-1" />
 
-                  {/* HIDE DONE */}
+                  {/* HIDE CLOSED */}
                   <button
-                    onClick={() => setHideDone((v) => !v)}
+                    onClick={() => setHideClosed((v) => !v)}
                     className={cn(
                       "text-[10px] font-mono border px-2 py-0.5 transition-colors",
-                      hideDone
+                      hideClosed
                         ? "border-muted-foreground text-muted-foreground hover:text-foreground hover:border-muted-foreground"
                         : "border-primary text-primary bg-primary/10",
                     )}
                   >
-                    {hideDone ? "SHOW DONE" : "HIDE DONE"}
+                    {hideClosed ? "SHOW CLOSED" : "HIDE CLOSED"}
                   </button>
                 </div>
               );
             })()}
             {(() => {
+              const today = new Date().toISOString().slice(0, 10);
               const filtered = items
+                .filter((i) => {
+                  const isClosed = CLOSED_STATUSES.has(i.status);
+                  if (itemView === "open") return !isClosed;
+                  if (itemView === "mine") return !isClosed && i.assigneeId === clerkId;
+                  if (itemView === "blocked") return !isClosed && i.status === "blocked";
+                  if (itemView === "overdue") return !isClosed && !!i.dueDate && i.dueDate < today;
+                  if (itemView === "closed") return isClosed;
+                  return true;
+                })
                 .filter((i) => itemTypeFilter.size === 0 || itemTypeFilter.has(i.type))
                 .filter((i) => itemCategoryFilter.size === 0 || (i.category != null && itemCategoryFilter.has(i.category)))
                 .filter((i) => itemComponentFilter.size === 0 || (i.componentId != null && itemComponentFilter.has(i.componentId)))
                 .filter((i) => itemScopeFilter.size === 0 || (i.scopeId != null && itemScopeFilter.has(i.scopeId)))
                 .filter((i) => itemMilestoneFilter.size === 0 || (i.milestoneId != null && itemMilestoneFilter.has(i.milestoneId)))
                 .filter((i) => itemLabelFilter.size === 0 || ((i as Item & { labels?: ItemLabelChip[] }).labels ?? []).some((l) => itemLabelFilter.has(l.id)))
-                .filter((i) => !hideDone || i.status !== "done");
+                .filter((i) => itemView === "closed" || !hideClosed || !CLOSED_STATUSES.has(i.status));
               const anyFilterActive =
                 itemTypeFilter.size > 0 ||
                 itemCategoryFilter.size > 0 ||
@@ -1364,7 +1484,8 @@ export default function ProjectPage() {
                 itemScopeFilter.size > 0 ||
                 itemMilestoneFilter.size > 0 ||
                 itemLabelFilter.size > 0 ||
-                hideDone;
+                itemView !== "all" ||
+                hideClosed;
               const allSelected = filtered.length > 0 && filtered.every((i) => selectedItems.has(i.number));
               return (
                 <div className="space-y-2">
@@ -1408,10 +1529,18 @@ export default function ProjectPage() {
                             <option value="__none__">— clear —</option>
                             {Object.entries(CATEGORY_LABELS).map(([id, label]) => (<option key={id} value={id}>{label}</option>))}
                           </select>
+                          <select value={bulk.status} onChange={(e) => setBulk((b) => ({ ...b, status: e.target.value }))} className="bg-background border border-border font-mono text-[10px] h-6 px-1">
+                            <option value="">status...</option>
+                            <option value="open">reopen</option>
+                            <option value="in_progress">in progress</option>
+                            <option value="blocked">blocked</option>
+                            <option value="done">done</option>
+                            <option value="cancelled">cancelled</option>
+                          </select>
                           <button onClick={() => void applyBulk()} disabled={bulkBusy} className="text-[10px] font-mono border border-primary text-primary bg-primary/10 px-2 py-0.5 hover:bg-primary/20 disabled:opacity-50">
                             {bulkBusy ? "APPLYING…" : "APPLY"}
                           </button>
-                          <button onClick={() => { setSelectedItems(new Set()); setBulk({ milestoneId: "", componentId: "", scopeId: "", category: "" }); }} className="text-[10px] font-mono border border-border text-muted-foreground px-2 py-0.5 hover:text-foreground">
+                          <button onClick={() => { setSelectedItems(new Set()); setBulk(DEFAULT_BULK_STATE); }} className="text-[10px] font-mono border border-border text-muted-foreground px-2 py-0.5 hover:text-foreground">
                             CLEAR
                           </button>
                         </>
