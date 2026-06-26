@@ -301,7 +301,8 @@ export default function ProjectPage() {
   const [bulkBusy, setBulkBusy] = useState(false);
   const [bulk, setBulk] = useState<BulkState>(DEFAULT_BULK_STATE);
   const includeClosedItems = !hideClosed || itemView === "closed" || itemView === "all";
-  const { data: itemsData = [] } = useListItems(slug!, { includeClosed: includeClosedItems });
+  const { data: itemsData = [] } = useListItems(slug!, { includeClosed: true });
+  const { data: visibleItemsData = [] } = useListItems(slug!, { includeClosed: includeClosedItems });
   const [componentNewName, setComponentNewName] = useState("");
   const [componentEditId, setComponentEditId] = useState<number | null>(null);
   const [componentEditName, setComponentEditName] = useState("");
@@ -546,6 +547,7 @@ export default function ProjectPage() {
   }, [allMessages]);
 
   const items: RichItem[] = itemsData.map((i) => ({ ...i, projectSlug: slug! }));
+  const visibleItems: RichItem[] = visibleItemsData.map((i) => ({ ...i, projectSlug: slug! }));
   const projectScopes = project?.scopes ?? [];
   const applyItemView = (view: ItemView) => {
     setItemView(view);
@@ -1460,7 +1462,7 @@ export default function ProjectPage() {
             })()}
             {(() => {
               const today = new Date().toISOString().slice(0, 10);
-              const filtered = items
+              const filtered = visibleItems
                 .filter((i) => {
                   const isClosed = CLOSED_STATUSES.has(i.status);
                   if (itemView === "open") return !isClosed;
