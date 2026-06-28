@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 const STATUS_COLORS: Record<string, string> = {
   open: "text-foreground border-border",
   in_progress: "text-accent border-accent/50",
+  on_hold: "text-yellow-500 border-yellow-500/50",
   blocked: "text-destructive border-destructive/50",
   done: "text-primary border-primary/50",
   cancelled: "text-muted-foreground border-muted",

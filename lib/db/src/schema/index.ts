@@ -46,6 +46,7 @@ export const itemCategoryEnum = pgEnum("item_category", [
 export const itemStatusEnum = pgEnum("item_status", [
   "open",
   "in_progress",
+  "on_hold",
   "blocked",
   "done",
   "cancelled",

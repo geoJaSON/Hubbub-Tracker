@@ -24,12 +24,13 @@ import { AttachmentsPanel } from "@/components/attachments-panel";
 import { LabelEditor, type ItemLabel } from "@/components/label-editor";
 
 const STATUS_LABELS: Record<string, string> = {
-  open: "OPEN", in_progress: "IN PROGRESS", blocked: "BLOCKED",
-  done: "DONE", cancelled: "CANCELLED",
+  open: "OPEN", in_progress: "IN PROGRESS", on_hold: "ON HOLD",
+  blocked: "BLOCKED", done: "DONE", cancelled: "CANCELLED",
 };
 const STATUS_COLORS: Record<string, string> = {
   open: "text-foreground border-border",
   in_progress: "text-accent border-accent/50",
+  on_hold: "text-yellow-500 border-yellow-500/50",
   blocked: "text-destructive border-destructive/50",
   done: "text-primary border-primary/50",
   cancelled: "text-muted-foreground border-muted",

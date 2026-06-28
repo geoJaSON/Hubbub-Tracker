@@ -40,13 +40,13 @@ type ReportData = {
   scopes: Array<{ id: number; name: string; status: string; budgetCents?: number | null }>;
 };
 
-const STATUS_ORDER = ["open", "in_progress", "blocked", "done", "cancelled"];
+const STATUS_ORDER = ["open", "in_progress", "on_hold", "blocked", "done", "cancelled"];
 const STATUS_LABELS: Record<string, string> = {
-  open: "OPEN", in_progress: "IN PROGRESS", blocked: "BLOCKED", done: "DONE", cancelled: "CANCELLED",
+  open: "OPEN", in_progress: "IN PROGRESS", on_hold: "ON HOLD", blocked: "BLOCKED", done: "DONE", cancelled: "CANCELLED",
 };
 const STATUS_COLORS: Record<string, string> = {
-  open: "text-foreground", in_progress: "text-accent", blocked: "text-destructive",
-  done: "text-primary", cancelled: "text-muted-foreground",
+  open: "text-foreground", in_progress: "text-accent", on_hold: "text-yellow-500",
+  blocked: "text-destructive", done: "text-primary", cancelled: "text-muted-foreground",
 };
 
 export default function ReportPage() {

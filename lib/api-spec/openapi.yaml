@@ -2288,7 +2288,7 @@ components:
           type: ["string", "null"]
         status:
           type: string
-          enum: [open, in_progress, blocked, done, cancelled]
+          enum: [open, in_progress, on_hold, blocked, done, cancelled]
         priority:
           type: string
           enum: [low, medium, high, urgent]
@@ -2350,7 +2350,7 @@ components:
           type: ["string", "null"]
         status:
           type: string
-          enum: [open, in_progress, blocked, done, cancelled]
+          enum: [open, in_progress, on_hold, blocked, done, cancelled]
         priority:
           type: string
           enum: [low, medium, high, urgent]
@@ -2417,7 +2417,7 @@ components:
           type: string
         status:
           type: string
-          enum: [open, in_progress, blocked, done, cancelled]
+          enum: [open, in_progress, on_hold, blocked, done, cancelled]
 
     ItemDependencyInput:
       type: object
@@ -2439,7 +2439,7 @@ components:
           type: ["string", "null"]
         status:
           type: string
-          enum: [open, in_progress, blocked, done, cancelled]
+          enum: [open, in_progress, on_hold, blocked, done, cancelled]
         priority:
           type: string
           enum: [low, medium, high, urgent]
@@ -2473,7 +2473,7 @@ components:
           type: ["string", "null"]
         status:
           type: string
-          enum: [open, in_progress, blocked, done, cancelled]
+          enum: [open, in_progress, on_hold, blocked, done, cancelled]
         priority:
           type: string
           enum: [low, medium, high, urgent]

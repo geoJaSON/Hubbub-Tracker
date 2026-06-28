@@ -320,6 +320,7 @@ export type ItemStatus = typeof ItemStatus[keyof typeof ItemStatus];
 export const ItemStatus = {
   open: 'open',
   in_progress: 'in_progress',
+  on_hold: 'on_hold',
   blocked: 'blocked',
   done: 'done',
   cancelled: 'cancelled',
@@ -365,6 +366,7 @@ export type ItemRefStatus = typeof ItemRefStatus[keyof typeof ItemRefStatus];
 export const ItemRefStatus = {
   open: 'open',
   in_progress: 'in_progress',
+  on_hold: 'on_hold',
   blocked: 'blocked',
   done: 'done',
   cancelled: 'cancelled',
@@ -429,6 +431,7 @@ export type ItemDetailStatus = typeof ItemDetailStatus[keyof typeof ItemDetailSt
 export const ItemDetailStatus = {
   open: 'open',
   in_progress: 'in_progress',
+  on_hold: 'on_hold',
   blocked: 'blocked',
   done: 'done',
   cancelled: 'cancelled',
@@ -542,6 +545,7 @@ export type ItemInputStatus = typeof ItemInputStatus[keyof typeof ItemInputStatu
 export const ItemInputStatus = {
   open: 'open',
   in_progress: 'in_progress',
+  on_hold: 'on_hold',
   blocked: 'blocked',
   done: 'done',
   cancelled: 'cancelled',
@@ -597,6 +601,7 @@ export type ItemUpdateStatus = typeof ItemUpdateStatus[keyof typeof ItemUpdateSt
 export const ItemUpdateStatus = {
   open: 'open',
   in_progress: 'in_progress',
+  on_hold: 'on_hold',
   blocked: 'blocked',
   done: 'done',
   cancelled: 'cancelled',
