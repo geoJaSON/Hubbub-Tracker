@@ -61,6 +61,14 @@ export const milestoneStatusEnum = pgEnum("milestone_status", [
   "open",
   "complete",
 ]);
+// "submitted" covers app-store review, a waiting stage web releases skip.
+export const releaseStatusEnum = pgEnum("release_status", [
+  "planned",
+  "in_progress",
+  "submitted",
+  "released",
+  "cancelled",
+]);
 export const costCategoryEnum = pgEnum("cost_category", [
   "labor",
   "hosting",
@@ -245,6 +253,34 @@ export const projectComponents = pgTable(
   }),
 );
 
+// ── Releases ───────────────────────────────────────────────────────────────
+// Ship vehicles ("fix versions") for post-launch maintenance. componentId is
+// the platform axis (e.g. the "Web" or "Mobile" component); null = whole app.
+// Scopes/milestones stay the pre-release planning axis; releases are recurring.
+export const releases = pgTable(
+  "releases",
+  {
+    id: serial("id").primaryKey(),
+    projectId: integer("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    componentId: integer("component_id").references(() => projectComponents.id, {
+      onDelete: "set null",
+    }),
+    version: text("version").notNull(),
+    name: text("name"),
+    status: releaseStatusEnum("status").notNull().default("planned"),
+    targetDate: date("target_date"),
+    releasedAt: date("released_at"),
+    changelog: text("changelog"),
+    order: integer("order").notNull().default(0),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => ({
+    projectIdx: index("releases_project_idx").on(t.projectId, t.order),
+  }),
+);
+
 // ── Items ──────────────────────────────────────────────────────────────────
 export const items = pgTable(
   "items",
@@ -264,6 +300,9 @@ export const items = pgTable(
       onDelete: "set null",
     }),
     milestoneId: integer("milestone_id").references(() => milestones.id, {
+      onDelete: "set null",
+    }),
+    releaseId: integer("release_id").references(() => releases.id, {
       onDelete: "set null",
     }),
     estimateMinutes: integer("estimate_minutes"),
@@ -696,6 +735,7 @@ export const projectsRelations = relations(projects, ({ many }) => ({
   members: many(projectMembers),
   scopes: many(scopes),
   components: many(projectComponents),
+  releases: many(releases),
   items: many(items),
   messages: many(messages),
   commits: many(commits),
@@ -753,6 +793,18 @@ export const milestonesRelations = relations(milestones, ({ one, many }) => ({
   items: many(items),
 }));
 
+export const releasesRelations = relations(releases, ({ one, many }) => ({
+  project: one(projects, {
+    fields: [releases.projectId],
+    references: [projects.id],
+  }),
+  component: one(projectComponents, {
+    fields: [releases.componentId],
+    references: [projectComponents.id],
+  }),
+  items: many(items),
+}));
+
 export const itemsRelations = relations(items, ({ one, many }) => ({
   project: one(projects, {
     fields: [items.projectId],
@@ -765,6 +817,10 @@ export const itemsRelations = relations(items, ({ one, many }) => ({
   milestone: one(milestones, {
     fields: [items.milestoneId],
     references: [milestones.id],
+  }),
+  release: one(releases, {
+    fields: [items.releaseId],
+    references: [releases.id],
   }),
   component: one(projectComponents, {
     fields: [items.componentId],

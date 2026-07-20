@@ -13,6 +13,7 @@ tags:
   - name: projects
   - name: scopes
   - name: milestones
+  - name: releases
   - name: items
   - name: comments
   - name: commits
@@ -509,6 +510,99 @@ paths:
             type: string
         - in: path
           name: milestoneId
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  # ── Releases ───────────────────────────────────────────────────────────────
+  /projects/{slug}/releases:
+    get:
+      operationId: listReleases
+      tags: [releases]
+      summary: List releases
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Releases
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Release"
+    post:
+      operationId: createRelease
+      tags: [releases]
+      summary: Create release
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReleaseInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Release"
+
+  /projects/{slug}/releases/{releaseId}:
+    patch:
+      operationId: updateRelease
+      tags: [releases]
+      summary: Update release
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: releaseId
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReleaseUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Release"
+    delete:
+      operationId: deleteRelease
+      tags: [releases]
+      summary: Delete release
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: releaseId
           required: true
           schema:
             type: integer
@@ -2268,6 +2362,92 @@ components:
         order:
           type: integer
 
+    # ── Releases ──────────────────────────────────────────────────────────
+    Release:
+      type: object
+      required: [id, projectId, version, status, order, itemCount, doneCount, createdAt]
+      properties:
+        id:
+          type: integer
+        projectId:
+          type: integer
+        componentId:
+          type: ["integer", "null"]
+          description: Platform axis — the project component (e.g. Web, Mobile) this release ships for. Null = whole app.
+        component:
+          $ref: "#/components/schemas/ProjectComponent"
+          nullable: true
+        version:
+          type: string
+        name:
+          type: ["string", "null"]
+        status:
+          $ref: "#/components/schemas/ReleaseStatus"
+        targetDate:
+          type: ["string", "null"]
+          format: date
+        releasedAt:
+          type: ["string", "null"]
+          format: date
+        changelog:
+          type: ["string", "null"]
+        order:
+          type: integer
+        itemCount:
+          type: integer
+        doneCount:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+
+    ReleaseStatus:
+      type: string
+      enum: [planned, in_progress, submitted, released, cancelled]
+
+    ReleaseInput:
+      type: object
+      required: [version]
+      properties:
+        version:
+          type: string
+        name:
+          type: ["string", "null"]
+        componentId:
+          type: ["integer", "null"]
+        status:
+          $ref: "#/components/schemas/ReleaseStatus"
+        targetDate:
+          type: ["string", "null"]
+          format: date
+        releasedAt:
+          type: ["string", "null"]
+          format: date
+        changelog:
+          type: ["string", "null"]
+
+    ReleaseUpdate:
+      type: object
+      properties:
+        version:
+          type: string
+        name:
+          type: ["string", "null"]
+        componentId:
+          type: ["integer", "null"]
+        status:
+          $ref: "#/components/schemas/ReleaseStatus"
+        targetDate:
+          type: ["string", "null"]
+          format: date
+        releasedAt:
+          type: ["string", "null"]
+          format: date
+        changelog:
+          type: ["string", "null"]
+        order:
+          type: integer
+
     # ── Items ─────────────────────────────────────────────────────────────
     Item:
       type: object
@@ -2303,6 +2483,8 @@ components:
         scopeId:
           type: ["integer", "null"]
         milestoneId:
+          type: ["integer", "null"]
+        releaseId:
           type: ["integer", "null"]
         estimateMinutes:
           type: ["integer", "null"]
@@ -2365,6 +2547,8 @@ components:
         scopeId:
           type: ["integer", "null"]
         milestoneId:
+          type: ["integer", "null"]
+        releaseId:
           type: ["integer", "null"]
         estimateMinutes:
           type: ["integer", "null"]
@@ -2449,6 +2633,8 @@ components:
           type: ["integer", "null"]
         milestoneId:
           type: ["integer", "null"]
+        releaseId:
+          type: ["integer", "null"]
         estimateMinutes:
           type: ["integer", "null"]
         dueDate:
@@ -2482,6 +2668,8 @@ components:
         scopeId:
           type: ["integer", "null"]
         milestoneId:
+          type: ["integer", "null"]
+        releaseId:
           type: ["integer", "null"]
         estimateMinutes:
           type: ["integer", "null"]

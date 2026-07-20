@@ -24,6 +24,8 @@ export interface ItemUpdate {
   /** @nullable */
   milestoneId?: number | null;
   /** @nullable */
+  releaseId?: number | null;
+  /** @nullable */
   estimateMinutes?: number | null;
   /** @nullable */
   dueDate?: string | null;

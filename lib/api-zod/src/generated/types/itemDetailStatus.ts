@@ -12,6 +12,7 @@ export type ItemDetailStatus = typeof ItemDetailStatus[keyof typeof ItemDetailSt
 export const ItemDetailStatus = {
   open: 'open',
   in_progress: 'in_progress',
+  on_hold: 'on_hold',
   blocked: 'blocked',
   done: 'done',
   cancelled: 'cancelled',

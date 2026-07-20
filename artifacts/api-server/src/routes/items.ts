@@ -19,6 +19,7 @@ import { logActivity } from "../lib/activity";
 import { createNotifications, type NotificationType } from "../lib/notify";
 
 const router = Router({ mergeParams: true });
+const CLOSED_ITEM_STATUSES = new Set(["done", "cancelled"]);
 
 async function getProject(slug: string) {
   const [p] = await db
@@ -155,6 +156,7 @@ router.post("/", requireAuth, async (req: AuthRequest, res) => {
     assigneeId,
     scopeId,
     milestoneId,
+    releaseId,
     estimateMinutes,
     dueDate,
     decisionRationale,
@@ -162,6 +164,8 @@ router.post("/", requireAuth, async (req: AuthRequest, res) => {
     componentId,
     labelIds,
   } = req.body;
+
+  const initialStatus = status ?? "open";
 
   const [created] = await db
     .insert(items)
@@ -171,16 +175,18 @@ router.post("/", requireAuth, async (req: AuthRequest, res) => {
       type,
       title,
       description,
-      status: status ?? "open",
+      status: initialStatus,
       priority: priority ?? "medium",
       assigneeId,
       scopeId,
       milestoneId,
+      releaseId,
       estimateMinutes,
       dueDate,
       decisionRationale,
       category: category ?? null,
       componentId: componentId ?? null,
+      closedAt: CLOSED_ITEM_STATUSES.has(initialStatus) ? new Date() : null,
     })
     .returning();
 
@@ -331,6 +337,7 @@ router.patch("/:itemNumber", requireAuth, async (req: AuthRequest, res) => {
     assigneeId,
     scopeId,
     milestoneId,
+    releaseId,
     estimateMinutes,
     dueDate,
     decisionRationale,
@@ -340,11 +347,11 @@ router.patch("/:itemNumber", requireAuth, async (req: AuthRequest, res) => {
   } = req.body;
 
   const closedAt =
-    status &&
-    ["done", "cancelled"].includes(status) &&
-    !["done", "cancelled"].includes(existing.status)
-      ? new Date()
-      : undefined;
+    status === undefined
+      ? undefined
+      : CLOSED_ITEM_STATUSES.has(status)
+        ? existing.closedAt ?? new Date()
+        : null;
 
   const [updated] = await db
     .update(items)
@@ -352,17 +359,17 @@ router.patch("/:itemNumber", requireAuth, async (req: AuthRequest, res) => {
       ...(type !== undefined && { type }),
       ...(title !== undefined && { title }),
       ...(description !== undefined && { description }),
-      ...(status !== undefined && { status }),
+      ...(status !== undefined && { status, closedAt }),
       ...(priority !== undefined && { priority }),
       ...(assigneeId !== undefined && { assigneeId }),
       ...(scopeId !== undefined && { scopeId }),
       ...(milestoneId !== undefined && { milestoneId }),
+      ...(releaseId !== undefined && { releaseId }),
       ...(estimateMinutes !== undefined && { estimateMinutes }),
       ...(dueDate !== undefined && { dueDate }),
       ...(decisionRationale !== undefined && { decisionRationale }),
       ...(category !== undefined && { category: category ?? null }),
       ...(componentId !== undefined && { componentId: componentId ?? null }),
-      ...(closedAt && { closedAt }),
     })
     .where(eq(items.id, existing.id))
     .returning();

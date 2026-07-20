@@ -304,6 +304,82 @@ export interface MilestoneUpdate {
   order?: number;
 }
 
+export interface ProjectComponent {
+  id: number;
+  projectId: number;
+  name: string;
+  /** @nullable */
+  description?: string | null;
+  createdAt?: string;
+}
+
+export type ReleaseStatus = typeof ReleaseStatus[keyof typeof ReleaseStatus];
+
+
+export const ReleaseStatus = {
+  planned: 'planned',
+  in_progress: 'in_progress',
+  submitted: 'submitted',
+  released: 'released',
+  cancelled: 'cancelled',
+} as const;
+
+export interface Release {
+  id: number;
+  projectId: number;
+  /**
+     * Platform axis — the project component (e.g. Web, Mobile) this release ships for. Null = whole app.
+     * @nullable
+     */
+  componentId?: number | null;
+  component?: ProjectComponent | null;
+  version: string;
+  /** @nullable */
+  name?: string | null;
+  status: ReleaseStatus;
+  /** @nullable */
+  targetDate?: string | null;
+  /** @nullable */
+  releasedAt?: string | null;
+  /** @nullable */
+  changelog?: string | null;
+  order: number;
+  itemCount: number;
+  doneCount: number;
+  createdAt: string;
+}
+
+export interface ReleaseInput {
+  version: string;
+  /** @nullable */
+  name?: string | null;
+  /** @nullable */
+  componentId?: number | null;
+  status?: ReleaseStatus;
+  /** @nullable */
+  targetDate?: string | null;
+  /** @nullable */
+  releasedAt?: string | null;
+  /** @nullable */
+  changelog?: string | null;
+}
+
+export interface ReleaseUpdate {
+  version?: string;
+  /** @nullable */
+  name?: string | null;
+  /** @nullable */
+  componentId?: number | null;
+  status?: ReleaseStatus;
+  /** @nullable */
+  targetDate?: string | null;
+  /** @nullable */
+  releasedAt?: string | null;
+  /** @nullable */
+  changelog?: string | null;
+  order?: number;
+}
+
 export type ItemType = typeof ItemType[keyof typeof ItemType];
 
 
@@ -351,15 +427,6 @@ export const ItemCategory = {
   support_operations: 'support_operations',
 } as const;
 
-export interface ProjectComponent {
-  id: number;
-  projectId: number;
-  name: string;
-  /** @nullable */
-  description?: string | null;
-  createdAt?: string;
-}
-
 export type ItemRefStatus = typeof ItemRefStatus[keyof typeof ItemRefStatus];
 
 
@@ -397,6 +464,8 @@ export interface Item {
   scopeId?: number | null;
   /** @nullable */
   milestoneId?: number | null;
+  /** @nullable */
+  releaseId?: number | null;
   /** @nullable */
   estimateMinutes?: number | null;
   /** @nullable */
@@ -505,6 +574,8 @@ export interface ItemDetail {
   /** @nullable */
   milestoneId?: number | null;
   /** @nullable */
+  releaseId?: number | null;
+  /** @nullable */
   estimateMinutes?: number | null;
   /** @nullable */
   dueDate?: string | null;
@@ -575,6 +646,8 @@ export interface ItemInput {
   /** @nullable */
   milestoneId?: number | null;
   /** @nullable */
+  releaseId?: number | null;
+  /** @nullable */
   estimateMinutes?: number | null;
   /** @nullable */
   dueDate?: string | null;
@@ -630,6 +703,8 @@ export interface ItemUpdate {
   scopeId?: number | null;
   /** @nullable */
   milestoneId?: number | null;
+  /** @nullable */
+  releaseId?: number | null;
   /** @nullable */
   estimateMinutes?: number | null;
   /** @nullable */

@@ -63,6 +63,9 @@ import type {
   ProjectMember,
   ProjectMemberInput,
   ProjectUpdate,
+  Release,
+  ReleaseInput,
+  ReleaseUpdate,
   Scope,
   ScopeInput,
   ScopeUpdate,
@@ -1873,6 +1876,301 @@ export const useDeleteMilestone = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getDeleteMilestoneMutationOptions(options));
+    }
+
+export const getListReleasesUrl = (slug: string,) => {
+
+
+
+
+  return `/api/projects/${slug}/releases`
+}
+
+/**
+ * @summary List releases
+ */
+export const listReleases = async (slug: string, options?: RequestInit): Promise<Release[]> => {
+
+  return customFetch<Release[]>(getListReleasesUrl(slug),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListReleasesQueryKey = (slug: string,) => {
+    return [
+    `/api/projects/${slug}/releases`
+    ] as const;
+    }
+
+
+export const getListReleasesQueryOptions = <TData = Awaited<ReturnType<typeof listReleases>>, TError = ErrorType<unknown>>(slug: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listReleases>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListReleasesQueryKey(slug);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listReleases>>> = ({ signal }) => listReleases(slug, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(slug), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listReleases>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListReleasesQueryResult = NonNullable<Awaited<ReturnType<typeof listReleases>>>
+export type ListReleasesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List releases
+ */
+
+export function useListReleases<TData = Awaited<ReturnType<typeof listReleases>>, TError = ErrorType<unknown>>(
+ slug: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listReleases>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListReleasesQueryOptions(slug,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getCreateReleaseUrl = (slug: string,) => {
+
+
+
+
+  return `/api/projects/${slug}/releases`
+}
+
+/**
+ * @summary Create release
+ */
+export const createRelease = async (slug: string,
+    releaseInput: ReleaseInput, options?: RequestInit): Promise<Release> => {
+
+  return customFetch<Release>(getCreateReleaseUrl(slug),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      releaseInput,)
+  }
+);}
+
+
+
+
+export const getCreateReleaseMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createRelease>>, TError,{slug: string;data: BodyType<ReleaseInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createRelease>>, TError,{slug: string;data: BodyType<ReleaseInput>}, TContext> => {
+
+const mutationKey = ['createRelease'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createRelease>>, {slug: string;data: BodyType<ReleaseInput>}> = (props) => {
+          const {slug,data} = props ?? {};
+
+          return  createRelease(slug,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateReleaseMutationResult = NonNullable<Awaited<ReturnType<typeof createRelease>>>
+    export type CreateReleaseMutationBody = BodyType<ReleaseInput>
+    export type CreateReleaseMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Create release
+ */
+export const useCreateRelease = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createRelease>>, TError,{slug: string;data: BodyType<ReleaseInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createRelease>>,
+        TError,
+        {slug: string;data: BodyType<ReleaseInput>},
+        TContext
+      > => {
+      return useMutation(getCreateReleaseMutationOptions(options));
+    }
+
+export const getUpdateReleaseUrl = (slug: string,
+    releaseId: number,) => {
+
+
+
+
+  return `/api/projects/${slug}/releases/${releaseId}`
+}
+
+/**
+ * @summary Update release
+ */
+export const updateRelease = async (slug: string,
+    releaseId: number,
+    releaseUpdate: ReleaseUpdate, options?: RequestInit): Promise<Release> => {
+
+  return customFetch<Release>(getUpdateReleaseUrl(slug,releaseId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      releaseUpdate,)
+  }
+);}
+
+
+
+
+export const getUpdateReleaseMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateRelease>>, TError,{slug: string;releaseId: number;data: BodyType<ReleaseUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateRelease>>, TError,{slug: string;releaseId: number;data: BodyType<ReleaseUpdate>}, TContext> => {
+
+const mutationKey = ['updateRelease'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateRelease>>, {slug: string;releaseId: number;data: BodyType<ReleaseUpdate>}> = (props) => {
+          const {slug,releaseId,data} = props ?? {};
+
+          return  updateRelease(slug,releaseId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateReleaseMutationResult = NonNullable<Awaited<ReturnType<typeof updateRelease>>>
+    export type UpdateReleaseMutationBody = BodyType<ReleaseUpdate>
+    export type UpdateReleaseMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Update release
+ */
+export const useUpdateRelease = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateRelease>>, TError,{slug: string;releaseId: number;data: BodyType<ReleaseUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateRelease>>,
+        TError,
+        {slug: string;releaseId: number;data: BodyType<ReleaseUpdate>},
+        TContext
+      > => {
+      return useMutation(getUpdateReleaseMutationOptions(options));
+    }
+
+export const getDeleteReleaseUrl = (slug: string,
+    releaseId: number,) => {
+
+
+
+
+  return `/api/projects/${slug}/releases/${releaseId}`
+}
+
+/**
+ * @summary Delete release
+ */
+export const deleteRelease = async (slug: string,
+    releaseId: number, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getDeleteReleaseUrl(slug,releaseId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+export const getDeleteReleaseMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteRelease>>, TError,{slug: string;releaseId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteRelease>>, TError,{slug: string;releaseId: number}, TContext> => {
+
+const mutationKey = ['deleteRelease'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteRelease>>, {slug: string;releaseId: number}> = (props) => {
+          const {slug,releaseId} = props ?? {};
+
+          return  deleteRelease(slug,releaseId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteReleaseMutationResult = NonNullable<Awaited<ReturnType<typeof deleteRelease>>>
+
+    export type DeleteReleaseMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Delete release
+ */
+export const useDeleteRelease = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteRelease>>, TError,{slug: string;releaseId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteRelease>>,
+        TError,
+        {slug: string;releaseId: number},
+        TContext
+      > => {
+      return useMutation(getDeleteReleaseMutationOptions(options));
     }
 
 export const getListItemsUrl = (slug: string,

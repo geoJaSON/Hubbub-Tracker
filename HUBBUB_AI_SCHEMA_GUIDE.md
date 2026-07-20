@@ -86,6 +86,7 @@ slugs and IDs.
 | `assigneeId` | string | No | `null` | A user ID / `clerkId` (see §5 members) |
 | `scopeId` | integer | No | `null` | Foreign key → a scope in the project |
 | `milestoneId` | integer | No | `null` | Foreign key → a milestone in the project |
+| `releaseId` | integer | No | `null` | Foreign key → a release ("fix version") in the project |
 | `componentId` | integer | No | `null` | Foreign key → a project component |
 | `estimateMinutes` | integer | No | `null` | Time estimate in minutes |
 | `dueDate` | string (date) | No | `null` | `YYYY-MM-DD` |
@@ -203,7 +204,8 @@ push_todo(
 ## 5. Discovery endpoints (to resolve slugs & IDs)
 
 All require the same `Authorization: Bearer` header. Use these so your
-assistant can fill in `scopeId`, `milestoneId`, `componentId`, or `assigneeId`.
+assistant can fill in `scopeId`, `milestoneId`, `releaseId`, `componentId`, or
+`assigneeId`.
 
 | Purpose | Method & path |
 | --- | --- |
@@ -212,8 +214,17 @@ assistant can fill in `scopeId`, `milestoneId`, `componentId`, or `assigneeId`.
 | List project members (gives user IDs for `assigneeId`) | `GET /api/projects/{slug}/members` |
 | List scopes (gives `scopeId`) | `GET /api/projects/{slug}/scopes` |
 | List milestones (gives `milestoneId`) | `GET /api/projects/{slug}/milestones` |
+| List releases (gives `releaseId`) | `GET /api/projects/{slug}/releases` |
 | List components (gives `componentId`) | `GET /api/projects/{slug}/components` |
 | List existing items | `GET /api/projects/{slug}/items` |
+
+> **Releases** are ship vehicles ("fix versions") for post-launch maintenance:
+> `version` (e.g. `1.4.0`), optional `name`, optional `componentId` for the
+> platform (e.g. Web vs Mobile), `status` (`planned`, `in_progress`,
+> `submitted`, `released`, `cancelled`), `targetDate`, `releasedAt`, and a
+> `changelog`. Full CRUD lives at `POST/PATCH/DELETE
+> /api/projects/{slug}/releases[/{releaseId}]`. Assign a bug or request to a
+> release by setting `releaseId` on the item.
 
 **Recommended assistant flow:**
 1. `GET /api/projects` → pick the project `slug`.

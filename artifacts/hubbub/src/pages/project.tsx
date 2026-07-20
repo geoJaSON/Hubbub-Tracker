@@ -9,6 +9,8 @@ import {
   useGetBurnDown, useListCostEntries, useCreateCostEntry, useUpdateCostEntry, useDeleteCostEntry,
   useCreateScope, useUpdateScope, useDeleteScope,
   useCreateMilestone, useUpdateMilestone, useDeleteMilestone, useListMilestones,
+  useListReleases, useCreateRelease, useUpdateRelease, useDeleteRelease,
+  getListReleasesQueryKey,
   useListCommits, useListProjectTimeEntries, useCreateTimeEntry,
   useListPresence, useListUsers, useAddProjectMember, useRemoveProjectMember,
   useListProjectMembers,
@@ -22,6 +24,7 @@ import type {
   CostEntryInputCategory, Scope, Milestone, ScopeInput, ScopeUpdate,
   ScopeInputStatus, MilestoneInput, MilestoneUpdate, MilestoneUpdateStatus,
   Commit, TimeEntry, Presence, ProjectComponent, Flow, FlowUpdate,
+  Release, ReleaseInput, ReleaseUpdate, ReleaseStatus,
 } from "@workspace/api-client-react";
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid,
@@ -55,8 +58,10 @@ import {
   Plus, Send, Bug, CheckSquare, Lightbulb, MessageSquare as ReqIcon,
   ArrowRight, FileText, Copy, Trash2, Pin, Pencil, Archive, Search,
   Flag, Layers, GripVertical, User as UserIcon, ChevronDown, ChevronRight,
+  Rocket,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { buildItemBurnDown } from "@/lib/burndown";
 import { MarkdownRenderer } from "@/components/markdown-renderer";
 import { FlowEditor } from "@/components/flow-editor";
 import { GanttScheduler } from "@/components/gantt-scheduler";
@@ -122,6 +127,7 @@ type ItemLabelChip = { id: number; name: string; color: string };
 type ItemView = "open" | "mine" | "blocked" | "overdue" | "closed" | "all";
 type BulkState = {
   milestoneId: string;
+  releaseId: string;
   componentId: string;
   scopeId: string;
   category: string;
@@ -130,11 +136,31 @@ type BulkState = {
 
 const DEFAULT_BULK_STATE: BulkState = {
   milestoneId: "",
+  releaseId: "",
   componentId: "",
   scopeId: "",
   category: "",
   status: "",
 };
+
+const RELEASE_STATUSES: ReleaseStatus[] = ["planned", "in_progress", "submitted", "released", "cancelled"];
+const RELEASE_STATUS_LABELS: Record<string, string> = {
+  planned: "PLANNED", in_progress: "IN PROGRESS", submitted: "SUBMITTED",
+  released: "RELEASED", cancelled: "CANCELLED",
+};
+const RELEASE_STATUS_COLORS: Record<string, string> = {
+  planned: "border-border text-muted-foreground",
+  in_progress: "border-accent/50 text-accent",
+  submitted: "border-yellow-500/50 text-yellow-500",
+  released: "border-primary/50 text-primary",
+  cancelled: "border-muted text-muted-foreground",
+};
+// Releases still being worked toward, vs. shipped/cancelled history.
+const UPCOMING_RELEASE_STATUSES = new Set<string>(["planned", "in_progress", "submitted"]);
+
+function releaseLabel(r: Release): string {
+  return r.name ? `${r.version} — ${r.name}` : r.version;
+}
 
 const ITEM_VIEWS: { id: ItemView; label: string }[] = [
   { id: "open", label: "OPEN" },
@@ -267,6 +293,10 @@ export default function ProjectPage() {
   const createMilestoneM = useCreateMilestone();
   const updateMilestoneM = useUpdateMilestone();
   const deleteMilestoneM = useDeleteMilestone();
+  const { data: releasesData = [] } = useListReleases(slug!);
+  const createReleaseM = useCreateRelease();
+  const updateReleaseM = useUpdateRelease();
+  const deleteReleaseM = useDeleteRelease();
 
   // Filter to users seen within the last 60 seconds
   const onlineUsers = useMemo<Presence[]>(() => {
@@ -296,6 +326,8 @@ export default function ProjectPage() {
   const [itemScopeFilter, setItemScopeFilter] = useState<Set<number>>(new Set());
   const [itemMilestoneFilter, setItemMilestoneFilter] = useState<Set<number>>(new Set());
   const [itemLabelFilter, setItemLabelFilter] = useState<Set<number>>(new Set());
+  const [itemReleaseFilter, setItemReleaseFilter] = useState<Set<number>>(new Set());
+  const [itemTitleSearch, setItemTitleSearch] = useState("");
   const [itemView, setItemView] = useState<ItemView>("open");
   const [hideClosed, setHideClosed] = useState(true);
   const [selectedItems, setSelectedItems] = useState<Set<number>>(new Set());
@@ -366,6 +398,7 @@ export default function ProjectPage() {
     componentId: number | null;
     scopeId: number | null;
     milestoneId: number | null;
+    releaseId: number | null;
     dueDate: string;
     estimateMinutes: string;
   }>({
@@ -377,6 +410,7 @@ export default function ProjectPage() {
     componentId: null,
     scopeId: null,
     milestoneId: null,
+    releaseId: null,
     dueDate: "",
     estimateMinutes: "",
   });
@@ -404,6 +438,12 @@ export default function ProjectPage() {
     return next;
   });
   const toggleMilestoneExpanded = (id: number) => setExpandedMilestoneIds((prev) => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
+  const [expandedReleaseIds, setExpandedReleaseIds] = useState<Set<number>>(new Set());
+  const toggleReleaseExpanded = (id: number) => setExpandedReleaseIds((prev) => {
     const next = new Set(prev);
     if (next.has(id)) next.delete(id); else next.add(id);
     return next;
@@ -463,6 +503,35 @@ export default function ProjectPage() {
       status: m.status as MilestoneUpdateStatus,
     });
     setMilestoneOpen(true);
+  };
+
+  const [releaseOpen, setReleaseOpen] = useState(false);
+  const [editingRelease, setEditingRelease] = useState<Release | null>(null);
+  const [releaseForm, setReleaseForm] = useState<{
+    version: string;
+    name: string;
+    componentId: string;
+    status: ReleaseStatus;
+    targetDate: string;
+    releasedAt: string;
+    changelog: string;
+  }>({ version: "", name: "", componentId: "", status: "planned", targetDate: "", releasedAt: "", changelog: "" });
+  const resetReleaseForm = () => {
+    setEditingRelease(null);
+    setReleaseForm({ version: "", name: "", componentId: "", status: "planned", targetDate: "", releasedAt: "", changelog: "" });
+  };
+  const openEditRelease = (r: Release) => {
+    setEditingRelease(r);
+    setReleaseForm({
+      version: r.version,
+      name: r.name ?? "",
+      componentId: r.componentId != null ? String(r.componentId) : "",
+      status: r.status,
+      targetDate: r.targetDate ?? "",
+      releasedAt: r.releasedAt ?? "",
+      changelog: r.changelog ?? "",
+    });
+    setReleaseOpen(true);
   };
 
   const [logTimeOpen, setLogTimeOpen] = useState(false);
@@ -564,6 +633,10 @@ export default function ProjectPage() {
     () => new Map((milestonesData as Milestone[]).map((milestone) => [milestone.id, milestone.name])),
     [milestonesData],
   );
+  const releaseById = useMemo(
+    () => new Map((releasesData as Release[]).map((release) => [release.id, release])),
+    [releasesData],
+  );
   const availableMilestonesForNewItem = useMemo(
     () =>
       (milestonesData as Milestone[]).filter(
@@ -590,6 +663,7 @@ export default function ProjectPage() {
         scope?: number[];
         milestone?: number[];
         label?: number[];
+        release?: number[];
       };
       if (saved.view && ITEM_VIEWS.some((view) => view.id === saved.view)) setItemView(saved.view);
       if (typeof saved.hideClosed === "boolean") setHideClosed(saved.hideClosed);
@@ -599,6 +673,8 @@ export default function ProjectPage() {
       setItemScopeFilter(new Set(saved.scope ?? []));
       setItemMilestoneFilter(new Set(saved.milestone ?? []));
       setItemLabelFilter(new Set(saved.label ?? []));
+      setItemReleaseFilter(new Set(saved.release ?? []));
+      setItemTitleSearch("");
       setSelectedItems(new Set());
     } catch {
       // Ignore stale local storage from older builds.
@@ -618,6 +694,7 @@ export default function ProjectPage() {
         scope: [...itemScopeFilter],
         milestone: [...itemMilestoneFilter],
         label: [...itemLabelFilter],
+        release: [...itemReleaseFilter],
       }),
     );
   }, [
@@ -630,6 +707,7 @@ export default function ProjectPage() {
     itemScopeFilter,
     itemMilestoneFilter,
     itemLabelFilter,
+    itemReleaseFilter,
   ]);
 
   useEffect(() => {
@@ -712,12 +790,14 @@ export default function ProjectPage() {
         componentId: newItem.componentId ?? null,
         scopeId: newItem.scopeId,
         milestoneId: newItem.milestoneId,
+        releaseId: newItem.releaseId,
         dueDate: newItem.dueDate || null,
         estimateMinutes: newItem.estimateMinutes ? Number(newItem.estimateMinutes) : null,
       };
       await createItem.mutateAsync({ slug, data: payload });
       qc.invalidateQueries({ queryKey: getListItemsQueryKey(slug!) });
       qc.invalidateQueries({ queryKey: getListMilestonesQueryKey(slug!) });
+      qc.invalidateQueries({ queryKey: getListReleasesQueryKey(slug!) });
       setCreateOpen(false);
       setNewItem({
         type: "todo",
@@ -728,6 +808,7 @@ export default function ProjectPage() {
         componentId: null,
         scopeId: null,
         milestoneId: null,
+        releaseId: null,
         dueDate: "",
         estimateMinutes: "",
       });
@@ -1042,12 +1123,73 @@ export default function ProjectPage() {
     }
   };
 
+  const handleSaveRelease = async () => {
+    if (!releaseForm.version.trim()) return;
+    try {
+      if (editingRelease) {
+        const patch: ReleaseUpdate = {
+          version: releaseForm.version.trim(),
+          name: releaseForm.name.trim() || null,
+          componentId: releaseForm.componentId ? Number(releaseForm.componentId) : null,
+          status: releaseForm.status,
+          targetDate: releaseForm.targetDate || null,
+          releasedAt: releaseForm.releasedAt || null,
+          changelog: releaseForm.changelog || null,
+        };
+        await updateReleaseM.mutateAsync({ slug: slug!, releaseId: editingRelease.id, data: patch });
+        toast({ title: "Release updated" });
+      } else {
+        const input: ReleaseInput = {
+          version: releaseForm.version.trim(),
+          name: releaseForm.name.trim() || null,
+          componentId: releaseForm.componentId ? Number(releaseForm.componentId) : null,
+          status: releaseForm.status,
+          targetDate: releaseForm.targetDate || null,
+          releasedAt: releaseForm.releasedAt || null,
+          changelog: releaseForm.changelog || null,
+        };
+        await createReleaseM.mutateAsync({ slug: slug!, data: input });
+        toast({ title: "Release created" });
+      }
+      qc.invalidateQueries({ queryKey: getListReleasesQueryKey(slug!) });
+      setReleaseOpen(false);
+      resetReleaseForm();
+    } catch {
+      toast({ title: editingRelease ? "Failed to update release" : "Failed to create release", variant: "destructive" });
+    }
+  };
+
+  const handleDeleteRelease = async (r: Release) => {
+    if (!window.confirm(`Delete release "${releaseLabel(r)}"? Items assigned to it will be unlinked.`)) return;
+    try {
+      await deleteReleaseM.mutateAsync({ slug: slug!, releaseId: r.id });
+      qc.invalidateQueries({ queryKey: getListReleasesQueryKey(slug!) });
+      qc.invalidateQueries({ queryKey: getListItemsQueryKey(slug!) });
+      toast({ title: "Release deleted" });
+    } catch {
+      toast({ title: "Failed to delete release", variant: "destructive" });
+    }
+  };
+
+  // Quick-advance a release through its lifecycle; the server stamps
+  // releasedAt when status lands on "released".
+  const handleReleaseStatusChange = async (r: Release, status: ReleaseStatus) => {
+    try {
+      await updateReleaseM.mutateAsync({ slug: slug!, releaseId: r.id, data: { status } });
+      qc.invalidateQueries({ queryKey: getListReleasesQueryKey(slug!) });
+      toast({ title: `${releaseLabel(r)} → ${RELEASE_STATUS_LABELS[status]}` });
+    } catch {
+      toast({ title: "Failed to update release", variant: "destructive" });
+    }
+  };
+
   const handleStatusChange = async (itemId: number, status: ItemUpdateStatus) => {
     const item = items.find((i) => i.id === itemId);
     if (!item) return;
     await updateItem.mutateAsync({ slug, itemNumber: item.number, data: { status } });
     qc.invalidateQueries({ queryKey: getListItemsQueryKey(slug!) });
     qc.invalidateQueries({ queryKey: getListMilestonesQueryKey(slug!) });
+    qc.invalidateQueries({ queryKey: getListReleasesQueryKey(slug!) });
   };
 
   // Apply the chosen field(s) to every selected item. "" = leave unchanged,
@@ -1055,6 +1197,7 @@ export default function ProjectPage() {
   const applyBulk = async () => {
     const patch: Record<string, unknown> = {};
     if (bulk.milestoneId) patch.milestoneId = bulk.milestoneId === "__none__" ? null : Number(bulk.milestoneId);
+    if (bulk.releaseId) patch.releaseId = bulk.releaseId === "__none__" ? null : Number(bulk.releaseId);
     if (bulk.componentId) patch.componentId = bulk.componentId === "__none__" ? null : Number(bulk.componentId);
     if (bulk.scopeId) patch.scopeId = bulk.scopeId === "__none__" ? null : Number(bulk.scopeId);
     if (bulk.category) patch.category = bulk.category === "__none__" ? null : bulk.category;
@@ -1074,6 +1217,7 @@ export default function ProjectPage() {
       }
       qc.invalidateQueries({ queryKey: getListItemsQueryKey(slug!) });
       qc.invalidateQueries({ queryKey: getListMilestonesQueryKey(slug!) });
+      qc.invalidateQueries({ queryKey: getListReleasesQueryKey(slug!) });
       toast({ title: `Updated ${selectedItems.size} item(s)` });
       setSelectedItems(new Set());
       setBulk(DEFAULT_BULK_STATE);
@@ -1171,6 +1315,7 @@ export default function ProjectPage() {
             {[
               { value: "items", label: "ITEMS" },
               { value: "board", label: "BOARD" },
+              { value: "releases", label: "RELEASES" },
               { value: "docs", label: "DOCS" },
               { value: "flows", label: "FLOWS" },
               { value: "schedule", label: "SCHEDULE" },
@@ -1241,7 +1386,9 @@ export default function ProjectPage() {
                 itemComponentFilter.size > 0 ||
                 itemScopeFilter.size > 0 ||
                 itemMilestoneFilter.size > 0 ||
-                itemLabelFilter.size > 0;
+                itemLabelFilter.size > 0 ||
+                itemReleaseFilter.size > 0 ||
+                itemTitleSearch.trim() !== "";
               const labelById = new Map<number, ItemLabelChip>();
               for (const it of items)
                 for (const l of (it as Item & { labels?: ItemLabelChip[] }).labels ?? [])
@@ -1257,6 +1404,22 @@ export default function ProjectPage() {
               ];
               return (
                 <div className="flex gap-1 flex-wrap items-center">
+                  {/* TITLE SEARCH */}
+                  <div className="relative">
+                    <Search className="absolute left-1.5 top-1/2 -translate-y-1/2 h-2.5 w-2.5 text-muted-foreground pointer-events-none" />
+                    <input
+                      value={itemTitleSearch}
+                      onChange={(e) => setItemTitleSearch(e.target.value)}
+                      placeholder="SEARCH TITLES"
+                      className={cn(
+                        "text-[10px] font-mono border bg-transparent pl-5 pr-2 py-0.5 w-36 outline-none transition-colors placeholder:text-muted-foreground",
+                        itemTitleSearch.trim() !== ""
+                          ? "border-primary text-primary bg-primary/10"
+                          : "border-border text-foreground hover:border-muted-foreground focus:border-muted-foreground",
+                      )}
+                    />
+                  </div>
+
                   {/* TYPE */}
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
@@ -1427,6 +1590,33 @@ export default function ProjectPage() {
                     </DropdownMenu>
                   )}
 
+                  {/* RELEASE */}
+                  {(releasesData as Release[]).length > 0 && (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button className={triggerCls(itemReleaseFilter.size > 0)}>
+                          RELEASE{itemReleaseFilter.size > 0 && ` (${itemReleaseFilter.size})`}
+                          <ChevronDown className="h-2.5 w-2.5" />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start" className="font-mono text-xs rounded-none max-h-80 overflow-y-auto">
+                        <DropdownMenuLabel className="text-[10px] tracking-widest text-muted-foreground">RELEASE</DropdownMenuLabel>
+                        <DropdownMenuSeparator />
+                        {(releasesData as Release[]).map((r) => (
+                          <DropdownMenuCheckboxItem
+                            key={r.id}
+                            checked={itemReleaseFilter.has(r.id)}
+                            onCheckedChange={(c) => toggle(setItemReleaseFilter, r.id, !!c)}
+                            onSelect={(e) => e.preventDefault()}
+                            className="text-xs"
+                          >
+                            {releaseLabel(r)}{r.component ? ` [${r.component.name}]` : ""}
+                          </DropdownMenuCheckboxItem>
+                        ))}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
+
                   {/* CLEAR */}
                   {anyActive && (
                     <button
@@ -1437,6 +1627,8 @@ export default function ProjectPage() {
                         setItemScopeFilter(new Set());
                         setItemMilestoneFilter(new Set());
                         setItemLabelFilter(new Set());
+                        setItemReleaseFilter(new Set());
+                        setItemTitleSearch("");
                       }}
                       className="text-[10px] font-mono border border-destructive/60 text-destructive hover:bg-destructive/10 px-2 py-0.5 transition-colors"
                     >
@@ -1463,6 +1655,7 @@ export default function ProjectPage() {
             })()}
             {(() => {
               const today = new Date().toISOString().slice(0, 10);
+              const titleQuery = itemTitleSearch.trim().toLowerCase();
               const filtered = visibleItems
                 .filter((i) => {
                   const isClosed = CLOSED_STATUSES.has(i.status);
@@ -1479,6 +1672,8 @@ export default function ProjectPage() {
                 .filter((i) => itemScopeFilter.size === 0 || (i.scopeId != null && itemScopeFilter.has(i.scopeId)))
                 .filter((i) => itemMilestoneFilter.size === 0 || (i.milestoneId != null && itemMilestoneFilter.has(i.milestoneId)))
                 .filter((i) => itemLabelFilter.size === 0 || ((i as Item & { labels?: ItemLabelChip[] }).labels ?? []).some((l) => itemLabelFilter.has(l.id)))
+                .filter((i) => itemReleaseFilter.size === 0 || (i.releaseId != null && itemReleaseFilter.has(i.releaseId)))
+                .filter((i) => titleQuery === "" || i.title.toLowerCase().includes(titleQuery))
                 .filter((i) => itemView === "closed" || !hideClosed || !CLOSED_STATUSES.has(i.status));
               const anyFilterActive =
                 itemTypeFilter.size > 0 ||
@@ -1487,6 +1682,8 @@ export default function ProjectPage() {
                 itemScopeFilter.size > 0 ||
                 itemMilestoneFilter.size > 0 ||
                 itemLabelFilter.size > 0 ||
+                itemReleaseFilter.size > 0 ||
+                titleQuery !== "" ||
                 itemView !== "all" ||
                 hideClosed;
               const allSelected = filtered.length > 0 && filtered.every((i) => selectedItems.has(i.number));
@@ -1516,6 +1713,11 @@ export default function ProjectPage() {
                             <option value="">milestone…</option>
                             <option value="__none__">— clear —</option>
                             {(milestonesData as Milestone[]).map((m) => (<option key={m.id} value={m.id}>{m.name}</option>))}
+                          </select>
+                          <select value={bulk.releaseId} onChange={(e) => setBulk((b) => ({ ...b, releaseId: e.target.value }))} className="bg-background border border-border font-mono text-[10px] h-6 px-1">
+                            <option value="">release…</option>
+                            <option value="__none__">— clear —</option>
+                            {(releasesData as Release[]).map((r) => (<option key={r.id} value={r.id}>{releaseLabel(r)}</option>))}
                           </select>
                           <select value={bulk.componentId} onChange={(e) => setBulk((b) => ({ ...b, componentId: e.target.value }))} className="bg-background border border-border font-mono text-[10px] h-6 px-1">
                             <option value="">component…</option>
@@ -1613,6 +1815,12 @@ export default function ProjectPage() {
                             {milestoneNameById.get(item.milestoneId) ?? "Milestone"}
                           </span>
                         )}
+                        {item.releaseId && releaseById.has(item.releaseId) && (
+                          <span className="hidden xl:flex items-center gap-1 text-[10px] font-mono border border-primary/30 text-primary/80 px-1.5 py-0.5 shrink-0">
+                            <Rocket className="h-2.5 w-2.5" />
+                            {releaseById.get(item.releaseId)!.version}
+                          </span>
+                        )}
                         {((item as Item & { labels?: ItemLabelChip[] }).labels ?? []).map((l) => (
                           <span key={l.id} className="hidden lg:inline-block text-[10px] font-mono border px-1.5 py-0.5 shrink-0" style={{ borderColor: l.color, color: l.color }}>
                             {l.name}
@@ -1680,6 +1888,191 @@ export default function ProjectPage() {
                 );
               })}
             </div>
+          </TabsContent>
+
+          {/* RELEASES TAB — version roadmap + shipped history */}
+          <TabsContent value="releases" className="mt-3 space-y-4">
+            {(() => {
+              const allReleases = releasesData as Release[];
+              const byTarget = (a: Release, b: Release) => {
+                if (a.targetDate && b.targetDate) return a.targetDate.localeCompare(b.targetDate);
+                if (a.targetDate) return -1;
+                if (b.targetDate) return 1;
+                return a.version.localeCompare(b.version);
+              };
+              const upcoming = allReleases.filter((r) => UPCOMING_RELEASE_STATUSES.has(r.status)).sort(byTarget);
+              const shipped = allReleases
+                .filter((r) => !UPCOMING_RELEASE_STATUSES.has(r.status))
+                .sort((a, b) => (b.releasedAt ?? "").localeCompare(a.releasedAt ?? ""));
+              const today = new Date().toISOString().slice(0, 10);
+
+              const renderRelease = (r: Release) => {
+                const expanded = expandedReleaseIds.has(r.id);
+                const releaseItems = items.filter((i) => i.releaseId === r.id);
+                const doneItems = releaseItems.filter((i) => i.status === "done");
+                const openItems = releaseItems.filter((i) => !CLOSED_STATUSES.has(i.status));
+                const pct = r.itemCount > 0 ? Math.round((r.doneCount / r.itemCount) * 100) : 0;
+                const overdue = UPCOMING_RELEASE_STATUSES.has(r.status) && !!r.targetDate && r.targetDate < today;
+                const nextStatus: ReleaseStatus | null =
+                  r.status === "planned" ? "in_progress"
+                  : r.status === "in_progress" ? (r.component?.name.toLowerCase().includes("mobile") ? "submitted" : "released")
+                  : r.status === "submitted" ? "released"
+                  : null;
+                const changelogMd = [
+                  `## ${releaseLabel(r)}${r.component ? ` (${r.component.name})` : ""}`,
+                  ...(r.changelog ? ["", r.changelog] : []),
+                  "",
+                  ...doneItems.map((i) => `- ${i.title} (#${i.number})`),
+                ].join("\n");
+                return (
+                  <div key={r.id}>
+                    <div className="flex items-center gap-3 px-4 py-3 font-mono text-xs group">
+                      <button
+                        onClick={() => toggleReleaseExpanded(r.id)}
+                        className="text-muted-foreground hover:text-foreground transition-colors shrink-0"
+                        aria-label={expanded ? "Collapse release" : "Expand release"}
+                      >
+                        {expanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                      </button>
+                      <Rocket className="h-3.5 w-3.5 text-primary shrink-0" />
+                      <button
+                        onClick={() => toggleReleaseExpanded(r.id)}
+                        className="flex-1 min-w-0 text-left hover:text-primary transition-colors"
+                      >
+                        <div className="text-foreground truncate">
+                          <span className="font-bold">{r.version}</span>
+                          {r.name && <span className="text-muted-foreground"> — {r.name}</span>}
+                        </div>
+                        {r.component && (
+                          <div className="text-[10px] text-muted-foreground truncate">{r.component.name}</div>
+                        )}
+                      </button>
+                      {r.itemCount > 0 && (
+                        <span className="hidden sm:flex items-center gap-2 shrink-0" title={`${r.doneCount}/${r.itemCount} items done`}>
+                          <span className="w-20 h-1.5 bg-muted/40 border border-border overflow-hidden">
+                            <span className="block h-full bg-primary" style={{ width: `${pct}%` }} />
+                          </span>
+                          <span className="text-[10px] text-muted-foreground">{r.doneCount}/{r.itemCount}</span>
+                        </span>
+                      )}
+                      <span className={cn("border px-1 text-[10px] shrink-0", RELEASE_STATUS_COLORS[r.status])}>
+                        {RELEASE_STATUS_LABELS[r.status] ?? r.status}
+                      </span>
+                      {r.status === "released" && r.releasedAt ? (
+                        <span className="text-muted-foreground shrink-0">{r.releasedAt}</span>
+                      ) : r.targetDate ? (
+                        <span className={cn("shrink-0", overdue ? "text-destructive" : "text-muted-foreground")}>
+                          {r.targetDate}
+                        </span>
+                      ) : null}
+                      {nextStatus && (
+                        <button
+                          onClick={() => void handleReleaseStatusChange(r, nextStatus)}
+                          className="text-[10px] border border-primary/50 text-primary hover:bg-primary/10 px-1.5 py-0.5 transition-colors shrink-0"
+                          title={`Advance to ${RELEASE_STATUS_LABELS[nextStatus]}`}
+                        >
+                          {nextStatus === "released" ? "SHIP" : RELEASE_STATUS_LABELS[nextStatus]}
+                        </button>
+                      )}
+                      <button
+                        onClick={() => openEditRelease(r)}
+                        className="text-muted-foreground hover:text-primary transition-colors shrink-0"
+                        aria-label={`Edit release ${r.version}`}
+                      >
+                        <Pencil className="h-3 w-3" />
+                      </button>
+                      <button
+                        onClick={() => void handleDeleteRelease(r)}
+                        className="text-muted-foreground hover:text-destructive transition-colors shrink-0"
+                        aria-label={`Delete release ${r.version}`}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </button>
+                    </div>
+                    {expanded && (
+                      <div className="bg-background border-t border-border px-10 py-3 space-y-3 font-mono text-xs">
+                        {r.changelog && (
+                          <div className="space-y-1">
+                            <div className="text-[10px] tracking-widest text-muted-foreground">// NOTES</div>
+                            <div className="text-foreground whitespace-pre-wrap">{r.changelog}</div>
+                          </div>
+                        )}
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between">
+                            <div className="text-[10px] tracking-widest text-muted-foreground">// ITEMS ({releaseItems.length})</div>
+                            {doneItems.length > 0 && (
+                              <button
+                                onClick={() => {
+                                  void navigator.clipboard.writeText(changelogMd);
+                                  toast({ title: "Changelog copied as markdown" });
+                                }}
+                                className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-primary transition-colors"
+                              >
+                                <Copy className="h-3 w-3" /> COPY CHANGELOG
+                              </button>
+                            )}
+                          </div>
+                          {releaseItems.length === 0 ? (
+                            <div className="text-muted-foreground">no items assigned to this release</div>
+                          ) : (
+                            <div className="divide-y divide-border border border-border">
+                              {releaseItems.map((it) => (
+                                <Link key={it.id} href={`/projects/${slug}/items/${it.number}`}>
+                                  <a className="flex items-center gap-2 px-2 py-1.5 hover:bg-muted/30">
+                                    <span className="text-muted-foreground w-8 shrink-0">#{it.number}</span>
+                                    <span className="flex-1 truncate text-foreground">{it.title}</span>
+                                    <span className={cn("border px-1 text-[10px] shrink-0", STATUS_COLORS[it.status])}>
+                                      {STATUS_LABELS[it.status] ?? it.status}
+                                    </span>
+                                  </a>
+                                </Link>
+                              ))}
+                            </div>
+                          )}
+                          {UPCOMING_RELEASE_STATUSES.has(r.status) && openItems.length > 0 && (
+                            <div className="text-[10px] text-muted-foreground">
+                              {openItems.length} item{openItems.length === 1 ? "" : "s"} still open before this can ship
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              };
+
+              return (
+                <>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="font-mono text-xs tracking-widest text-muted-foreground">// UPCOMING</span>
+                      <Button size="sm" variant="ghost"
+                        className="font-mono text-xs border border-primary/50 text-primary hover:bg-primary/10 gap-1"
+                        onClick={() => { resetReleaseForm(); setReleaseOpen(true); }}>
+                        <Plus className="h-3 w-3" /> NEW RELEASE
+                      </Button>
+                    </div>
+                    {upcoming.length === 0 ? (
+                      <div className="border border-border bg-card p-4 text-center text-muted-foreground font-mono text-sm">
+                        no upcoming releases — plan one to start triaging bugs and requests into versions
+                      </div>
+                    ) : (
+                      <div className="border border-border bg-card divide-y divide-border">
+                        {upcoming.map(renderRelease)}
+                      </div>
+                    )}
+                  </div>
+                  {shipped.length > 0 && (
+                    <div className="space-y-2">
+                      <span className="font-mono text-xs tracking-widest text-muted-foreground">// SHIPPED</span>
+                      <div className="border border-border bg-card divide-y divide-border">
+                        {shipped.map(renderRelease)}
+                      </div>
+                    </div>
+                  )}
+                </>
+              );
+            })()}
           </TabsContent>
 
           {/* DOCS TAB — full CRUD + search */}
@@ -2389,26 +2782,8 @@ export default function ProjectPage() {
 
             {/* Burn-down line chart — open items over time */}
             {items.length > 0 && (() => {
-              const msPerDay = 86_400_000;
-              const endMs = Date.now();
-              const sorted = [...items].sort(
-                (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
-              );
-              const projectStartMs = new Date(sorted[0]!.createdAt).getTime();
-              const projectDays = Math.ceil((endMs - projectStartMs) / msPerDay) + 1;
-              const cappedAt90 = projectDays > 90;
-              const totalDays = Math.min(90, projectDays);
-              const startMs = cappedAt90 ? endMs - 90 * msPerDay : projectStartMs;
-              const chartData = Array.from({ length: totalDays }, (_, i) => {
-                const dayMs = startMs + i * msPerDay;
-                const dateStr = new Date(dayMs).toISOString().slice(0, 10);
-                const open = items.filter((it) => {
-                  const created = new Date(it.createdAt).getTime();
-                  const closed = it.closedAt ? new Date(it.closedAt).getTime() : null;
-                  return created <= dayMs && (closed === null || closed > dayMs);
-                }).length;
-                return { date: dateStr, open };
-              });
+              const { points: chartData, cappedAt90 } = buildItemBurnDown(items);
+              const totalDays = chartData.length;
               return (
                 <div className="border border-border bg-card p-4 space-y-3 min-w-0 overflow-hidden">
                   <span className="font-mono text-xs tracking-widest text-primary">// BURN-DOWN — OPEN ITEMS OVER TIME</span>
@@ -3272,6 +3647,27 @@ export default function ProjectPage() {
                 </div>
               </div>
             )}
+            {(releasesData as Release[]).length > 0 && (
+              <div className="space-y-1">
+                <Label className="font-mono text-xs tracking-widest text-muted-foreground">RELEASE <span className="text-muted-foreground/50">(optional)</span></Label>
+                <Select
+                  value={newItem.releaseId !== null ? String(newItem.releaseId) : "__none__"}
+                  onValueChange={(v) => setNewItem((p) => ({ ...p, releaseId: v === "__none__" ? null : Number(v) }))}
+                >
+                  <SelectTrigger className="bg-background border-border font-mono text-xs h-8">
+                    <SelectValue placeholder="none" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-card border-border font-mono text-xs">
+                    <SelectItem value="__none__" className="font-mono text-xs text-muted-foreground">— none —</SelectItem>
+                    {(releasesData as Release[]).map((r) => (
+                      <SelectItem key={r.id} value={String(r.id)} className="font-mono text-xs">
+                        {releaseLabel(r)}{r.component ? ` [${r.component.name}]` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <Label className="font-mono text-xs tracking-widest text-muted-foreground">DUE DATE <span className="text-muted-foreground/50">(optional)</span></Label>
@@ -3602,6 +3998,96 @@ export default function ProjectPage() {
                 {(createMilestone.isPending || updateMilestoneM.isPending)
                   ? (editingMilestone ? "SAVING..." : "CREATING...")
                   : (editingMilestone ? "SAVE" : "CREATE")}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Release Dialog — create + edit */}
+      <Dialog open={releaseOpen} onOpenChange={(o) => { setReleaseOpen(o); if (!o) resetReleaseForm(); }}>
+        <DialogContent className="bg-card border-border max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-['VT323'] tracking-widest text-xl text-primary">
+              {editingRelease ? "// EDIT RELEASE" : "// NEW RELEASE"}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <Label className="font-mono text-xs tracking-widest text-muted-foreground">VERSION</Label>
+                <Input value={releaseForm.version} onChange={(e) => setReleaseForm((p) => ({ ...p, version: e.target.value }))}
+                  className="bg-background border-border font-mono text-sm rounded-none" placeholder="1.2.0" />
+              </div>
+              <div className="space-y-1">
+                <Label className="font-mono text-xs tracking-widest text-muted-foreground">NAME <span className="text-muted-foreground/50">(optional)</span></Label>
+                <Input value={releaseForm.name} onChange={(e) => setReleaseForm((p) => ({ ...p, name: e.target.value }))}
+                  className="bg-background border-border font-mono text-sm rounded-none" placeholder="codename" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <Label className="font-mono text-xs tracking-widest text-muted-foreground">PLATFORM <span className="text-muted-foreground/50">(component)</span></Label>
+                <Select
+                  value={releaseForm.componentId || "__none__"}
+                  onValueChange={(v) => setReleaseForm((p) => ({ ...p, componentId: v === "__none__" ? "" : v }))}
+                >
+                  <SelectTrigger className="bg-background border-border font-mono text-xs h-8 rounded-none">
+                    <SelectValue placeholder="— whole app —" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-card border-border">
+                    <SelectItem value="__none__" className="font-mono text-xs text-muted-foreground">— whole app —</SelectItem>
+                    {components.map((c) => (
+                      <SelectItem key={c.id} value={String(c.id)} className="font-mono text-xs">{c.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label className="font-mono text-xs tracking-widest text-muted-foreground">STATUS</Label>
+                <Select
+                  value={releaseForm.status}
+                  onValueChange={(v) => setReleaseForm((p) => ({ ...p, status: v as ReleaseStatus }))}
+                >
+                  <SelectTrigger className="bg-background border-border font-mono text-xs h-8 rounded-none"><SelectValue /></SelectTrigger>
+                  <SelectContent className="bg-card border-border">
+                    {RELEASE_STATUSES.map((s) => (
+                      <SelectItem key={s} value={s} className="font-mono text-xs">{RELEASE_STATUS_LABELS[s]}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <Label className="font-mono text-xs tracking-widest text-muted-foreground">TARGET DATE</Label>
+                <Input type="date" value={releaseForm.targetDate} onChange={(e) => setReleaseForm((p) => ({ ...p, targetDate: e.target.value }))}
+                  className="bg-background border-border font-mono text-xs rounded-none h-8" />
+              </div>
+              <div className="space-y-1">
+                <Label className="font-mono text-xs tracking-widest text-muted-foreground">RELEASED ON</Label>
+                <Input type="date" value={releaseForm.releasedAt} onChange={(e) => setReleaseForm((p) => ({ ...p, releasedAt: e.target.value }))}
+                  className="bg-background border-border font-mono text-xs rounded-none h-8" />
+              </div>
+            </div>
+            <div className="space-y-1">
+              <Label className="font-mono text-xs tracking-widest text-muted-foreground">NOTES <span className="text-muted-foreground/50">(shown above the auto-changelog)</span></Label>
+              <Textarea
+                value={releaseForm.changelog}
+                onChange={(e) => setReleaseForm((p) => ({ ...p, changelog: e.target.value }))}
+                className="bg-background border-border font-mono text-xs rounded-none resize-none"
+                rows={3}
+                placeholder="highlights, breaking changes, upgrade notes…"
+              />
+            </div>
+            <div className="flex gap-2 justify-end">
+              <Button variant="ghost" size="sm" onClick={() => { setReleaseOpen(false); resetReleaseForm(); }} className="font-mono text-xs text-muted-foreground">CANCEL</Button>
+              <Button size="sm" onClick={() => void handleSaveRelease()}
+                disabled={!releaseForm.version.trim() || createReleaseM.isPending || updateReleaseM.isPending}
+                className="font-mono text-xs bg-primary text-primary-foreground hover:bg-primary/90">
+                {(createReleaseM.isPending || updateReleaseM.isPending)
+                  ? (editingRelease ? "SAVING..." : "CREATING...")
+                  : (editingRelease ? "SAVE" : "CREATE")}
               </Button>
             </div>
           </div>

@@ -3,9 +3,9 @@ import { useParams, Link } from "wouter";
 import {
   useGetItem, useUpdateItem, useCreateComment, useCreateTimeEntry,
   useGetProject, useUpsertPresence, useListComponents, useListMilestones,
-  useAddDependency, useRemoveDependency,
+  useListReleases, useAddDependency, useRemoveDependency,
 } from "@workspace/api-client-react";
-import type { ItemUpdateStatus, ItemUpdatePriority, ItemCategory, Commit, ProjectComponent, Milestone, Scope } from "@workspace/api-client-react";
+import type { ItemUpdateStatus, ItemUpdatePriority, ItemCategory, Commit, ProjectComponent, Milestone, Scope, Release } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { getGetItemQueryKey } from "@workspace/api-client-react";
 import { Layout } from "../components/layout";
@@ -77,6 +77,7 @@ export default function ItemPage() {
   const { data: project } = useGetProject(slug!);
   const { data: components = [] } = useListComponents(slug!);
   const { data: milestonesData = [] } = useListMilestones(slug!);
+  const { data: releasesData = [] } = useListReleases(slug!);
   const updateItem = useUpdateItem();
   const createComment = useCreateComment();
   const createTimeEntry = useCreateTimeEntry();
@@ -200,6 +201,9 @@ export default function ItemPage() {
       ...(currentScopeId === milestone.scopeId ? {} : { scopeId: milestone.scopeId }),
     });
   };
+
+  const handleReleaseChange = (value: string) =>
+    void handleField({ releaseId: value === "__none__" ? null : Number(value) });
 
   const handleSaveEstimate = async () => {
     const mins = parseTimeToMinutes(estimateInput);
@@ -454,6 +458,33 @@ export default function ItemPage() {
                     </Select>
                   </div>
                 </>
+              );
+            })()}
+
+            {/* RELEASE */}
+            {(() => {
+              const currentReleaseId = (item as typeof item & { releaseId?: number | null }).releaseId ?? null;
+              if ((releasesData as Release[]).length === 0 && currentReleaseId === null) return null;
+              return (
+                <div className="space-y-1">
+                  <span className="text-muted-foreground tracking-wider">RELEASE</span>
+                  <Select
+                    value={currentReleaseId !== null ? String(currentReleaseId) : "__none__"}
+                    onValueChange={(v) => handleReleaseChange(v)}
+                  >
+                    <SelectTrigger className="h-7 border border-border font-mono text-xs rounded-none w-full text-primary/80">
+                      <SelectValue placeholder="no release" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-card border-border font-mono text-xs">
+                      <SelectItem value="__none__" className="font-mono text-xs text-muted-foreground">— no release —</SelectItem>
+                      {(releasesData as Release[]).map((r) => (
+                        <SelectItem key={r.id} value={String(r.id)} className="font-mono text-xs">
+                          {r.name ? `${r.version} — ${r.name}` : r.version}{r.component ? ` [${r.component.name}]` : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               );
             })()}
 

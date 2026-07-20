@@ -488,6 +488,108 @@ export const DeleteMilestoneParams = zod.object({
 
 
 /**
+ * @summary List releases
+ */
+export const ListReleasesParams = zod.object({
+  "slug": zod.coerce.string()
+})
+
+export const ListReleasesResponseItem = zod.object({
+  "id": zod.number(),
+  "projectId": zod.number(),
+  "componentId": zod.number().nullish().describe('Platform axis — the project component (e.g. Web, Mobile) this release ships for. Null = whole app.'),
+  "component": zod.object({
+  "id": zod.number(),
+  "projectId": zod.number(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "createdAt": zod.coerce.date().optional()
+}).nullish(),
+  "version": zod.string(),
+  "name": zod.string().nullish(),
+  "status": zod.enum(['planned', 'in_progress', 'submitted', 'released', 'cancelled']),
+  "targetDate": zod.coerce.date().nullish(),
+  "releasedAt": zod.coerce.date().nullish(),
+  "changelog": zod.string().nullish(),
+  "order": zod.number(),
+  "itemCount": zod.number(),
+  "doneCount": zod.number(),
+  "createdAt": zod.coerce.date()
+})
+export const ListReleasesResponse = zod.array(ListReleasesResponseItem)
+
+
+/**
+ * @summary Create release
+ */
+export const CreateReleaseParams = zod.object({
+  "slug": zod.coerce.string()
+})
+
+export const CreateReleaseBody = zod.object({
+  "version": zod.string(),
+  "name": zod.string().nullish(),
+  "componentId": zod.number().nullish(),
+  "status": zod.enum(['planned', 'in_progress', 'submitted', 'released', 'cancelled']).optional(),
+  "targetDate": zod.coerce.date().nullish(),
+  "releasedAt": zod.coerce.date().nullish(),
+  "changelog": zod.string().nullish()
+})
+
+
+/**
+ * @summary Update release
+ */
+export const UpdateReleaseParams = zod.object({
+  "slug": zod.coerce.string(),
+  "releaseId": zod.coerce.number()
+})
+
+export const UpdateReleaseBody = zod.object({
+  "version": zod.string().optional(),
+  "name": zod.string().nullish(),
+  "componentId": zod.number().nullish(),
+  "status": zod.enum(['planned', 'in_progress', 'submitted', 'released', 'cancelled']).optional(),
+  "targetDate": zod.coerce.date().nullish(),
+  "releasedAt": zod.coerce.date().nullish(),
+  "changelog": zod.string().nullish(),
+  "order": zod.number().optional()
+})
+
+export const UpdateReleaseResponse = zod.object({
+  "id": zod.number(),
+  "projectId": zod.number(),
+  "componentId": zod.number().nullish().describe('Platform axis — the project component (e.g. Web, Mobile) this release ships for. Null = whole app.'),
+  "component": zod.object({
+  "id": zod.number(),
+  "projectId": zod.number(),
+  "name": zod.string(),
+  "description": zod.string().nullish(),
+  "createdAt": zod.coerce.date().optional()
+}).nullish(),
+  "version": zod.string(),
+  "name": zod.string().nullish(),
+  "status": zod.enum(['planned', 'in_progress', 'submitted', 'released', 'cancelled']),
+  "targetDate": zod.coerce.date().nullish(),
+  "releasedAt": zod.coerce.date().nullish(),
+  "changelog": zod.string().nullish(),
+  "order": zod.number(),
+  "itemCount": zod.number(),
+  "doneCount": zod.number(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Delete release
+ */
+export const DeleteReleaseParams = zod.object({
+  "slug": zod.coerce.string(),
+  "releaseId": zod.coerce.number()
+})
+
+
+/**
  * @summary List items for a project
  */
 export const ListItemsParams = zod.object({
@@ -507,7 +609,7 @@ export const ListItemsResponseItem = zod.object({
   "type": zod.enum(['todo', 'bug', 'request', 'decision']),
   "title": zod.string(),
   "description": zod.string().nullish(),
-  "status": zod.enum(['open', 'in_progress', 'blocked', 'done', 'cancelled']),
+  "status": zod.enum(['open', 'in_progress', 'on_hold', 'blocked', 'done', 'cancelled']),
   "priority": zod.enum(['low', 'medium', 'high', 'urgent']),
   "category": zod.enum(['infrastructure_hosting', 'security_compliance', 'mobile_devops', 'web_devops', 'database_schema', 'monitoring_observability', 'deployment_release', 'third_party_integration', 'support_operations']).nullish(),
   "assigneeId": zod.string().nullish(),
@@ -525,6 +627,7 @@ export const ListItemsResponseItem = zod.object({
 }).nullish(),
   "scopeId": zod.number().nullish(),
   "milestoneId": zod.number().nullish(),
+  "releaseId": zod.number().nullish(),
   "estimateMinutes": zod.number().nullish(),
   "dueDate": zod.coerce.date().nullish(),
   "decisionRationale": zod.string().nullish(),
@@ -543,7 +646,7 @@ export const ListItemsResponseItem = zod.object({
   "id": zod.number(),
   "number": zod.number(),
   "title": zod.string(),
-  "status": zod.enum(['open', 'in_progress', 'blocked', 'done', 'cancelled'])
+  "status": zod.enum(['open', 'in_progress', 'on_hold', 'blocked', 'done', 'cancelled'])
 })).optional(),
   "isBlocked": zod.boolean().optional()
 })
@@ -561,11 +664,12 @@ export const CreateItemBody = zod.object({
   "type": zod.enum(['todo', 'bug', 'request', 'decision']),
   "title": zod.string(),
   "description": zod.string().nullish(),
-  "status": zod.enum(['open', 'in_progress', 'blocked', 'done', 'cancelled']).optional(),
+  "status": zod.enum(['open', 'in_progress', 'on_hold', 'blocked', 'done', 'cancelled']).optional(),
   "priority": zod.enum(['low', 'medium', 'high', 'urgent']).optional(),
   "assigneeId": zod.string().nullish(),
   "scopeId": zod.number().nullish(),
   "milestoneId": zod.number().nullish(),
+  "releaseId": zod.number().nullish(),
   "estimateMinutes": zod.number().nullish(),
   "dueDate": zod.string().nullish(),
   "decisionRationale": zod.string().nullish(),
@@ -589,7 +693,7 @@ export const GetItemResponse = zod.object({
   "type": zod.enum(['todo', 'bug', 'request', 'decision']),
   "title": zod.string(),
   "description": zod.string().nullish(),
-  "status": zod.enum(['open', 'in_progress', 'blocked', 'done', 'cancelled']),
+  "status": zod.enum(['open', 'in_progress', 'on_hold', 'blocked', 'done', 'cancelled']),
   "priority": zod.enum(['low', 'medium', 'high', 'urgent']),
   "category": zod.enum(['infrastructure_hosting', 'security_compliance', 'mobile_devops', 'web_devops', 'database_schema', 'monitoring_observability', 'deployment_release', 'third_party_integration', 'support_operations']).nullish(),
   "assigneeId": zod.string().nullish(),
@@ -607,6 +711,7 @@ export const GetItemResponse = zod.object({
 }).nullish(),
   "scopeId": zod.number().nullish(),
   "milestoneId": zod.number().nullish(),
+  "releaseId": zod.number().nullish(),
   "estimateMinutes": zod.number().nullish(),
   "dueDate": zod.coerce.date().nullish(),
   "decisionRationale": zod.string().nullish(),
@@ -625,7 +730,7 @@ export const GetItemResponse = zod.object({
   "id": zod.number(),
   "number": zod.number(),
   "title": zod.string(),
-  "status": zod.enum(['open', 'in_progress', 'blocked', 'done', 'cancelled'])
+  "status": zod.enum(['open', 'in_progress', 'on_hold', 'blocked', 'done', 'cancelled'])
 })).optional(),
   "isBlocked": zod.boolean().optional(),
   "comments": zod.array(zod.object({
@@ -696,11 +801,12 @@ export const UpdateItemBody = zod.object({
   "type": zod.enum(['todo', 'bug', 'request', 'decision']).optional(),
   "title": zod.string().optional(),
   "description": zod.string().nullish(),
-  "status": zod.enum(['open', 'in_progress', 'blocked', 'done', 'cancelled']).optional(),
+  "status": zod.enum(['open', 'in_progress', 'on_hold', 'blocked', 'done', 'cancelled']).optional(),
   "priority": zod.enum(['low', 'medium', 'high', 'urgent']).optional(),
   "assigneeId": zod.string().nullish(),
   "scopeId": zod.number().nullish(),
   "milestoneId": zod.number().nullish(),
+  "releaseId": zod.number().nullish(),
   "estimateMinutes": zod.number().nullish(),
   "dueDate": zod.string().nullish(),
   "decisionRationale": zod.string().nullish(),
@@ -715,7 +821,7 @@ export const UpdateItemResponse = zod.object({
   "type": zod.enum(['todo', 'bug', 'request', 'decision']),
   "title": zod.string(),
   "description": zod.string().nullish(),
-  "status": zod.enum(['open', 'in_progress', 'blocked', 'done', 'cancelled']),
+  "status": zod.enum(['open', 'in_progress', 'on_hold', 'blocked', 'done', 'cancelled']),
   "priority": zod.enum(['low', 'medium', 'high', 'urgent']),
   "category": zod.enum(['infrastructure_hosting', 'security_compliance', 'mobile_devops', 'web_devops', 'database_schema', 'monitoring_observability', 'deployment_release', 'third_party_integration', 'support_operations']).nullish(),
   "assigneeId": zod.string().nullish(),
@@ -733,6 +839,7 @@ export const UpdateItemResponse = zod.object({
 }).nullish(),
   "scopeId": zod.number().nullish(),
   "milestoneId": zod.number().nullish(),
+  "releaseId": zod.number().nullish(),
   "estimateMinutes": zod.number().nullish(),
   "dueDate": zod.coerce.date().nullish(),
   "decisionRationale": zod.string().nullish(),
@@ -751,7 +858,7 @@ export const UpdateItemResponse = zod.object({
   "id": zod.number(),
   "number": zod.number(),
   "title": zod.string(),
-  "status": zod.enum(['open', 'in_progress', 'blocked', 'done', 'cancelled'])
+  "status": zod.enum(['open', 'in_progress', 'on_hold', 'blocked', 'done', 'cancelled'])
 })).optional(),
   "isBlocked": zod.boolean().optional()
 })
@@ -1405,7 +1512,7 @@ export const ListPresenceResponseItem = zod.object({
   "type": zod.enum(['todo', 'bug', 'request', 'decision']),
   "title": zod.string(),
   "description": zod.string().nullish(),
-  "status": zod.enum(['open', 'in_progress', 'blocked', 'done', 'cancelled']),
+  "status": zod.enum(['open', 'in_progress', 'on_hold', 'blocked', 'done', 'cancelled']),
   "priority": zod.enum(['low', 'medium', 'high', 'urgent']),
   "category": zod.enum(['infrastructure_hosting', 'security_compliance', 'mobile_devops', 'web_devops', 'database_schema', 'monitoring_observability', 'deployment_release', 'third_party_integration', 'support_operations']).nullish(),
   "assigneeId": zod.string().nullish(),
@@ -1423,6 +1530,7 @@ export const ListPresenceResponseItem = zod.object({
 }).nullish(),
   "scopeId": zod.number().nullish(),
   "milestoneId": zod.number().nullish(),
+  "releaseId": zod.number().nullish(),
   "estimateMinutes": zod.number().nullish(),
   "dueDate": zod.coerce.date().nullish(),
   "decisionRationale": zod.string().nullish(),
@@ -1441,7 +1549,7 @@ export const ListPresenceResponseItem = zod.object({
   "id": zod.number(),
   "number": zod.number(),
   "title": zod.string(),
-  "status": zod.enum(['open', 'in_progress', 'blocked', 'done', 'cancelled'])
+  "status": zod.enum(['open', 'in_progress', 'on_hold', 'blocked', 'done', 'cancelled'])
 })).optional(),
   "isBlocked": zod.boolean().optional()
 }).nullish(),
@@ -1481,7 +1589,7 @@ export const UpsertPresenceResponse = zod.object({
   "type": zod.enum(['todo', 'bug', 'request', 'decision']),
   "title": zod.string(),
   "description": zod.string().nullish(),
-  "status": zod.enum(['open', 'in_progress', 'blocked', 'done', 'cancelled']),
+  "status": zod.enum(['open', 'in_progress', 'on_hold', 'blocked', 'done', 'cancelled']),
   "priority": zod.enum(['low', 'medium', 'high', 'urgent']),
   "category": zod.enum(['infrastructure_hosting', 'security_compliance', 'mobile_devops', 'web_devops', 'database_schema', 'monitoring_observability', 'deployment_release', 'third_party_integration', 'support_operations']).nullish(),
   "assigneeId": zod.string().nullish(),
@@ -1499,6 +1607,7 @@ export const UpsertPresenceResponse = zod.object({
 }).nullish(),
   "scopeId": zod.number().nullish(),
   "milestoneId": zod.number().nullish(),
+  "releaseId": zod.number().nullish(),
   "estimateMinutes": zod.number().nullish(),
   "dueDate": zod.coerce.date().nullish(),
   "decisionRationale": zod.string().nullish(),
@@ -1517,7 +1626,7 @@ export const UpsertPresenceResponse = zod.object({
   "id": zod.number(),
   "number": zod.number(),
   "title": zod.string(),
-  "status": zod.enum(['open', 'in_progress', 'blocked', 'done', 'cancelled'])
+  "status": zod.enum(['open', 'in_progress', 'on_hold', 'blocked', 'done', 'cancelled'])
 })).optional(),
   "isBlocked": zod.boolean().optional()
 }).nullish(),
@@ -1756,7 +1865,7 @@ export const GetDashboardResponse = zod.object({
   "type": zod.enum(['todo', 'bug', 'request', 'decision']),
   "title": zod.string(),
   "description": zod.string().nullish(),
-  "status": zod.enum(['open', 'in_progress', 'blocked', 'done', 'cancelled']),
+  "status": zod.enum(['open', 'in_progress', 'on_hold', 'blocked', 'done', 'cancelled']),
   "priority": zod.enum(['low', 'medium', 'high', 'urgent']),
   "category": zod.enum(['infrastructure_hosting', 'security_compliance', 'mobile_devops', 'web_devops', 'database_schema', 'monitoring_observability', 'deployment_release', 'third_party_integration', 'support_operations']).nullish(),
   "assigneeId": zod.string().nullish(),
@@ -1774,6 +1883,7 @@ export const GetDashboardResponse = zod.object({
 }).nullish(),
   "scopeId": zod.number().nullish(),
   "milestoneId": zod.number().nullish(),
+  "releaseId": zod.number().nullish(),
   "estimateMinutes": zod.number().nullish(),
   "dueDate": zod.coerce.date().nullish(),
   "decisionRationale": zod.string().nullish(),
@@ -1792,7 +1902,7 @@ export const GetDashboardResponse = zod.object({
   "id": zod.number(),
   "number": zod.number(),
   "title": zod.string(),
-  "status": zod.enum(['open', 'in_progress', 'blocked', 'done', 'cancelled'])
+  "status": zod.enum(['open', 'in_progress', 'on_hold', 'blocked', 'done', 'cancelled'])
 })).optional(),
   "isBlocked": zod.boolean().optional()
 }).nullish(),
@@ -1827,7 +1937,7 @@ export const GetDashboardResponse = zod.object({
   "type": zod.enum(['todo', 'bug', 'request', 'decision']),
   "title": zod.string(),
   "description": zod.string().nullish(),
-  "status": zod.enum(['open', 'in_progress', 'blocked', 'done', 'cancelled']),
+  "status": zod.enum(['open', 'in_progress', 'on_hold', 'blocked', 'done', 'cancelled']),
   "priority": zod.enum(['low', 'medium', 'high', 'urgent']),
   "category": zod.enum(['infrastructure_hosting', 'security_compliance', 'mobile_devops', 'web_devops', 'database_schema', 'monitoring_observability', 'deployment_release', 'third_party_integration', 'support_operations']).nullish(),
   "assigneeId": zod.string().nullish(),
@@ -1845,6 +1955,7 @@ export const GetDashboardResponse = zod.object({
 }).nullish(),
   "scopeId": zod.number().nullish(),
   "milestoneId": zod.number().nullish(),
+  "releaseId": zod.number().nullish(),
   "estimateMinutes": zod.number().nullish(),
   "dueDate": zod.coerce.date().nullish(),
   "decisionRationale": zod.string().nullish(),
@@ -1863,7 +1974,7 @@ export const GetDashboardResponse = zod.object({
   "id": zod.number(),
   "number": zod.number(),
   "title": zod.string(),
-  "status": zod.enum(['open', 'in_progress', 'blocked', 'done', 'cancelled'])
+  "status": zod.enum(['open', 'in_progress', 'on_hold', 'blocked', 'done', 'cancelled'])
 })).optional(),
   "isBlocked": zod.boolean().optional()
 }).and(zod.object({
@@ -1876,7 +1987,7 @@ export const GetDashboardResponse = zod.object({
   "type": zod.enum(['todo', 'bug', 'request', 'decision']),
   "title": zod.string(),
   "description": zod.string().nullish(),
-  "status": zod.enum(['open', 'in_progress', 'blocked', 'done', 'cancelled']),
+  "status": zod.enum(['open', 'in_progress', 'on_hold', 'blocked', 'done', 'cancelled']),
   "priority": zod.enum(['low', 'medium', 'high', 'urgent']),
   "category": zod.enum(['infrastructure_hosting', 'security_compliance', 'mobile_devops', 'web_devops', 'database_schema', 'monitoring_observability', 'deployment_release', 'third_party_integration', 'support_operations']).nullish(),
   "assigneeId": zod.string().nullish(),
@@ -1894,6 +2005,7 @@ export const GetDashboardResponse = zod.object({
 }).nullish(),
   "scopeId": zod.number().nullish(),
   "milestoneId": zod.number().nullish(),
+  "releaseId": zod.number().nullish(),
   "estimateMinutes": zod.number().nullish(),
   "dueDate": zod.coerce.date().nullish(),
   "decisionRationale": zod.string().nullish(),
@@ -1912,7 +2024,7 @@ export const GetDashboardResponse = zod.object({
   "id": zod.number(),
   "number": zod.number(),
   "title": zod.string(),
-  "status": zod.enum(['open', 'in_progress', 'blocked', 'done', 'cancelled'])
+  "status": zod.enum(['open', 'in_progress', 'on_hold', 'blocked', 'done', 'cancelled'])
 })).optional(),
   "isBlocked": zod.boolean().optional()
 }).and(zod.object({
@@ -1925,7 +2037,7 @@ export const GetDashboardResponse = zod.object({
   "type": zod.enum(['todo', 'bug', 'request', 'decision']),
   "title": zod.string(),
   "description": zod.string().nullish(),
-  "status": zod.enum(['open', 'in_progress', 'blocked', 'done', 'cancelled']),
+  "status": zod.enum(['open', 'in_progress', 'on_hold', 'blocked', 'done', 'cancelled']),
   "priority": zod.enum(['low', 'medium', 'high', 'urgent']),
   "category": zod.enum(['infrastructure_hosting', 'security_compliance', 'mobile_devops', 'web_devops', 'database_schema', 'monitoring_observability', 'deployment_release', 'third_party_integration', 'support_operations']).nullish(),
   "assigneeId": zod.string().nullish(),
@@ -1943,6 +2055,7 @@ export const GetDashboardResponse = zod.object({
 }).nullish(),
   "scopeId": zod.number().nullish(),
   "milestoneId": zod.number().nullish(),
+  "releaseId": zod.number().nullish(),
   "estimateMinutes": zod.number().nullish(),
   "dueDate": zod.coerce.date().nullish(),
   "decisionRationale": zod.string().nullish(),
@@ -1961,7 +2074,7 @@ export const GetDashboardResponse = zod.object({
   "id": zod.number(),
   "number": zod.number(),
   "title": zod.string(),
-  "status": zod.enum(['open', 'in_progress', 'blocked', 'done', 'cancelled'])
+  "status": zod.enum(['open', 'in_progress', 'on_hold', 'blocked', 'done', 'cancelled'])
 })).optional(),
   "isBlocked": zod.boolean().optional()
 }).and(zod.object({

@@ -12,6 +12,7 @@ export type ItemRefStatus = typeof ItemRefStatus[keyof typeof ItemRefStatus];
 export const ItemRefStatus = {
   open: 'open',
   in_progress: 'in_progress',
+  on_hold: 'on_hold',
   blocked: 'blocked',
   done: 'done',
   cancelled: 'cancelled',

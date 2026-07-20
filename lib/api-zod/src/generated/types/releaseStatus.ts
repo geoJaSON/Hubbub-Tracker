@@ -6,14 +6,13 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type ItemUpdateStatus = typeof ItemUpdateStatus[keyof typeof ItemUpdateStatus];
+export type ReleaseStatus = typeof ReleaseStatus[keyof typeof ReleaseStatus];
 
 
-export const ItemUpdateStatus = {
-  open: 'open',
+export const ReleaseStatus = {
+  planned: 'planned',
   in_progress: 'in_progress',
-  on_hold: 'on_hold',
-  blocked: 'blocked',
-  done: 'done',
+  submitted: 'submitted',
+  released: 'released',
   cancelled: 'cancelled',
 } as const;
