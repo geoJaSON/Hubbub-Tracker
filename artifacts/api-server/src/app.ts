@@ -4,6 +4,7 @@ import pinoHttp from "pino-http";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import router from "./routes";
+import mcpRouter from "./mcp";
 import { logger } from "./lib/logger";
 
 const app: Express = express();
@@ -33,6 +34,11 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 app.use("/api", router);
+
+// Model Context Protocol endpoint (Streamable HTTP, stateless). Authenticated
+// with the same bearer credentials as /api — point MCP clients at /mcp with an
+// "Authorization: Bearer hbk_..." header.
+app.use("/mcp", mcpRouter);
 
 // ── Static SPA (production / single-container deploy) ──────────────────────────
 // When the built frontend is present (Docker sets WEB_DIST), serve it from the

@@ -4,6 +4,51 @@ A reference you can hand to any AI assistant (or script) so it can create
 TODOs / items in Hubbub via the HTTP API. Everything here is current as of the
 live schema and routes.
 
+> **Prefer MCP if your client supports it.** Hubbub also ships a native
+> [Model Context Protocol](https://modelcontextprotocol.io) server at
+> `https://YOUR-DOMAIN/mcp` — see §0 below. MCP clients (Claude Code, Claude
+> Desktop, etc.) get typed tools with server-side name resolution and don't
+> need this guide in context at all. The HTTP reference below remains the path
+> for plain-HTTP consumers and scripts.
+
+---
+
+## 0. MCP server (recommended for Claude & other MCP clients)
+
+The API server exposes an MCP endpoint (Streamable HTTP, stateless) at:
+
+```
+POST https://YOUR-DOMAIN/mcp
+Authorization: Bearer hbk_xxxxxxxxxxxxxxxxxxxxxxxx
+```
+
+Auth is the same bearer credential as the REST API (§2) — API keys are the
+right choice here. Connect from Claude Code:
+
+```bash
+claude mcp add --transport http hubbub https://YOUR-DOMAIN/mcp \
+  --header "Authorization: Bearer hbk_xxxxxxxxxxxxxxxxxxxxxxxx"
+```
+
+Twelve task-shaped tools are exposed. Components, releases, and assignees are
+referenced by **name/version** (resolved server-side), so the model never has
+to juggle numeric IDs:
+
+| Tool | Purpose |
+| --- | --- |
+| `list_projects` | Project slugs you can access |
+| `get_project` | One-call overview: members, components, scopes, milestones, releases |
+| `list_items` | Filterable item search (status, type, title substring, release, component) |
+| `get_item` | Item detail with comments, time, commits |
+| `create_item` / `update_item` | Create / patch items; `release_version: "1.4.0"` triages into a release, `"none"` clears a field |
+| `list_releases` / `create_release` / `update_release` | Manage releases; `status: "released"` ships one |
+| `release_changelog` | Markdown release notes generated from done items |
+| `post_message` | Post to project chat |
+| `log_time` | Log minutes against an item |
+
+Note for claude.ai custom connectors: those require OAuth — use Claude Code /
+Claude Desktop (which support static headers) unless an OAuth layer is added.
+
 ---
 
 ## 1. Base URL
