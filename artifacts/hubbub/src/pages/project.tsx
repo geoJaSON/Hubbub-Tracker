@@ -1650,6 +1650,13 @@ export default function ProjectPage() {
                   >
                     {hideClosed ? "SHOW CLOSED" : "HIDE CLOSED"}
                   </button>
+
+                  {/* USER FEEDBACK PDF REPORT */}
+                  <Link href={`/projects/${slug}/feedback-report`}>
+                    <a className="text-[10px] font-mono border border-border text-muted-foreground hover:text-primary hover:border-primary/50 px-2 py-0.5 inline-flex items-center gap-1 transition-colors ml-auto">
+                      <FileText className="h-2.5 w-2.5" /> FEEDBACK PDF
+                    </a>
+                  </Link>
                 </div>
               );
             })()}

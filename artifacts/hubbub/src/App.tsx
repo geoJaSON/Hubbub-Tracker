@@ -15,6 +15,7 @@ import AdminPage from "./pages/admin";
 import StandupPage from "./pages/standup";
 import LandingPage from "./pages/landing";
 import ReportPage from "./pages/report";
+import FeedbackReportPage from "./pages/feedback-report";
 import SignInPage from "./pages/sign-in";
 import SignUpPage from "./pages/sign-up";
 import SetupPasswordPage from "./pages/setup-password";
@@ -82,6 +83,9 @@ function AppRoutes() {
           </Route>
           <Route path="/projects/:slug/report">
             {() => <ProtectedRoute component={ReportPage} />}
+          </Route>
+          <Route path="/projects/:slug/feedback-report">
+            {() => <ProtectedRoute component={FeedbackReportPage} />}
           </Route>
           <Route path="/projects/:slug/:tab?">
             {() => <ProtectedRoute component={ProjectPage} />}
