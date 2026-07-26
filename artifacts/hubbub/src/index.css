@@ -716,3 +716,36 @@ html[data-theme="amber"] :is(input, textarea, select):focus-visible {
     border-radius: var(--radius) !important;
   }
 }
+
+/* ── Print: readable output on white paper ──────────────────────────────────
+   The terminal theme is unprintable as-is: near-white text vanishes on paper,
+   and the fixed full-viewport scanline overlay (body::before) triggers
+   Chrome's blank-page print bug. Reset here globally so every printable page
+   (progress report, feedback report) works; pages layer their own accent
+   colors on top. */
+@media print {
+  html, body, #root {
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    background: #fff !important;
+  }
+  body::before,
+  body::after {
+    display: none !important; /* scanline overlay — see comment above */
+  }
+  * {
+    color: #111 !important;
+    text-shadow: none !important;
+    box-shadow: none !important;
+  }
+  .text-primary { color: #1a7a2e !important; }
+  .text-accent { color: #b8860b !important; }
+  .text-yellow-500 { color: #b8860b !important; }
+  .text-muted-foreground { color: #555 !important; }
+  .text-destructive { color: #c0392b !important; }
+  .bg-card, .bg-background, .bg-muted\/40 { background: #fff !important; }
+  .bg-primary { background: #1a7a2e !important; } /* progress bars */
+  .border-border { border-color: #bbb !important; }
+  .divide-border > * { border-color: #ccc !important; }
+}
